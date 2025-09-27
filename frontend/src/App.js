@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Container } from 'react-bootstrap';
 import { library } from '@fortawesome/fontawesome-svg-core';
@@ -11,27 +11,71 @@ import PatientDashboard from './components/Dashboard/PatientDashboard';
 import DoctorDashboard from './components/Dashboard/DoctorDashboard';
 import CaregiverDashboard from './components/Dashboard/CaregiverDashboard';
 import Navbar from './components/Common/Navbar';
+import Sidebar from './components/Common/Sidebar';
 import ProtectedRoute from './components/Common/ProtectedRoute';
 import AuthProvider from './context/AuthContext';
 
 import MedicationManagement from './components/Medications/MedicationManagement';
 import CaregiverMarketplace from './components/Caregivers/CaregiverMarketplace';
-import SharedHealthDashboard from './components/HealthDashboard/SharedHealthDashboard';
+import PatientHealthDashboard from './components/HealthDashboard/PatientHealthDashboard';
 import ProfileManagement from './components/Profile/ProfileManagement';
+import PatientListPage from './pages/PatientListPage';
+import AppointmentsPage from './pages/AppointmentsPage';
+import RequestsPage from './pages/RequestsPage';
+import VideoConsultation from './components/VideoCall/VideoConsultation';
 import './App.css';
+import HomePage from './pages/HomePage';
+import { useAuth } from './context/AuthContext';
+import { useLocation } from 'react-router-dom';
+import './styles/sidebar.css';
 
 // Add FontAwesome icons
 library.add(fas);
 
 function App() {
+  // Helper component to decide what to render at root based on auth
+  const RootRoute = () => {
+    const { user } = useAuth();
+    if (user) {
+      const roleMap = { patient: '/patient-dashboard', doctor: '/doctor-dashboard', caregiver: '/caregiver-dashboard' };
+      return <Navigate to={roleMap[user.role] || '/patient-dashboard'} replace />;
+    }
+    return <HomePage />;
+  };
+
+  // Component controlling top nav vs sidebar
+  const RouteDecider = ({ onHamburger }) => {
+    const { user } = useAuth();
+    const location = useLocation();
+    const publicPaths = ['/', '/login', '/register'];
+    const isPublic = publicPaths.includes(location.pathname);
+    if (user && !isPublic) {
+      // Provide minimal top bar only for mobile hamburger (could be improved later)
+      return (
+        <>
+          <button className="d-lg-none mobile-menu-btn" onClick={onHamburger} aria-label="Open menu">
+            ☰
+          </button>
+          <Sidebar mobileOpen={mobileOpen} onMobileClose={() => setMobileOpen(false)} />
+        </>
+      );
+    }
+    return <Navbar />;
+  };
+
+  const [mobileOpen, setMobileOpen] = useState(false);
+
   return (
     <AuthProvider>
       <Router>
-        <div className="App">
-          <Navbar />
-          <main className="main-content">
+        <div className="App app-layout">
+          {/* Decide if we are on a dashboard route to show sidebar instead of top navbar */}
+          <RouteDecider onHamburger={() => setMobileOpen(true)} />
+          {mobileOpen && <div className="sidebar-overlay d-lg-none" onClick={() => setMobileOpen(false)} aria-label="Close menu overlay" />}
+          <main className="main-content with-sidebar">
             <Container fluid>
               <Routes>
+                <Route path="/" element={<RootRoute />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
 
@@ -61,6 +105,62 @@ function App() {
                   }
                 />
 
+                {/* Caregiver Requests */}
+                <Route
+                  path="/requests"
+                  element={
+                    <ProtectedRoute requiredRole="caregiver">
+                      <RequestsPage />
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Video Calls */}
+                <Route
+                  path="/video-calls"
+                  element={
+                    <ProtectedRoute>
+                      <VideoConsultation />
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Appointments / Schedule */}
+                <Route
+                  path="/appointments"
+                  element={
+                    <ProtectedRoute>
+                      <AppointmentsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/schedule"
+                  element={
+                    <ProtectedRoute requiredRole="caregiver">
+                      <AppointmentsPage />
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Patient / Client list pages */}
+                <Route
+                  path="/patients"
+                  element={
+                    <ProtectedRoute requiredRole="doctor">
+                      <PatientListPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/clients"
+                  element={
+                    <ProtectedRoute requiredRole="caregiver">
+                      <PatientListPage />
+                    </ProtectedRoute>
+                  }
+                />
+
                 {/* Shared Routes - accessible by all authenticated users */}
                 <Route
                   path="/medications"
@@ -82,7 +182,8 @@ function App() {
                   path="/health-dashboard"
                   element={
                     <ProtectedRoute>
-                      <SharedHealthDashboard />
+                      {/* Patient specific dashboard now; keep shared for future multi-role usage */}
+                      <PatientHealthDashboard />
                     </ProtectedRoute>
                   }
                 />
@@ -95,8 +196,8 @@ function App() {
                   }
                 />
 
-                {/* Default route */}
-                <Route path="/" element={<Navigate to="/login" replace />} />
+                {/* Fallback unmatched routes */}
+                <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Container>
           </main>

@@ -1,47 +1,45 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Container, Row, Col, Card, Button, Table, Badge, ListGroup } from 'react-bootstrap';
+import QuickActionTile from '../Common/QuickActionTile';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { useAuth } from '../../context/AuthContext';
 
 const CaregiverDashboard = () => {
     const { user } = useAuth();
-    const [stats, setStats] = useState({
+    const [stats] = useState({
         activeClients: 12,
         todaySchedule: 4,
         pendingRequests: 6,
         monthlyEarnings: 2450
     });
 
-    const [todaySchedule, setTodaySchedule] = useState([
+    const [todaySchedule] = useState([
         { id: 1, time: '08:00 AM', client: 'Mrs. Anderson', service: 'Personal Care', location: '123 Oak St', status: 'completed' },
         { id: 2, time: '10:00 AM', client: 'Mr. Thompson', service: 'Medication Management', location: '456 Pine Ave', status: 'in-progress' },
         { id: 3, time: '02:00 PM', client: 'Mrs. Garcia', service: 'Companionship', location: '789 Maple Dr', status: 'scheduled' },
         { id: 4, time: '04:00 PM', client: 'Mr. Davis', service: 'Physical Therapy', location: '321 Elm St', status: 'scheduled' }
     ]);
 
-    const [serviceRequests, setServiceRequests] = useState([
+    const [serviceRequests] = useState([
         { id: 1, client: 'Johnson Family', service: 'Elder Care', duration: '3 months', rate: '$25/hour', urgent: true },
         { id: 2, client: 'Brown Family', service: 'Post-Surgery Care', duration: '2 weeks', rate: '$30/hour', urgent: false },
         { id: 3, client: 'Wilson Family', service: 'Companion Care', duration: '6 months', rate: '$22/hour', urgent: false }
     ]);
 
-    const [recentMessages, setRecentMessages] = useState([
+    const [recentMessages] = useState([
         { id: 1, from: 'Mrs. Anderson', message: 'Thank you for the excellent care yesterday!', time: '2 hours ago' },
         { id: 2, from: 'Thompson Family', message: 'Can we reschedule tomorrow\'s appointment?', time: '4 hours ago' },
         { id: 3, from: 'Care Coordinator', message: 'New client match available in your area', time: '1 day ago' }
     ]);
 
     const getStatusBadge = (status) => {
-        switch (status) {
-            case 'completed':
-                return <Badge bg="success">Completed</Badge>;
-            case 'in-progress':
-                return <Badge bg="warning">In Progress</Badge>;
-            case 'scheduled':
-                return <Badge bg="primary">Scheduled</Badge>;
-            default:
-                return <Badge bg="secondary">{status}</Badge>;
-        }
+        const map = {
+            completed: { label: 'Completed', className: 'soft-badge bg-success-subtle text-success-emphasis' },
+            'in-progress': { label: 'In Progress', className: 'soft-badge bg-warning-subtle text-warning-emphasis' },
+            scheduled: { label: 'Scheduled', className: 'soft-badge bg-primary-subtle text-primary-emphasis' }
+        };
+        const meta = map[status] || { label: status, className: 'soft-badge bg-secondary-subtle text-secondary-emphasis' };
+        return <span className={`badge rounded-pill ${meta.className}`}>{meta.label}</span>;
     };
 
     return (
@@ -108,9 +106,9 @@ const CaregiverDashboard = () => {
                                 <FontAwesomeIcon icon="calendar" className="me-2" />
                                 Today's Schedule
                             </span>
-                            <Button size="sm" variant="outline-primary">
+                            <Button size="sm" className="gradient-primary">
                                 <FontAwesomeIcon icon="route" className="me-1" />
-                                View Route
+                                Route
                             </Button>
                         </Card.Header>
                         <Card.Body>
@@ -127,21 +125,27 @@ const CaregiverDashboard = () => {
                                 </thead>
                                 <tbody>
                                     {todaySchedule.map((appointment) => (
-                                        <tr key={appointment.id}>
-                                            <td className="fw-bold">{appointment.time}</td>
+                                        <tr key={appointment.id} className="align-middle">
+                                            <td className="fw-bold text-nowrap">{appointment.time}</td>
                                             <td>{appointment.client}</td>
                                             <td>{appointment.service}</td>
-                                            <td>
-                                                <small>{appointment.location}</small>
-                                            </td>
+                                            <td><small className="text-muted">{appointment.location}</small></td>
                                             <td>{getStatusBadge(appointment.status)}</td>
                                             <td>
-                                                <Button size="sm" variant="outline-primary" className="me-1">
-                                                    <FontAwesomeIcon icon="map-marker-alt" />
-                                                </Button>
-                                                <Button size="sm" variant="outline-success">
-                                                    <FontAwesomeIcon icon="phone" />
-                                                </Button>
+                                                <div className="d-flex">
+                                                    <button
+                                                        className="icon-btn me-2"
+                                                        aria-label={`Open map for ${appointment.client}`}
+                                                    >
+                                                        <FontAwesomeIcon icon="map-marker-alt" />
+                                                    </button>
+                                                    <button
+                                                        className="icon-btn gradient-success"
+                                                        aria-label={`Call ${appointment.client}`}
+                                                    >
+                                                        <FontAwesomeIcon icon="phone" />
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}
@@ -160,9 +164,9 @@ const CaregiverDashboard = () => {
                         </Card.Header>
                         <Card.Body>
                             {recentMessages.map((message) => (
-                                <div key={message.id} className="d-flex align-items-start mb-3 p-2 rounded bg-light">
-                                    <div className="me-2">
-                                        <FontAwesomeIcon icon="user-circle" className="text-primary" size="lg" />
+                                <div key={message.id} className="activity-tile d-flex align-items-start mb-3 p-3 rounded">
+                                    <div className="me-3 activity-icon-wrapper">
+                                        <FontAwesomeIcon icon="user-circle" className="activity-icon text-primary" size="lg" />
                                     </div>
                                     <div className="flex-grow-1">
                                         <div className="fw-bold small">{message.from}</div>
@@ -190,28 +194,25 @@ const CaregiverDashboard = () => {
                         </Card.Header>
                         <Card.Body>
                             {serviceRequests.map((request) => (
-                                <Card key={request.id} className="mb-3 border">
+                                <Card key={request.id} className="mb-3 service-request-tile">
                                     <Card.Body>
-                                        <Row className="align-items-center">
+                                        <Row className="align-items-center g-3">
                                             <Col md={8}>
-                                                <div className="d-flex align-items-center mb-2">
+                                                <div className="d-flex align-items-center mb-2 flex-wrap">
                                                     <h6 className="mb-0 me-2">{request.client}</h6>
                                                     {request.urgent && (
-                                                        <Badge bg="danger" className="small">Urgent</Badge>
+                                                        <Badge bg="danger" className="soft-badge">Urgent</Badge>
                                                     )}
                                                 </div>
-                                                <p className="mb-1"><strong>Service:</strong> {request.service}</p>
-                                                <p className="mb-1"><strong>Duration:</strong> {request.duration}</p>
-                                                <p className="mb-0"><strong>Rate:</strong> {request.rate}</p>
+                                                <div className="small text-muted mb-1">{request.service} • {request.duration}</div>
+                                                <div className="fw-medium">Rate: {request.rate}</div>
                                             </Col>
                                             <Col md={4} className="text-end">
-                                                <Button variant="success" className="me-2">
-                                                    <FontAwesomeIcon icon="check" className="me-1" />
-                                                    Accept
+                                                <Button size="sm" className="gradient-success me-2">
+                                                    <FontAwesomeIcon icon="check" className="me-1" /> Accept
                                                 </Button>
-                                                <Button variant="outline-secondary">
-                                                    <FontAwesomeIcon icon="times" className="me-1" />
-                                                    Decline
+                                                <Button size="sm" variant="outline-secondary" className="text-muted">
+                                                    <FontAwesomeIcon icon="times" className="me-1" /> Decline
                                                 </Button>
                                             </Col>
                                         </Row>
@@ -231,23 +232,11 @@ const CaregiverDashboard = () => {
                             Quick Actions
                         </Card.Header>
                         <Card.Body>
-                            <div className="d-grid gap-2">
-                                <Button variant="primary">
-                                    <FontAwesomeIcon icon="clock" className="me-2" />
-                                    Clock In/Out
-                                </Button>
-                                <Button variant="success">
-                                    <FontAwesomeIcon icon="file-invoice" className="me-2" />
-                                    Submit Timesheet
-                                </Button>
-                                <Button variant="info">
-                                    <FontAwesomeIcon icon="calendar-plus" className="me-2" />
-                                    Update Availability
-                                </Button>
-                                <Button variant="warning">
-                                    <FontAwesomeIcon icon="star" className="me-2" />
-                                    Rate Client
-                                </Button>
+                            <div className="row g-3">
+                                <div className="col-6"><QuickActionTile icon="clock" label="Clock In/Out" accent="gradient-primary" /></div>
+                                <div className="col-6"><QuickActionTile icon="file-invoice" label="Timesheet" accent="gradient-success" /></div>
+                                <div className="col-6"><QuickActionTile icon="calendar-plus" label="Availability" accent="gradient-info" /></div>
+                                <div className="col-6"><QuickActionTile icon="star" label="Rate Client" accent="gradient-warning" /></div>
                             </div>
                         </Card.Body>
                     </Card>
@@ -285,9 +274,8 @@ const CaregiverDashboard = () => {
                                     <span>Elder Care</span>
                                 </ListGroup.Item>
                             </ListGroup>
-                            <Button variant="outline-primary" className="w-100 mt-3">
-                                <FontAwesomeIcon icon="edit" className="me-2" />
-                                Edit Profile
+                            <Button className="gradient-primary w-100 mt-3">
+                                <FontAwesomeIcon icon="edit" className="me-2" /> Edit Profile
                             </Button>
                         </Card.Body>
                     </Card>

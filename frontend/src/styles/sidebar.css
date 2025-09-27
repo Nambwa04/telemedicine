@@ -1,0 +1,198 @@
+/* Sidebar Styles */
+.app-layout {
+  display: flex;
+}
+.app-sidebar {
+  width: 240px;
+  background: #ffffff;
+  border-right: 1px solid var(--neutral-200);
+  min-height: 100vh;
+  position: fixed;
+  top: 0;
+  left: 0;
+  padding-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  z-index: 1040;
+}
+/* Collapsed state */
+.app-sidebar.collapsed {
+  width: 72px;
+}
+.app-sidebar .collapse-btn {
+  position: absolute;
+  top: 8px;
+  right: -14px;
+  background: #ffffff;
+  border: 1px solid var(--neutral-200);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  transition: background 0.25s;
+}
+body.dark-mode .app-sidebar .collapse-btn {
+  background: #1e293b;
+  border-color: #334155;
+}
+.app-sidebar .collapse-btn:hover {
+  background: #f1f5f9;
+}
+body.dark-mode .app-sidebar .collapse-btn:hover {
+  background: #24324a;
+}
+
+.app-sidebar.collapsed .nav-label,
+.app-sidebar.collapsed .sidebar-section-title,
+.app-sidebar.collapsed .sidebar-footer .nav-label,
+.app-sidebar.collapsed .brand span {
+  display: none;
+}
+.app-sidebar.collapsed .nav-item {
+  justify-content: center;
+}
+.app-sidebar.collapsed .nav-item .me-2 {
+  margin-right: 0 !important;
+}
+
+/* Adjust content margin when collapsed (JS can toggle a body class if needed; using sibling selector alternative) */
+.with-sidebar {
+  margin-left: 240px;
+  transition: margin-left 0.25s;
+}
+body.sidebar-collapsed .with-sidebar {
+  margin-left: 72px;
+}
+/* If we add a collapsed class to sidebar, we can reduce margin dynamically using attribute selector with sibling combinator not directly possible; recommend JS adjustment later */
+
+body.dark-mode .app-sidebar {
+  background: #1e293b;
+  border-color: #334155;
+}
+.sidebar-header {
+  padding: 0 1rem 1rem 1rem;
+}
+.sidebar-header .brand {
+  font-weight: 700;
+  font-size: 1.05rem;
+  display: flex;
+  align-items: center;
+  color: var(--primary-color);
+  cursor: pointer;
+}
+body.dark-mode .sidebar-header .brand {
+  color: #7aaef0;
+}
+.sidebar-nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 0.5rem 1rem 0.5rem;
+}
+.sidebar-nav .nav-item {
+  display: flex;
+  align-items: center;
+  padding: 0.65rem 0.9rem;
+  margin: 0.15rem 0;
+  border-radius: 10px;
+  color: #475569;
+  font-size: 0.9rem;
+  text-decoration: none;
+  transition: background 0.25s, color 0.25s;
+}
+.sidebar-nav .nav-item:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+}
+.sidebar-nav .nav-item.active {
+  background: linear-gradient(90deg, #2c5aa0, #0056b3);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+body.dark-mode .sidebar-nav .nav-item {
+  color: #cbd5e1;
+}
+body.dark-mode .sidebar-nav .nav-item:hover {
+  background: #24324a;
+  color: #fff;
+}
+body.dark-mode .sidebar-nav .nav-item.active {
+  background: linear-gradient(90deg, #1e3a8a, #1e40af);
+}
+.nav-item.btn-reset {
+  background: none;
+  border: none;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+.sidebar-section-title {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08rem;
+  font-weight: 600;
+  color: #64748b;
+  padding: 0.75rem 0.9rem 0.25rem;
+}
+body.dark-mode .sidebar-section-title {
+  color: #94a3b8;
+}
+.sidebar-footer {
+  border-top: 1px solid var(--neutral-200);
+}
+body.dark-mode .sidebar-footer {
+  border-top-color: #334155;
+}
+
+.mobile-menu-btn {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 1100;
+  background: #ffffff;
+  border: 1px solid var(--neutral-200);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+body.dark-mode .mobile-menu-btn {
+  background: #1e293b;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+@media (min-width: 992px) {
+  .mobile-menu-btn {
+    display: none;
+  }
+}
+
+/* Adjust main content when sidebar present */
+.with-sidebar {
+  margin-left: 240px;
+}
+@media (max-width: 991px) {
+  .app-sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.35s ease;
+  }
+  .app-sidebar.open {
+    transform: translateX(0);
+  }
+  .with-sidebar {
+    margin-left: 0;
+  }
+  body.sidebar-collapsed .with-sidebar {
+    margin-left: 0;
+  }
+  .sidebar-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 1035;
+    backdrop-filter: blur(2px);
+  }
+}

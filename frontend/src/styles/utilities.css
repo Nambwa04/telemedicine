@@ -1,0 +1,243 @@
+/* Shared utility classes extracted for reuse across dashboards */
+
+/* Tile base */
+.tile-base {
+  background: #ffffff;
+  border: 1px solid var(--neutral-200);
+  border-radius: 16px;
+  transition: box-shadow 0.25s ease, transform 0.25s ease;
+}
+.tile-base:hover {
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+  transform: translateY(-3px);
+}
+
+/* Activity tile */
+.activity-tile {
+  background: #fff;
+  border: 1px solid var(--neutral-200);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+}
+.activity-icon-wrapper .activity-icon {
+  font-size: 1.05rem;
+}
+.activity-icon.appointment {
+  color: var(--primary-color);
+}
+.activity-icon.medication {
+  color: var(--success-color);
+}
+.activity-icon.alert {
+  color: var(--danger-color);
+}
+
+/* Schedule tile */
+.schedule-tile {
+  background: linear-gradient(135deg, #ffffff, #f7faff);
+  border: 1px solid var(--neutral-200);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+/* Metric tile */
+.metric-tile {
+  background: #fff;
+  border: 1px solid var(--neutral-200);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.05);
+}
+.metric-icon {
+  font-size: 1.25rem;
+}
+
+/* Service request tile */
+.service-request-tile {
+  border: 1px solid var(--neutral-200);
+  background: #fff;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.05);
+  border-radius: 16px;
+}
+
+/* Quick action tile (base) */
+.quick-action-tile {
+  position: relative;
+  cursor: pointer;
+  padding: 1.15rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  border: 1px solid var(--neutral-200);
+  text-align: center;
+  min-height: 120px;
+  user-select: none;
+  outline: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+.quick-action-tile .icon {
+  font-size: 1.25rem;
+  margin-bottom: 0.35rem;
+}
+.quick-action-tile .label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08rem;
+  text-transform: uppercase;
+}
+.quick-action-tile:hover,
+.quick-action-tile:focus-visible {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+}
+.quick-action-tile:active {
+  transform: translateY(-1px);
+}
+
+/* Gradient helper modifiers (reuse existing gradient button concept) */
+.gradient-primary {
+  background: linear-gradient(90deg, #2c5aa0, #0056b3);
+  color: #fff !important;
+  border: none;
+}
+.gradient-success {
+  background: linear-gradient(90deg, #28a745, #20c997);
+  color: #fff !important;
+  border: none;
+}
+.gradient-info {
+  background: linear-gradient(90deg, #17a2b8, #2c5aa0);
+  color: #fff !important;
+  border: none;
+}
+.gradient-warning {
+  background: linear-gradient(90deg, #ffc107, #ff8800);
+  color: #fff !important;
+  border: none;
+}
+.gradient-secondary {
+  background: linear-gradient(90deg, #475569, #64748b);
+  color: #fff !important;
+  border: none;
+}
+.gradient-danger {
+  background: linear-gradient(90deg, #dc3545, #b3001b);
+  color: #fff !important;
+  border: none;
+}
+
+/* Soft badge base (can wrap bootstrap badge) */
+.soft-badge {
+  font-size: 0.6rem;
+  letter-spacing: 0.05rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 0.4rem 0.55rem;
+  border-radius: 50rem;
+}
+
+/* Icon button utility */
+.icon-btn {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--neutral-200);
+  border-radius: 10px;
+  background: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--neutral-600);
+  transition: all 0.22s ease;
+}
+.icon-btn:hover {
+  background: #fff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+}
+.icon-btn:active {
+  transform: translateY(0);
+}
+
+/* Dark mode adjustments (will be active under body.dark-mode) */
+body.dark-mode {
+  background: #111827;
+  color: #e2e8f0;
+}
+body.dark-mode .medical-card,
+body.dark-mode .stat-card,
+body.dark-mode .tile-base,
+body.dark-mode .quick-action-tile,
+body.dark-mode .patient-tile,
+body.dark-mode .task-tile,
+body.dark-mode .service-request-tile,
+body.dark-mode .activity-tile,
+body.dark-mode .schedule-tile,
+body.dark-mode .metric-tile {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+}
+body.dark-mode .card-header {
+  background: linear-gradient(90deg, #1e293b, #24324a) !important;
+  border-color: #334155 !important;
+}
+body.dark-mode .navbar {
+  background: #1e293b !important;
+}
+body.dark-mode .table {
+  color: #e2e8f0;
+}
+body.dark-mode .table thead {
+  background: #24324a;
+}
+body.dark-mode .badge-soft-primary {
+  background: rgba(44, 90, 160, 0.25);
+  color: #7aaef0;
+}
+body.dark-mode .badge-soft-success {
+  background: rgba(40, 167, 69, 0.25);
+  color: #6fd08d;
+}
+body.dark-mode .badge-soft-warning {
+  background: rgba(255, 193, 7, 0.25);
+  color: #ffd666;
+}
+body.dark-mode .badge-soft-danger {
+  background: rgba(220, 53, 69, 0.25);
+  color: #ff99a5;
+}
+body.dark-mode .badge-soft-info {
+  background: rgba(23, 162, 184, 0.25);
+  color: #7ed6e3;
+}
+body.dark-mode .badge-soft-secondary {
+  background: rgba(71, 85, 105, 0.35);
+  color: #a1b3c9;
+}
+body.dark-mode .quick-action-tile {
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
+}
+body.dark-mode .quick-action-tile:hover {
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.7);
+}
+body.dark-mode .icon-btn {
+  background: #24324a;
+  border-color: #334155;
+  color: #a1b3c9;
+}
+body.dark-mode .icon-btn:hover {
+  background: #2f3d55;
+}
+
+/* Scrollbar refinement in dark mode */
+body.dark-mode ::-webkit-scrollbar {
+  width: 10px;
+}
+body.dark-mode ::-webkit-scrollbar-track {
+  background: #1e293b;
+}
+body.dark-mode ::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 8px;
+}
+body.dark-mode ::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
