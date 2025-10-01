@@ -1,6 +1,13 @@
 import os
 from pathlib import Path
 from datetime import timedelta
+import os
+from dotenv import load_dotenv
+
+# Load .env early
+ENV_PATH = Path(__file__).resolve().parent.parent / '.env'
+if ENV_PATH.exists():
+    load_dotenv(ENV_PATH)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -56,12 +63,37 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'telemed.wsgi.application'
 
+'''
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
+'''
+def _postgres_config_complete():
+    required = ['POSTGRES_DB', 'POSTGRES_USER', 'POSTGRES_PASSWORD', 'POSTGRES_HOST', 'POSTGRES_PORT']
+    return all(os.environ.get(k) for k in required)
+
+if _postgres_config_complete():
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.environ['POSTGRES_DB'],
+            'USER': os.environ['POSTGRES_USER'],
+            'PASSWORD': os.environ['POSTGRES_PASSWORD'],
+            'HOST': os.environ.get('POSTGRES_HOST', 'localhost'),
+            'PORT': os.environ.get('POSTGRES_PORT', '5432'),
+        }
+    }
+else:
+    # Fallback to SQLite for local/dev if env vars not set
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 AUTH_USER_MODEL = 'accounts.User'
 
