@@ -1,42 +1,16 @@
 import React, { useState, useEffect } from 'react';
+import { listAppointments } from '../../services/appointmentService';
 import { Container, Row, Col, Card, Button, Modal, Form, Table, Badge, Alert } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 
 const AppointmentManagement = ({ userRole = 'patient' }) => {
-    const [appointments, setAppointments] = useState([
-        {
-            id: 1,
-            date: new Date(2025, 8, 26), // Sept 26, 2025
-            time: '10:00 AM',
-            doctor: 'Dr. Sarah Johnson',
-            patient: 'John Doe',
-            type: 'Consultation',
-            status: 'scheduled',
-            specialization: 'Cardiology'
-        },
-        {
-            id: 2,
-            date: new Date(2025, 8, 27), // Sept 27, 2025
-            time: '2:00 PM',
-            doctor: 'Dr. Michael Brown',
-            patient: 'Jane Smith',
-            type: 'Follow-up',
-            status: 'completed',
-            specialization: 'General Medicine'
-        },
-        {
-            id: 3,
-            date: new Date(2025, 8, 28), // Sept 28, 2025
-            time: '11:30 AM',
-            doctor: 'Dr. Lisa Chen',
-            patient: 'Bob Wilson',
-            type: 'Consultation',
-            status: 'cancelled',
-            specialization: 'Dermatology'
-        }
-    ]);
+    const [appointments, setAppointments] = useState([]);
+    const [page, setPage] = useState(1);
+    const [meta, setMeta] = useState({ count: 0, next: null, previous: null });
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
 
     const [showModal, setShowModal] = useState(false);
     const [selectedDate, setSelectedDate] = useState(new Date());
@@ -141,6 +115,32 @@ const AppointmentManagement = ({ userRole = 'patient' }) => {
         setShowModal(false);
     };
 
+    const fetchData = async () => {
+        try {
+            setLoading(true);
+            setError(null);
+            const dateFilter = null; // could derive from selectedDate if desired
+            const { items, meta } = await listAppointments({ date: dateFilter, page });
+            // Normalize date/time for display
+            const normalized = items.map(a => ({
+                ...a,
+                date: new Date(a.date),
+                time: a.time,
+                doctor: a.doctor?.first_name || a.doctor?.email || a.doctor || 'Doctor',
+                patient: a.patient?.first_name || a.patient?.email || a.patient || 'Patient',
+                specialization: a.type || 'General'
+            }));
+            setAppointments(normalized);
+            setMeta(meta);
+        } catch (e) {
+            setError(e.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => { fetchData(); }, [page]);
+
     const tileContent = ({ date, view }) => {
         if (view === 'month') {
             const dayAppointments = appointments.filter(apt =>
@@ -155,6 +155,8 @@ const AppointmentManagement = ({ userRole = 'patient' }) => {
             }
         }
     };
+
+    const totalPages = meta.count ? Math.ceil(meta.count / 25) : 1;
 
     return (
         <Container fluid className="fade-in">
@@ -208,7 +210,16 @@ const AppointmentManagement = ({ userRole = 'patient' }) => {
                             {userRole === 'doctor' ? 'My Schedule' : 'My Appointments'}
                         </Card.Header>
                         <Card.Body>
-                            {appointments.length === 0 ? (
+                            {error && (
+                                <Alert variant="danger" className="d-flex align-items-center">
+                                    <FontAwesomeIcon icon="exclamation-circle" className="me-2" />
+                                    {error}
+                                </Alert>
+                            )}
+                            {loading && (
+                                <div className="mb-3"><em>Loading appointments...</em></div>
+                            )}
+                            {!loading && appointments.length === 0 ? (
                                 <Alert variant="info">
                                     <FontAwesomeIcon icon="info-circle" className="me-2" />
                                     No appointments scheduled.
@@ -278,6 +289,14 @@ const AppointmentManagement = ({ userRole = 'patient' }) => {
                                     </tbody>
                                 </Table>
                             )}
+                            <div className="d-flex justify-content-between align-items-center mt-2">
+                                <small className="text-muted">Total: {meta.count}</small>
+                                <div>
+                                    <Button size="sm" variant="outline-secondary" className="me-2" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Prev</Button>
+                                    <span className="me-2">Page {page} / {totalPages}</span>
+                                    <Button size="sm" variant="outline-secondary" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>Next</Button>
+                                </div>
+                            </div>
                         </Card.Body>
                     </Card>
                 </Col>

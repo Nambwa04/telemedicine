@@ -17,7 +17,10 @@ const PatientListPage = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [query, setQuery] = useState('');
+    const [serverQuery, setServerQuery] = useState('');
+    const [searchLoading, setSearchLoading] = useState(false);
 
+    // Initial load
     useEffect(() => {
         let mounted = true;
         (async () => {
@@ -33,14 +36,34 @@ const PatientListPage = () => {
         return () => { mounted = false; };
     }, []);
 
+    // Debounced server-side search
+    useEffect(() => {
+        if (!query.trim()) {
+            setServerQuery('');
+            return; // rely on initial list
+        }
+        const handle = setTimeout(async () => {
+            setSearchLoading(true);
+            try {
+                const list = await fetchPatientList(query.trim());
+                setPatients(list);
+                setServerQuery(query.trim());
+            } catch (e) {
+                setError('Search failed');
+            } finally {
+                setSearchLoading(false);
+            }
+        }, 400);
+        return () => clearTimeout(handle);
+    }, [query]);
+
+    // When serverQuery active, list already filtered server side; fallback to local filter for empty serverQuery
     const filtered = useMemo(() => {
+        if (serverQuery) return patients;
         const q = query.trim().toLowerCase();
         if (!q) return patients;
-        return patients.filter(p =>
-            p.name.toLowerCase().includes(q) ||
-            (p.condition && p.condition.toLowerCase().includes(q))
-        );
-    }, [patients, query]);
+        return patients.filter(p => p.name.toLowerCase().includes(q));
+    }, [patients, query, serverQuery]);
 
     const openDashboard = (id) => {
         navigate(`/health-dashboard?patientId=${id}`);
@@ -65,10 +88,12 @@ const PatientListPage = () => {
                             value={query}
                             onChange={e => setQuery(e.target.value)}
                             className="border-0"
+                            aria-label={`Search ${heading}`}
                         />
                         {query && (
                             <Button variant="outline-secondary" onClick={() => setQuery('')} aria-label="Clear search">Clear</Button>
                         )}
+                        {searchLoading && <InputGroup.Text className="bg-transparent border-0"><Spinner animation="border" size="sm" /></InputGroup.Text>}
                     </InputGroup>
                 </Col>
             </Row>

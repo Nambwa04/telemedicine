@@ -79,13 +79,8 @@ const Register = () => {
         });
 
         if (result.success) {
-            // Navigate to appropriate dashboard based on role
-            const dashboardMap = {
-                'patient': '/patient-dashboard',
-                'doctor': '/doctor-dashboard',
-                'caregiver': '/caregiver-dashboard'
-            };
-            navigate(dashboardMap[formData.role]);
+            // Navigate to login page with success message
+            navigate('/login', { state: { registered: true, email: formData.email } });
         } else {
             setError(result.error || 'Registration failed. Please try again.');
         }

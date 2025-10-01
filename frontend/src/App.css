@@ -42,31 +42,42 @@ body {
   --neutral-600: #475569;
   --gradient-primary: linear-gradient(90deg, #2c5aa0, #0056b3);
   --gradient-accent: linear-gradient(135deg, #20c997, #2c5aa0);
+  /* Extended blue palette for auth pages */
+  --blue-50: #eff6ff;
+  --blue-100: #dbeafe;
+  --blue-200: #bfdbfe;
+  --blue-300: #93c5fd;
+  --blue-400: #60a5fa;
+  --blue-500: #3b82f6;
+  --blue-600: #2563eb;
+  --blue-700: #1d4ed8;
+  --blue-800: #1e40af;
+  --blue-900: #0a2540; /* Deep navy */
+  --auth-bg-gradient: linear-gradient(
+    135deg,
+    var(--blue-900) 0%,
+    var(--blue-700) 50%,
+    var(--blue-600) 100%
+  );
 }
 
 /* Custom Button Styles */
 .btn-medical {
-  background: linear-gradient(
-    135deg,
-    var(--primary-color),
-    var(--medical-blue)
-  );
+  background: linear-gradient(135deg, var(--blue-700), var(--blue-500));
   border: none;
-  color: white;
+  color: #fff;
   padding: 10px 20px;
-  border-radius: 8px;
-  font-weight: 500;
-  transition: all 0.3s ease;
+  border-radius: 10px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  transition: all 0.35s ease;
+  box-shadow: 0 4px 14px rgba(29, 78, 216, 0.35);
 }
 
 .btn-medical:hover {
-  background: linear-gradient(
-    135deg,
-    var(--medical-blue),
-    var(--primary-color)
-  );
+  background: linear-gradient(135deg, var(--blue-600), var(--blue-500));
   transform: translateY(-2px);
-  box-shadow: 0 4px 15px rgba(44, 90, 160, 0.3);
+  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.45);
 }
 
 /* Authentication Pages */
@@ -75,16 +86,58 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--auth-bg-gradient);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Subtle animated overlay speckles */
+.auth-container::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+      circle at 20% 30%,
+      rgba(255, 255, 255, 0.15),
+      transparent 60%
+    ),
+    radial-gradient(
+      circle at 80% 70%,
+      rgba(255, 255, 255, 0.12),
+      transparent 65%
+    );
+  pointer-events: none;
+  mix-blend-mode: overlay;
+  opacity: 0.55;
 }
 
 .auth-card {
-  background: white;
-  border-radius: 20px;
-  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
-  padding: 40px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  border-radius: 22px;
+  box-shadow: 0 18px 42px -8px rgba(0, 35, 82, 0.35),
+    0 4px 10px rgba(0, 0, 0, 0.06);
+  padding: 44px 42px 38px;
   width: 100%;
-  max-width: 450px;
+  max-width: 460px;
+  position: relative;
+}
+
+.auth-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.7),
+    rgba(96, 165, 250, 0.35) 35%,
+    rgba(29, 78, 216, 0.4)
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
 }
 
 .auth-header {
@@ -93,15 +146,18 @@ body {
 }
 
 .auth-title {
-  color: var(--primary-color);
+  color: var(--blue-700);
   margin-bottom: 10px;
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: 0.5px;
 }
 
 .auth-subtitle {
-  color: #6c757d;
+  color: var(--blue-600);
   margin: 0;
-  font-size: 0.95rem;
+  font-size: 0.92rem;
+  font-weight: 500;
+  letter-spacing: 0.25px;
 }
 
 /* Role Selector Styles */
@@ -115,47 +171,46 @@ body {
   padding: 15px 20px;
   border: 2px solid #e9ecef;
   border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  background: white;
-  margin-bottom: 10px;
-  position: relative;
-  overflow: hidden;
-}
-
-.role-option:hover {
-  border-color: var(--primary-color);
-  transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(44, 90, 160, 0.15);
-}
-
-.role-option.selected {
-  border-color: var(--primary-color);
-  background: linear-gradient(135deg, #f8f9ff, #e6f3ff);
-  box-shadow: 0 5px 20px rgba(44, 90, 160, 0.2);
-  transform: translateY(-1px);
-}
-
-.role-option.selected::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 4px;
-  height: 100%;
-  background: linear-gradient(
-    to bottom,
-    var(--primary-color),
-    var(--medical-blue)
-  );
-}
-
-.role-option.selected .role-icon {
-  color: var(--primary-color);
-  transform: scale(1.1);
-}
-
-.role-icon {
+  .role-option {
+    display: flex;
+    align-items: center;
+    padding: 15px 20px;
+    border: 2px solid var(--blue-100);
+    border-radius: 14px;
+    cursor: pointer;
+    transition: all 0.35s ease;
+    background: #ffffff;
+    margin-bottom: 10px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.03);
+  }
+  .role-option:hover {
+    border-color: var(--blue-400);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px -6px rgba(37, 99, 235, 0.35);
+  }
+  .role-option.selected {
+    border-color: var(--blue-600);
+    background: linear-gradient(135deg, var(--blue-50), var(--blue-100));
+    box-shadow: 0 10px 26px -8px rgba(10, 37, 64, 0.4),
+      0 4px 12px rgba(37, 99, 235, 0.25);
+    transform: translateY(-2px);
+  }
+  .role-option.selected::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 5px;
+    height: 100%;
+    background: linear-gradient(to bottom, var(--blue-600), var(--blue-400));
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.15) inset;
+  }
+  .role-option.selected .role-icon {
+    color: var(--blue-600);
+    transform: scale(1.08);
+  }
   font-size: 1.5rem;
   margin-right: 15px;
   color: #6c757d;
@@ -176,7 +231,7 @@ body {
 }
 
 .role-option.selected .role-title {
-  color: var(--primary-color);
+  color: var(--blue-700);
 }
 
 .role-description {
@@ -186,35 +241,20 @@ body {
 }
 
 .role-option.selected .role-description {
-  color: #495057;
+  color: var(--blue-600);
 }
 
-/* Role-specific color themes */
-.role-option[data-role="patient"].selected {
-  background: linear-gradient(135deg, #f0f8ff, #e6f3ff);
-  border-color: #007bff;
-}
-
-.role-option[data-role="patient"].selected .role-icon {
-  color: #007bff;
-}
-
-.role-option[data-role="doctor"].selected {
-  background: linear-gradient(135deg, #f0fff4, #e6ffed);
-  border-color: #28a745;
-}
-
-.role-option[data-role="doctor"].selected .role-icon {
-  color: #28a745;
-}
-
+/* Unified blue-themed role styling overrides (role-specific variance removed for consistent brand) */
+.role-option[data-role="patient"].selected,
+.role-option[data-role="doctor"].selected,
 .role-option[data-role="caregiver"].selected {
-  background: linear-gradient(135deg, #fff5f5, #ffe6e6);
-  border-color: #17a2b8;
+  background: linear-gradient(135deg, var(--blue-50), var(--blue-100));
+  border-color: var(--blue-600);
 }
-
+.role-option[data-role="patient"].selected .role-icon,
+.role-option[data-role="doctor"].selected .role-icon,
 .role-option[data-role="caregiver"].selected .role-icon {
-  color: #17a2b8;
+  color: var(--blue-600);
 }
 
 /* Form Controls */
@@ -227,8 +267,8 @@ body {
 }
 
 .form-control:focus {
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 0.2rem rgba(44, 90, 160, 0.25);
+  border-color: var(--blue-600);
+  box-shadow: 0 0 0 0.22rem rgba(37, 99, 235, 0.28);
 }
 
 .alert-custom {

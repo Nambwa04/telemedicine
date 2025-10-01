@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Form, Button, Card, Alert, Spinner } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
 const Login = () => {
@@ -11,9 +11,17 @@ const Login = () => {
         role: 'patient'
     });
     const [error, setError] = useState('');
+    const [info, setInfo] = useState('');
     const [loading, setLoading] = useState(false);
     const { login } = useAuth();
     const navigate = useNavigate();
+    const location = useLocation();
+
+    useEffect(() => {
+        if (location.state?.registered) {
+            setInfo(`Account created successfully. You can now login${location.state.email ? ' with ' + location.state.email : ''}.`);
+        }
+    }, [location.state]);
 
     const roles = [
         { value: 'patient', label: 'Patient', icon: 'user', description: 'Access your health records and appointments' },
@@ -23,44 +31,30 @@ const Login = () => {
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
-        setFormData(prev => ({
-            ...prev,
-            [name]: value
-        }));
+        setFormData(prev => ({ ...prev, [name]: value }));
     };
 
     const handleRoleSelect = (role) => {
-        setFormData(prev => ({
-            ...prev,
-            role
-        }));
+        setFormData(prev => ({ ...prev, role }));
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
         setLoading(true);
-
-        const result = await login({
-            email: formData.email,
-            password: formData.password,
-            role: formData.role,
-            name: formData.email.split('@')[0] // Extract name from email for demo
-        });
-
+        const result = await login({ email: formData.email, password: formData.password });
+        setLoading(false);
         if (result.success) {
-            // Navigate to appropriate dashboard based on role
+            const userRole = result.user.role; // authoritative role from backend
             const dashboardMap = {
                 'patient': '/patient-dashboard',
                 'doctor': '/doctor-dashboard',
                 'caregiver': '/caregiver-dashboard'
             };
-            navigate(dashboardMap[formData.role]);
+            navigate(dashboardMap[userRole] || '/');
         } else {
             setError(result.error || 'Login failed. Please try again.');
         }
-
-        setLoading(false);
     };
 
     return (
@@ -73,6 +67,13 @@ const Login = () => {
                     </h2>
                     <p className="auth-subtitle">Sign in to access your TeleMed+ account</p>
                 </div>
+
+                {info && (
+                    <Alert variant="success" className="alert-custom">
+                        <FontAwesomeIcon icon="check-circle" className="me-2" />
+                        {info}
+                    </Alert>
+                )}
 
                 {error && (
                     <Alert variant="danger" className="alert-custom">
@@ -148,12 +149,12 @@ const Login = () => {
                         {loading ? (
                             <>
                                 <Spinner animation="border" size="sm" className="me-2" />
-                                Signing in as {roles.find(r => r.value === formData.role)?.label}...
+                                Signing in...
                             </>
                         ) : (
                             <>
                                 <FontAwesomeIcon icon="sign-in-alt" className="me-2" />
-                                Sign In as {roles.find(r => r.value === formData.role)?.label}
+                                Sign In
                             </>
                         )}
                     </Button>
