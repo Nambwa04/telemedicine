@@ -7,8 +7,10 @@ class CareRequest(models.Model):
     STATUS_CHOICES = [
         ('new', 'New'),
         ('accepted', 'Accepted'),
+        ('in-progress', 'In Progress'),
         ('completed', 'Completed'),
         ('cancelled', 'Cancelled'),
+        ('declined', 'Declined'),
     ]
     family = models.CharField(max_length=255)
     service = models.CharField(max_length=255)

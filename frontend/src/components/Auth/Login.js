@@ -7,8 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 const Login = () => {
     const [formData, setFormData] = useState({
         email: '',
-        password: '',
-        role: 'patient'
+        password: ''
     });
     const [error, setError] = useState('');
     const [info, setInfo] = useState('');
@@ -23,19 +22,9 @@ const Login = () => {
         }
     }, [location.state]);
 
-    const roles = [
-        { value: 'patient', label: 'Patient', icon: 'user', description: 'Access your health records and appointments' },
-        { value: 'doctor', label: 'Doctor', icon: 'user-md', description: 'Manage patients and consultations' },
-        { value: 'caregiver', label: 'Caregiver', icon: 'user-nurse', description: 'Provide care services' }
-    ];
-
     const handleInputChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
-    };
-
-    const handleRoleSelect = (role) => {
-        setFormData(prev => ({ ...prev, role }));
     };
 
     const handleSubmit = async (e) => {
@@ -83,31 +72,6 @@ const Login = () => {
                 )}
 
                 <Form onSubmit={handleSubmit}>
-                    {/* Role Selection */}
-                    <div className="role-selector">
-                        <Form.Label className="fw-semibold mb-3">I am a:</Form.Label>
-                        <div className="row">
-                            {roles.map((role) => (
-                                <div key={role.value} className="col-12 mb-2">
-                                    <div
-                                        className={`role-option ${formData.role === role.value ? 'selected' : ''}`}
-                                        data-role={role.value}
-                                        onClick={() => handleRoleSelect(role.value)}
-                                        style={{ cursor: 'pointer' }}
-                                    >
-                                        <FontAwesomeIcon icon={role.icon} className="role-icon" />
-                                        <div className="role-text">
-                                            <div className="role-title">{role.label}</div>
-                                            <div className="role-description">{role.description}</div>
-                                        </div>
-                                        {formData.role === role.value && (
-                                            <FontAwesomeIcon icon="check-circle" className="text-primary ms-2" />
-                                        )}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
 
                     <Form.Group className="mb-3">
                         <Form.Label>

@@ -3,10 +3,10 @@ import { Container, Row, Col, Card, Button, Form, InputGroup, Badge, Modal, Tabl
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 
 const CaregiverMarketplace = ({ userRole = 'patient' }) => {
-    const [caregivers, setCaregivers] = useState([
+    const [caregivers] = useState([
         {
             id: 1,
-            name: 'Sarah Johnson',
+            name: 'Sarah Wangeci',
             photo: null,
             specializations: ['Elder Care', 'Alzheimer Care', 'Medication Management'],
             experience: 8,
@@ -24,7 +24,7 @@ const CaregiverMarketplace = ({ userRole = 'patient' }) => {
         },
         {
             id: 2,
-            name: 'Michael Rodriguez',
+            name: 'Michael Otieno',
             photo: null,
             specializations: ['Physical Therapy', 'Post-Surgery Care', 'Mobility Assistance'],
             experience: 6,
@@ -42,7 +42,7 @@ const CaregiverMarketplace = ({ userRole = 'patient' }) => {
         },
         {
             id: 3,
-            name: 'Emily Chen',
+            name: 'Emily Mathenge',
             photo: null,
             specializations: ['Companion Care', 'Light Housekeeping', 'Meal Preparation'],
             experience: 4,

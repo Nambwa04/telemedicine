@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
-const API_BASE = process.env.REACT_APP_API_BASE || 'http://127.0.0.1:8000/api';
+import API_BASE from '../config';
 
 const AuthContext = createContext();
 
@@ -97,21 +97,28 @@ const AuthProvider = ({ children }) => {
         }
     };
 
-    const register = async ({ email, role, password, username }) => {
+    const register = async ({ email, role, password, username, first_name, last_name, primary_condition }) => {
         setAuthError(null);
         try {
             setLoading(true);
             const res = await fetch(`${API_BASE}/accounts/register/`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, role, password, username: username || email.split('@')[0] })
+                body: JSON.stringify({
+                    email,
+                    role,
+                    password,
+                    username: username || email.split('@')[0],
+                    first_name: first_name || '',
+                    last_name: last_name || '',
+                    primary_condition: primary_condition || ''
+                })
             });
             if (!res.ok) {
                 let msg = 'Registration failed';
                 try { const errJson = await res.json(); msg = errJson.detail || msg; } catch { /* ignore */ }
                 throw new Error(msg);
             }
-            // Do NOT auto login now; caller will redirect to /login
             setLoading(false);
             return { success: true };
         } catch (error) {

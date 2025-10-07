@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { Container, Row, Col, Card, Table, Button, Form, Spinner, Alert, Modal, InputGroup } from 'react-bootstrap';
 import { useAuth } from '../context/AuthContext';
 import { listAppointments, createAppointment, updateAppointment, cancelAppointment, deleteAppointment } from '../services/appointmentService';
-import { fetchPatientList } from '../services/healthService';
+import { fetchPatientList, fetchDoctorList } from '../services/healthService';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { useNavigate } from 'react-router-dom';
 import { getStatusMeta } from '../utils/statusStyles';
@@ -16,6 +16,9 @@ const AppointmentsPage = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [patients, setPatients] = useState([]);
+    const [doctors, setDoctors] = useState([]);
+    const [pageMeta, setPageMeta] = useState({ count: 0, next: null, previous: null });
+    const [page, setPage] = useState(1);
     const [showModal, setShowModal] = useState(false);
     const [saving, setSaving] = useState(false);
     const [filterText, setFilterText] = useState('');
@@ -25,20 +28,29 @@ const AppointmentsPage = () => {
         date: '',
         time: '',
         patientId: '',
+        doctorId: '',
         type: 'Consultation',
         notes: ''
     });
 
     const canManage = user && (user.role === 'doctor' || user.role === 'caregiver');
 
-    async function load() {
+    async function load(targetPage = 1) {
         try {
             setLoading(true);
-            const appts = await listAppointments();
-            setAppointments(appts);
+            const { items, meta } = await listAppointments({ page: targetPage });
+            setAppointments(items);
+            setPageMeta(meta || { count: items.length, next: null, previous: null });
             if (canManage) {
                 const p = await fetchPatientList();
                 setPatients(p);
+                // Only fetch doctors if user not a doctor (for doctor creation by caregiver)
+                if (user?.role !== 'doctor') {
+                    const d = await fetchDoctorList();
+                    setDoctors(d);
+                } else {
+                    setDoctors([{ id: user.id, name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email }]);
+                }
             }
         } catch (e) {
             setError('Failed to load appointments');
@@ -66,7 +78,7 @@ const AppointmentsPage = () => {
         });
     }, [appointments, filterText, dateFilter]);
 
-    const resetForm = () => setForm({ date: '', time: '', patientId: '', type: 'Consultation', notes: '' });
+    const resetForm = () => setForm({ date: '', time: '', patientId: '', doctorId: '', type: 'Consultation', notes: '' });
 
     const openCreate = () => { resetForm(); setShowModal(true); };
 
@@ -75,17 +87,17 @@ const AppointmentsPage = () => {
         if (!form.date || !form.time || !form.patientId) return;
         try {
             setSaving(true);
-            const patient = patients.find(p => String(p.id) === String(form.patientId));
+            // patient lookup removed (unused)
             await createAppointment({
                 date: form.date,
                 time: form.time,
                 patientId: Number(form.patientId),
-                patientName: patient ? patient.name : 'Unknown',
+                doctorId: form.doctorId ? Number(form.doctorId) : undefined,
                 type: form.type,
                 notes: form.notes
             });
             setShowModal(false);
-            await load();
+            await load(page);
         } catch (e) {
             // handle error
         } finally { setSaving(false); }
@@ -93,18 +105,18 @@ const AppointmentsPage = () => {
 
     const changeStatus = async (appt, status) => {
         await updateAppointment(appt.id, { status });
-        await load();
+        await load(page);
     };
 
     const cancel = async (appt) => {
         await cancelAppointment(appt.id);
-        await load();
+        await load(page);
     };
 
     const remove = async (appt) => {
         if (!window.confirm('Delete appointment?')) return;
         await deleteAppointment(appt.id);
-        await load();
+        await load(page);
     };
 
     const viewDashboard = (appt) => {
@@ -212,6 +224,14 @@ const AppointmentsPage = () => {
                 </Card.Body>
             </Card>
 
+            <div className="d-flex justify-content-between align-items-center mt-3">
+                <div className="text-muted small">Total: {pageMeta.count}</div>
+                <div>
+                    <Button size="sm" variant="outline-secondary" className="me-2" disabled={!pageMeta.previous} onClick={() => { if (pageMeta.previous) { setPage(p => Math.max(1, p - 1)); load(page - 1); } }}>Prev</Button>
+                    <Button size="sm" variant="outline-secondary" disabled={!pageMeta.next} onClick={() => { if (pageMeta.next) { setPage(p => p + 1); load(page + 1); } }}>Next</Button>
+                </div>
+            </div>
+
             <Modal show={showModal} onHide={() => setShowModal(false)}>
                 <Form onSubmit={onCreate}>
                     <Modal.Header closeButton>
@@ -238,6 +258,17 @@ const AppointmentsPage = () => {
                                         <option value="">Select patient...</option>
                                         {patients.map(p => (
                                             <option key={p.id} value={p.id}>{p.name} - {p.condition}</option>
+                                        ))}
+                                    </Form.Select>
+                                </Form.Group>
+                            </Col>
+                            <Col md={12}>
+                                <Form.Group>
+                                    <Form.Label>Doctor</Form.Label>
+                                    <Form.Select value={form.doctorId} onChange={e => setForm(f => ({ ...f, doctorId: e.target.value }))} disabled={user?.role === 'doctor'}>
+                                        <option value="">{user?.role === 'doctor' ? 'You are assigned' : 'Select doctor...'}</option>
+                                        {doctors.map(d => (
+                                            <option key={d.id} value={d.id}>{d.name}</option>
                                         ))}
                                     </Form.Select>
                                 </Form.Group>

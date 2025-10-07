@@ -1,8 +1,7 @@
 // healthService.js
 // Now supports real backend integration. Falls back to mock if API_BASE unreachable.
 import { createApiClient } from './apiClient';
-
-const API_BASE = process.env.REACT_APP_API_BASE || 'http://127.0.0.1:8000/api';
+import API_BASE from '../config';
 const api = createApiClient(() => ({ user: JSON.parse(localStorage.getItem('user') || 'null'), refreshToken: async () => null }), API_BASE);
 
 export async function fetchPatientMetrics(patientId) {
@@ -19,9 +18,30 @@ export async function fetchPatientMetrics(patientId) {
 export async function fetchPatientList(search) {
     try {
         const qs = search ? `?search=${encodeURIComponent(search)}` : '';
-        return await api.get(`/accounts/patients/${qs}`);
+        const raw = await api.get(`/accounts/patients/${qs}`);
+        // Handle paginated response: use raw.results if present, else raw
+        const data = Array.isArray(raw) ? raw : (Array.isArray(raw.results) ? raw.results : []);
+        return data.map(u => ({
+            id: u.id,
+            name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email,
+            condition: u.primary_condition || null
+        }));
     } catch (e) {
-        console.warn('Falling back to empty patient list', e.message);
+        console.warn('Patient list fetch failed', e.message);
+        return [];
+    }
+}
+
+export async function fetchDoctorList(search) {
+    try {
+        const qs = search ? `?search=${encodeURIComponent(search)}` : '';
+        const raw = await api.get(`/accounts/doctors/${qs}`);
+        return (Array.isArray(raw) ? raw : []).map(u => ({
+            id: u.id,
+            name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email
+        }));
+    } catch (e) {
+        console.warn('Doctor list fetch failed', e.message);
         return [];
     }
 }

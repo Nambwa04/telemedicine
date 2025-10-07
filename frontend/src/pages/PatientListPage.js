@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { Card, Container, Row, Col, Table, Button, Form, Badge, Spinner, Alert, InputGroup } from 'react-bootstrap';
+import { Card, Container, Row, Col, Table, Button, Form, Badge, Spinner, Alert, InputGroup, Modal } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import { fetchPatientList } from '../services/healthService';
+import API_BASE from '../config';
 import { getConditionTag } from '../utils/statusStyles';
 import { useAuth } from '../context/AuthContext';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -19,6 +20,17 @@ const PatientListPage = () => {
     const [query, setQuery] = useState('');
     const [serverQuery, setServerQuery] = useState('');
     const [searchLoading, setSearchLoading] = useState(false);
+
+    // Add Patient Modal state
+    const [showAddModal, setShowAddModal] = useState(false);
+    const [addPatientLoading, setAddPatientLoading] = useState(false);
+    const [addPatientError, setAddPatientError] = useState(null);
+    const [addPatientSuccess, setAddPatientSuccess] = useState(null);
+    const [newPatient, setNewPatient] = useState({
+        email: '',
+        first_name: '',
+        last_name: ''
+    });
 
     // Initial load
     useEffect(() => {
@@ -71,6 +83,61 @@ const PatientListPage = () => {
 
     const heading = user?.role === 'caregiver' ? 'Clients' : 'Patients';
 
+    // Add Patient handler
+    const handleAddPatient = async (e) => {
+        e.preventDefault();
+        setAddPatientLoading(true);
+        setAddPatientError(null);
+        setAddPatientSuccess(null);
+        try {
+            // Register patient via backend with default password
+            const res = await fetch(`${API_BASE}/accounts/register/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: newPatient.email,
+                    password: 'Patient@123',
+                    role: 'patient',
+                    first_name: newPatient.first_name,
+                    last_name: newPatient.last_name,
+                    username: newPatient.email.split('@')[0]
+                })
+            });
+            if (!res.ok) {
+                let msg = 'Registration failed';
+                try {
+                    const errText = await res.text();
+                    try {
+                        const errJson = JSON.parse(errText);
+                        if (errJson.detail) {
+                            msg = errJson.detail;
+                        } else if (typeof errJson === 'string') {
+                            msg = errJson;
+                        } else if (typeof errJson === 'object') {
+                            msg = Object.entries(errJson)
+                                .map(([field, val]) => `${field}: ${Array.isArray(val) ? val.join(', ') : val}`)
+                                .join(' | ');
+                        }
+                    } catch {
+                        msg = errText || msg;
+                    }
+                } catch (e) {
+                    msg = msg + ' (no error details)';
+                }
+                throw new Error(msg);
+            }
+            setAddPatientSuccess('Patient added successfully!');
+            setNewPatient({ email: '', first_name: '', last_name: '' });
+            // Refresh patient list after successful add
+            const updatedList = await fetchPatientList();
+            setPatients(updatedList);
+        } catch (err) {
+            setAddPatientError(err.message || 'Failed to add patient.');
+        } finally {
+            setAddPatientLoading(false);
+        }
+    };
+
     return (
         <Container fluid className="fade-in py-4">
             <Row className="mb-4 align-items-center">
@@ -80,8 +147,11 @@ const PatientListPage = () => {
                         <Badge bg="primary" className="soft-badge ms-3">{filtered.length}</Badge>
                     </h2>
                 </Col>
-                <Col md={5}>
-                    <InputGroup className="shadow-sm">
+                <Col md={5} className="d-flex justify-content-end align-items-center">
+                    <Button variant="primary" className="me-2" onClick={() => { setShowAddModal(true); setAddPatientError(null); setAddPatientSuccess(null); }}>
+                        <FontAwesomeIcon icon="user-plus" className="me-2" /> Add New Patient
+                    </Button>
+                    <InputGroup className="shadow-sm" style={{ maxWidth: 300 }}>
                         <InputGroup.Text className="bg-light border-0"><FontAwesomeIcon icon="search" className="text-muted" /></InputGroup.Text>
                         <Form.Control
                             placeholder={`Search ${heading.toLowerCase()}...`}
@@ -97,6 +167,37 @@ const PatientListPage = () => {
                     </InputGroup>
                 </Col>
             </Row>
+
+            {/* Add Patient Modal */}
+            <Modal show={showAddModal} onHide={() => setShowAddModal(false)}>
+                <Modal.Header closeButton>
+                    <Modal.Title>Add New Patient</Modal.Title>
+                </Modal.Header>
+                <Form onSubmit={handleAddPatient}>
+                    <Modal.Body>
+                        {addPatientError && <Alert variant="danger">{addPatientError}</Alert>}
+                        {addPatientSuccess && <Alert variant="success">{addPatientSuccess}</Alert>}
+                        <Form.Group className="mb-3" controlId="addPatientEmail">
+                            <Form.Label>Email</Form.Label>
+                            <Form.Control type="email" required value={newPatient.email} onChange={e => setNewPatient(p => ({ ...p, email: e.target.value }))} />
+                        </Form.Group>
+                        <Form.Group className="mb-3" controlId="addPatientFirstName">
+                            <Form.Label>First Name</Form.Label>
+                            <Form.Control type="text" required value={newPatient.first_name} onChange={e => setNewPatient(p => ({ ...p, first_name: e.target.value }))} />
+                        </Form.Group>
+                        <Form.Group className="mb-3" controlId="addPatientLastName">
+                            <Form.Label>Last Name</Form.Label>
+                            <Form.Control type="text" required value={newPatient.last_name} onChange={e => setNewPatient(p => ({ ...p, last_name: e.target.value }))} />
+                        </Form.Group>
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button variant="secondary" onClick={() => setShowAddModal(false)} disabled={addPatientLoading}>Cancel</Button>
+                        <Button type="submit" variant="primary" disabled={addPatientLoading}>
+                            {addPatientLoading ? <Spinner size="sm" animation="border" /> : 'Add Patient'}
+                        </Button>
+                    </Modal.Footer>
+                </Form>
+            </Modal>
 
             <Card className="medical-card">
                 <Card.Header className="d-flex justify-content-between align-items-center">

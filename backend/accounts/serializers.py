@@ -8,14 +8,17 @@ User = get_user_model()
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'email', 'username', 'role', 'first_name', 'last_name']
+        fields = ['id', 'email', 'username', 'role', 'first_name', 'last_name', 'primary_condition']
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
 
+    first_name = serializers.CharField(required=True, allow_blank=False)
+    last_name = serializers.CharField(required=True, allow_blank=False)
+
     class Meta:
         model = User
-        fields = ['id', 'email', 'username', 'role', 'password']
+        fields = ['id', 'email', 'username', 'role', 'password', 'primary_condition', 'first_name', 'last_name']
 
     def validate_password(self, value):
         validate_password(value)
@@ -23,8 +26,12 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         password = validated_data.pop('password')
+        first_name = validated_data.pop('first_name', '')
+        last_name = validated_data.pop('last_name', '')
         user = User(**validated_data)
         user.set_password(password)
+        user.first_name = first_name
+        user.last_name = last_name
         user.save()
         return user
 

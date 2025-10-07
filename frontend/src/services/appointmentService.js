@@ -1,63 +1,54 @@
 // appointmentService.js
-// Currently uses mock in-memory data. To switch to real backend:
-// 1. Set REACT_APP_API_BASE in .env (e.g., http://127.0.0.1:8000/api)
-// 2. Replace list/create/update/delete functions with fetch calls (see TODO blocks)
+// Production version: all data comes from backend API. Removed previous mock/fallback layer.
+// Each appointment returned to UI is normalized with patientName & patientId fields for existing components.
 
 import { createApiClient } from './apiClient';
-const API_BASE = process.env.REACT_APP_API_BASE || 'http://127.0.0.1:8000/api';
-const api = createApiClient(() => ({ user: JSON.parse(localStorage.getItem('user') || 'null'), refreshToken: async () => null }), API_BASE);
+import API_BASE from '../config';
+const api = createApiClient(
+    () => ({ user: JSON.parse(localStorage.getItem('user') || 'null'), refreshToken: async () => null }),
+    API_BASE
+);
 
-let _appointments = [
-    { id: 1, date: '2025-09-28', time: '09:00', patientId: 101, patientName: 'John Doe', type: 'Follow-up', status: 'scheduled', notes: 'Blood pressure review' },
-    { id: 2, date: '2025-09-28', time: '10:30', patientId: 102, patientName: 'Jane Miller', type: 'Consultation', status: 'scheduled', notes: 'Discuss A1C results' },
-    { id: 3, date: '2025-09-29', time: '14:00', patientId: 103, patientName: 'Carlos Ruiz', type: 'Check-up', status: 'scheduled', notes: 'Asthma control assessment' }
-];
-let _idCounter = 4;
-
-function delay(ms = 250) { return new Promise(r => setTimeout(r, ms)); }
-
-export async function listAppointments({ date, page } = {}) {
-    if (API_BASE) {
-        const qs = new URLSearchParams();
-        if (date) qs.set('date', date);
-        if (page) qs.set('page', page);
-        const raw = await api.get(`/appointments/${qs.toString() ? `?${qs}` : ''}`);
-        // If backend pagination returns DRF structure
-        if (raw && Object.prototype.hasOwnProperty.call(raw, 'results')) {
-            return {
-                items: raw.results,
-                meta: { count: raw.count, next: raw.next, previous: raw.previous }
-            };
-        }
-        // Fallback: treat raw as array
-        return { items: Array.isArray(raw) ? raw : [], meta: { count: Array.isArray(raw) ? raw.length : 0, next: null, previous: null } };
-    }
-    await delay();
-    let list = date ? _appointments.filter(a => a.date === date) : [..._appointments];
-    list = list.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
-    return { items: list, meta: { count: list.length, next: null, previous: null } };
+function mapAppointment(a) {
+    // Backend serializer returns patient & doctor nested userSimple objects
+    const patientId = a.patient?.id ?? a.patient_id ?? a.patientId;
+    const patientName = a.patient ? `${a.patient.first_name || ''} ${a.patient.last_name || ''}`.trim() || a.patient.email : a.patientName;
+    return {
+        ...a,
+        patientId,
+        patientName
+    };
 }
 
-export async function createAppointment({ date, time, patientId, patientName, type, notes }) {
-    if (API_BASE) {
-        const body = { date, time, type, notes, patient_id: patientId, doctor_id: patientId === 101 ? 1 : 1 /* FIXME choose doctor */ };
-        return await api.post('/appointments/', body);
+export async function listAppointments({ date, page } = {}) {
+    const qs = new URLSearchParams();
+    if (date) qs.set('date', date);
+    if (page) qs.set('page', page);
+    const raw = await api.get(`/appointments/${qs.toString() ? `?${qs}` : ''}`);
+    if (raw && Object.prototype.hasOwnProperty.call(raw, 'results')) {
+        return {
+            items: raw.results.map(mapAppointment),
+            meta: { count: raw.count, next: raw.next, previous: raw.previous }
+        };
     }
-    await delay();
-    const newAppt = { id: _idCounter++, date, time, patientId, patientName, type, notes: notes || '', status: 'scheduled' };
-    _appointments.push(newAppt);
-    return newAppt;
+    const arr = Array.isArray(raw) ? raw.map(mapAppointment) : [];
+    return { items: arr, meta: { count: arr.length, next: null, previous: null } };
+}
+
+export async function createAppointment({ date, time, patientId, doctorId, type, notes }) {
+    const body = { date, time, type, notes, patient_id: patientId };
+    if (doctorId) body.doctor_id = doctorId; else {
+        // fallback: if logged in doctor creating appointment for patient, set themselves
+        const authUser = JSON.parse(localStorage.getItem('user') || 'null');
+        if (authUser?.role === 'doctor') body.doctor_id = authUser.id;
+    }
+    const created = await api.post('/appointments/', body);
+    return mapAppointment(created);
 }
 
 export async function updateAppointment(id, patch) {
-    if (API_BASE) {
-        return await api.patch(`/appointments/${id}/`, patch);
-    }
-    await delay();
-    const idx = _appointments.findIndex(a => a.id === id);
-    if (idx === -1) throw new Error('Appointment not found');
-    _appointments[idx] = { ..._appointments[idx], ...patch };
-    return _appointments[idx];
+    const updated = await api.patch(`/appointments/${id}/`, patch);
+    return mapAppointment(updated);
 }
 
 export async function cancelAppointment(id) {
@@ -65,13 +56,8 @@ export async function cancelAppointment(id) {
 }
 
 export async function deleteAppointment(id) {
-    if (API_BASE) {
-        await api.del(`/appointments/${id}/`);
-        return true;
-    }
-    await delay();
-    _appointments = _appointments.filter(a => a.id !== id);
+    await api.del(`/appointments/${id}/`);
     return true;
 }
 
-// authHeader removed; apiClient handles token injection
+// No mock or local state retained—source of truth is server.

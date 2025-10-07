@@ -17,15 +17,15 @@ const VideoConsultation = ({ appointmentId, userRole = 'patient' }) => {
     // Mock appointment data
     const [appointmentData] = useState({
         id: appointmentId || 1,
-        patient: { name: 'John Doe', age: 45, id: 'P001' },
-        doctor: { name: 'Dr. Sarah Johnson', specialization: 'Cardiology', id: 'D001' },
+        patient: { name: 'John Baraza', age: 45, id: 'P001' },
+        doctor: { name: 'Dr. Sarah Adhiambo', specialization: 'Cardiology', id: 'D001' },
         scheduledTime: '2:00 PM',
         date: new Date().toLocaleDateString(),
         type: 'Follow-up Consultation'
     });
 
     const [chatMessages, setChatMessages] = useState([
-        { id: 1, sender: 'Dr. Sarah Johnson', message: 'Hello! I\'ll be with you shortly.', timestamp: '2:00 PM', type: 'system' }
+        { id: 1, sender: 'Dr. Sarah Adhiambo', message: 'Hello! I\'ll be with you shortly.', timestamp: '2:00 PM', type: 'system' }
     ]);
 
     const [newMessage, setNewMessage] = useState('');

@@ -1,0 +1,73 @@
+/* Global reactive button styles */
+/* Applies to native buttons, elements with role=button, and common .btn class */
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: no-preference) {
+  button,
+  [role="button"],
+  .btn {
+    transition: background-color 160ms ease, color 160ms ease,
+      box-shadow 160ms ease, transform 120ms ease;
+  }
+}
+
+button,
+[role="button"],
+.btn {
+  position: relative; /* for ripple positioning */
+  overflow: hidden; /* contain ripple */
+  cursor: pointer;
+  outline: none;
+  /* Subtle elevation */
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+button:disabled,
+[role="button"][aria-disabled="true"],
+.btn:disabled,
+.btn[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.7;
+  box-shadow: none;
+}
+
+/* Hover and active feedback */
+button:hover:not(:disabled),
+[role="button"]:hover:not([aria-disabled="true"]),
+.btn:hover:not(:disabled) {
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+  transform: translateY(-1px);
+}
+
+button:active:not(:disabled),
+[role="button"]:active:not([aria-disabled="true"]),
+.btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Focus ring for accessibility */
+button:focus-visible,
+[role="button"]:focus-visible,
+.btn:focus-visible {
+  outline: 3px solid #2563eb33; /* semi-transparent accent */
+  outline-offset: 2px;
+}
+
+/* Ripple element style created by JS */
+.btn-ripple {
+  position: absolute;
+  border-radius: 50%;
+  transform: scale(0);
+  animation: btn-ripple-animation 450ms ease-out;
+  background-color: currentColor;
+  opacity: 0.15;
+  pointer-events: none;
+}
+
+@keyframes btn-ripple-animation {
+  to {
+    transform: scale(4);
+    opacity: 0;
+  }
+}

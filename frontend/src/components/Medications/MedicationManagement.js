@@ -76,11 +76,12 @@ const MedicationManagement = ({ userRole = 'patient' }) => {
         totalPills: 0
     });
 
-    const [reminders, setReminders] = useState([
-        { id: 1, medicationId: 1, time: '08:00', enabled: true, sound: true },
-        { id: 2, medicationId: 2, time: '08:00', enabled: true, sound: true },
-        { id: 3, medicationId: 2, time: '20:00', enabled: true, sound: false },
-    ]);
+    // Reminder state reserved for future scheduling feature (currently unused)
+    // const [reminders, setReminders] = useState([
+    //     { id: 1, medicationId: 1, time: '08:00', enabled: true, sound: true },
+    //     { id: 2, medicationId: 2, time: '08:00', enabled: true, sound: true },
+    //     { id: 3, medicationId: 2, time: '20:00', enabled: true, sound: false },
+    // ]);
 
     const [todaysSchedule, setTodaysSchedule] = useState([]);
 

@@ -6,6 +6,7 @@ User = settings.AUTH_USER_MODEL
 class Appointment(models.Model):
     STATUS_CHOICES = [
         ('scheduled', 'Scheduled'),
+        ('in-progress', 'In Progress'),
         ('cancelled', 'Cancelled'),
         ('completed', 'Completed'),
     ]

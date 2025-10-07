@@ -25,7 +25,7 @@ class MeView(APIView):
 
     def patch(self, request):
         user = request.user
-        allowed_fields = {'first_name', 'last_name'}
+        allowed_fields = {'first_name', 'last_name', 'primary_condition'}
         data = {k: v for k, v in request.data.items() if k in allowed_fields}
         for k, v in data.items():
             setattr(user, k, v)
@@ -39,6 +39,18 @@ class PatientListView(generics.ListAPIView):
 
     def get_queryset(self):
         qs = User.objects.filter(role='patient')
+        search = self.request.query_params.get('search')
+        if search:
+            qs = qs.filter(Q(first_name__icontains=search) | Q(last_name__icontains=search) | Q(email__icontains=search))
+        return qs.order_by('id')
+
+
+class DoctorListView(generics.ListAPIView):
+    serializer_class = UserSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        qs = User.objects.filter(role='doctor')
         search = self.request.query_params.get('search')
         if search:
             qs = qs.filter(Q(first_name__icontains=search) | Q(last_name__icontains=search) | Q(email__icontains=search))

@@ -420,6 +420,223 @@ nav .nav-link.active::after,
   transform: translateY(0);
 }
 
+/* Blue themed enhancement for quick action icon buttons */
+.quick-actions .btn-icon {
+  /* Layer a subtle blue tint */
+  background: linear-gradient(
+    145deg,
+    rgba(236, 245, 255, 0.9),
+    rgba(223, 238, 255, 0.9)
+  );
+  border: 1px solid var(--neutral-200);
+  color: #2463c7;
+}
+.quick-actions .btn-icon::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  background: radial-gradient(
+    circle at 30% 30%,
+    rgba(80, 140, 255, 0.25),
+    transparent 70%
+  );
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+.quick-actions .btn-icon:hover {
+  background: linear-gradient(150deg, #f0f7ff 0%, #e1f0ff 100%);
+  border-color: #b6d4ff;
+  box-shadow: 0 6px 18px -2px rgba(44, 123, 233, 0.25),
+    0 2px 4px rgba(0, 0, 0, 0.06);
+  color: #1e54a8;
+}
+.quick-actions .btn-icon:hover::after {
+  opacity: 1;
+}
+.quick-actions .btn-icon:active {
+  background: linear-gradient(160deg, #d7eaff 0%, #c3e0ff 100%);
+  box-shadow: 0 3px 10px -1px rgba(44, 123, 233, 0.28);
+  transform: translateY(1px) scale(0.96);
+  color: #173f7d;
+}
+.quick-actions .btn-icon:focus-visible {
+  outline: 2px solid #2f80ed;
+  outline-offset: 2px;
+}
+
+/* Dedicated blue gradient families for quick action tiles & buttons */
+:root {
+  --qa-blue-50: #f5faff;
+  --qa-blue-100: #e6f3ff;
+  --qa-blue-200: #cfe7ff;
+  --qa-blue-300: #a8d3ff;
+  --qa-blue-400: #7dbbff;
+  --qa-blue-500: #4d9eff;
+  --qa-blue-600: #247fff;
+  --qa-blue-700: #0d63d6;
+  --qa-blue-800: #0a4d9f;
+  --qa-blue-900: #093d7d;
+  --qa-focus-ring: 0 0 0 3px rgba(77, 158, 255, 0.35);
+  --qa-gradient-primary: linear-gradient(
+    135deg,
+    #4d9eff 0%,
+    #247fff 50%,
+    #0d63d6 100%
+  );
+  --qa-gradient-soft: linear-gradient(135deg, #f5faff 0%, #e6f3ff 100%);
+  --qa-gradient-glow: linear-gradient(
+    135deg,
+    #7dbbff 0%,
+    #4d9eff 40%,
+    #247fff 100%
+  );
+}
+
+/* Blue gradient button variants */
+.btn-quick-blue,
+.btn-gradient-blue {
+  background: var(--qa-gradient-primary);
+  color: #fff !important;
+  border: none;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 14px -2px rgba(36, 127, 255, 0.45),
+    0 2px 4px rgba(0, 0, 0, 0.08);
+  transition: background 0.35s ease, transform 0.25s ease, box-shadow 0.35s ease;
+}
+.btn-quick-blue::before {
+  content: "";
+  position: absolute;
+  top: -40%;
+  left: -30%;
+  width: 160%;
+  height: 180%;
+  background: radial-gradient(
+    circle at 30% 30%,
+    rgba(255, 255, 255, 0.35),
+    transparent 70%
+  );
+  opacity: 0.3;
+  transform: rotate(12deg) scale(1.1);
+  transition: opacity 0.45s ease;
+  pointer-events: none;
+}
+.btn-quick-blue:hover {
+  filter: brightness(1.06);
+  transform: translateY(-3px);
+  box-shadow: 0 10px 28px -4px rgba(36, 127, 255, 0.5),
+    0 4px 8px rgba(0, 0, 0, 0.08);
+}
+.btn-quick-blue:hover::before {
+  opacity: 0.55;
+}
+.btn-quick-blue:active {
+  transform: translateY(-1px) scale(0.97);
+  box-shadow: 0 6px 20px -2px rgba(36, 127, 255, 0.55);
+  filter: brightness(0.97);
+}
+.btn-quick-blue:focus-visible {
+  outline: none;
+  box-shadow: var(--qa-focus-ring), 0 4px 14px -2px rgba(36, 127, 255, 0.45);
+}
+.btn-quick-blue.disabled,
+.btn-quick-blue:disabled {
+  background: var(--qa-gradient-soft);
+  color: #6c86a8 !important;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+/* Outline variant */
+.btn-quick-blue-outline {
+  background: #fff;
+  color: #0d63d6 !important;
+  border: 1px solid #4d9eff;
+  transition: background 0.3s ease, color 0.3s ease, box-shadow 0.3s ease,
+    transform 0.25s ease;
+}
+.btn-quick-blue-outline:hover {
+  background: linear-gradient(135deg, #e6f3ff 0%, #cfe7ff 100%);
+  color: #0a4d9f !important;
+  box-shadow: 0 6px 16px -2px rgba(36, 127, 255, 0.35);
+  transform: translateY(-2px);
+}
+.btn-quick-blue-outline:active {
+  background: #d7eaff;
+  transform: translateY(0) scale(0.97);
+}
+.btn-quick-blue-outline:focus-visible {
+  outline: none;
+  box-shadow: var(--qa-focus-ring);
+}
+
+/* Soft / subtle variant */
+.btn-quick-blue-soft {
+  background: linear-gradient(135deg, #f5faff 0%, #e6f3ff 100%);
+  color: #0d63d6 !important;
+  border: 1px solid #d1e6ff;
+  transition: all 0.3s ease;
+}
+.btn-quick-blue-soft:hover {
+  background: linear-gradient(135deg, #e6f3ff 0%, #cfe7ff 100%);
+  color: #0a4d9f !important;
+  box-shadow: 0 4px 14px -2px rgba(36, 127, 255, 0.3);
+}
+.btn-quick-blue-soft:active {
+  background: #d7eaff;
+}
+.btn-quick-blue-soft:focus-visible {
+  box-shadow: var(--qa-focus-ring);
+  outline: none;
+}
+
+/* Quick Action Tile adaptation to blue theme when accent overridden */
+.quick-action-tile.blue-theme {
+  background: linear-gradient(135deg, #ffffff 0%, #f3f9ff 100%);
+  border: 1px solid #d9e9ff;
+  color: #0d63d6;
+  box-shadow: 0 4px 14px -4px rgba(36, 127, 255, 0.25),
+    0 2px 4px rgba(0, 0, 0, 0.04);
+  position: relative;
+  overflow: hidden;
+}
+.quick-action-tile.blue-theme::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at 25% 20%,
+    rgba(125, 187, 255, 0.25),
+    transparent 70%
+  );
+  opacity: 0.6;
+  pointer-events: none;
+}
+.quick-action-tile.blue-theme .icon {
+  color: #247fff;
+}
+.quick-action-tile.blue-theme:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 30px -6px rgba(36, 127, 255, 0.35),
+    0 4px 10px rgba(0, 0, 0, 0.06);
+  background: linear-gradient(140deg, #f0f7ff 0%, #e1f0ff 100%);
+}
+.quick-action-tile.blue-theme:active {
+  transform: translateY(-1px) scale(0.98);
+}
+.quick-action-tile.blue-theme:focus-visible {
+  outline: 2px solid #2f80ed;
+  outline-offset: 2px;
+}
+
+/* Utility group for spacing inside quick action tiles */
+.quick-action-tile.blue-theme .label {
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
 /* Gradient primary buttons */
 .btn-gradient-primary {
   background: var(--gradient-primary);
@@ -594,3 +811,216 @@ nav .nav-link.active::after,
   transform: translateY(-4px);
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.15);
 }
+
+/* =============================================================
+   BLUE BUTTON SYSTEM + DARK MODE SUPPORT
+   -------------------------------------------------------------
+   Usage:
+     - Use Bootstrap variants: variant="primary" / "outline-primary" / "link".
+     - Utility classes: .btn-quick-blue, .btn-quick-blue-outline, .btn-quick-blue-soft.
+     - QuickActionTile: accent="blue-theme".
+   Focus: Accessible contrast, smooth motion, single source of tokens.
+   ============================================================= */
+
+:root {
+  --btn-primary-bg: var(--qa-gradient-primary);
+  --btn-primary-bg-flat: #247fff;
+  --btn-primary-hover-filter: brightness(1.06);
+  --btn-primary-active-filter: brightness(0.95);
+  --btn-primary-shadow: 0 4px 14px -2px rgba(36, 127, 255, 0.45),
+    0 2px 4px rgba(0, 0, 0, 0.08);
+  --btn-primary-shadow-hover: 0 10px 26px -4px rgba(36, 127, 255, 0.55),
+    0 4px 8px rgba(0, 0, 0, 0.08);
+  --btn-primary-shadow-active: 0 6px 18px -2px rgba(36, 127, 255, 0.55);
+  --btn-outline-primary-border: #4d9eff;
+  --btn-outline-primary-hover-bg: #e6f3ff;
+  --btn-outline-primary-hover-border: #247fff;
+  --btn-outline-primary-color: #0d63d6;
+  --btn-link-primary-color: #0d63d6;
+  --btn-link-primary-hover: #094c9e;
+}
+
+.btn-primary {
+  background: var(--btn-primary-bg);
+  background-size: 200% 200%;
+  color: #fff !important;
+  border: none;
+  box-shadow: var(--btn-primary-shadow);
+  transition: background-position 0.6s ease, transform 0.25s ease,
+    box-shadow 0.4s ease, filter 0.35s ease;
+}
+.btn-primary:hover {
+  background-position: 100% 0;
+  filter: var(--btn-primary-hover-filter);
+  box-shadow: var(--btn-primary-shadow-hover);
+  transform: translateY(-3px);
+}
+.btn-primary:active,
+.btn-primary:focus:active {
+  filter: var(--btn-primary-active-filter);
+  transform: translateY(-1px) scale(0.97);
+  box-shadow: var(--btn-primary-shadow-active);
+}
+.btn-primary:focus-visible {
+  outline: none;
+  box-shadow: var(--qa-focus-ring), var(--btn-primary-shadow);
+}
+.btn-primary.disabled,
+.btn-primary:disabled {
+  background: linear-gradient(135deg, #cfe7ff, #a8d3ff);
+  box-shadow: none;
+  opacity: 0.85;
+}
+
+.btn-outline-primary {
+  color: var(--btn-outline-primary-color);
+  border: 1px solid var(--btn-outline-primary-border);
+  background: #fff;
+  transition: color 0.3s ease, background 0.3s ease, box-shadow 0.35s ease,
+    transform 0.25s ease;
+}
+.btn-outline-primary:hover {
+  background: var(--btn-outline-primary-hover-bg);
+  color: #0a4d9f;
+  border-color: var(--btn-outline-primary-hover-border);
+  box-shadow: 0 6px 18px -4px rgba(36, 127, 255, 0.4);
+  transform: translateY(-2px);
+}
+.btn-outline-primary:active {
+  transform: translateY(0) scale(0.97);
+}
+.btn-outline-primary:focus-visible {
+  outline: none;
+  box-shadow: var(--qa-focus-ring);
+}
+
+.btn-link,
+a.text-primary,
+.text-primary {
+  color: var(--btn-link-primary-color) !important;
+}
+.btn-link:hover,
+a.text-primary:hover {
+  color: var(--btn-link-primary-hover) !important;
+}
+
+/* Legacy gradient class unified */
+.btn-gradient-primary {
+  background: var(--btn-primary-bg);
+  background-size: 180% 180%;
+  color: #fff !important;
+  border: none;
+  box-shadow: var(--btn-primary-shadow);
+  transition: background-position 0.6s ease, transform 0.25s ease,
+    box-shadow 0.4s ease, filter 0.35s ease;
+}
+.btn-gradient-primary:hover {
+  background-position: 100% 0;
+  filter: var(--btn-primary-hover-filter);
+  box-shadow: var(--btn-primary-shadow-hover);
+}
+.btn-gradient-primary:active {
+  filter: var(--btn-primary-active-filter);
+  transform: translateY(-1px) scale(0.97);
+  box-shadow: var(--btn-primary-shadow-active);
+}
+.btn-gradient-primary:focus-visible {
+  outline: none;
+  box-shadow: var(--qa-focus-ring), var(--btn-primary-shadow);
+}
+
+/* Slight refinement for icon sizing consistency */
+.quick-actions .btn-icon,
+.btn-icon {
+  font-size: 0.9rem;
+}
+
+/* Dark mode tokens */
+body.dark-mode {
+  --btn-primary-bg: linear-gradient(
+    135deg,
+    #3a8bff 0%,
+    #1f6fe0 45%,
+    #0d52a8 100%
+  );
+  --btn-primary-bg-flat: #1f6fe0;
+  --btn-outline-primary-border: #3a8bff;
+  --btn-outline-primary-hover-bg: #163d66;
+  --btn-outline-primary-color: #6fb5ff;
+  --btn-outline-primary-hover-border: #6fb5ff;
+  --btn-link-primary-color: #6fb5ff;
+  --btn-link-primary-hover: #94c9ff;
+}
+
+body.dark-mode .btn-primary,
+body.dark-mode .btn-gradient-primary {
+  color: #fff !important;
+  box-shadow: 0 4px 14px -2px rgba(0, 0, 0, 0.55), 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+body.dark-mode .btn-primary:hover,
+body.dark-mode .btn-gradient-primary:hover {
+  box-shadow: 0 10px 26px -6px rgba(0, 0, 0, 0.65),
+    0 4px 10px rgba(0, 0, 0, 0.45);
+}
+body.dark-mode .btn-outline-primary {
+  background: #0d2a44;
+  color: var(--btn-outline-primary-color);
+  border-color: var(--btn-outline-primary-border);
+}
+body.dark-mode .btn-outline-primary:hover {
+  background: #13395c;
+  color: #d7ecff;
+}
+body.dark-mode .btn-link,
+body.dark-mode a.text-primary,
+body.dark-mode .text-primary {
+  color: var(--btn-link-primary-color) !important;
+}
+body.dark-mode .btn-link:hover,
+body.dark-mode a.text-primary:hover {
+  color: var(--btn-link-primary-hover) !important;
+}
+
+body.dark-mode .quick-action-tile.blue-theme {
+  background: linear-gradient(135deg, #12283f 0%, #0d1e33 100%);
+  border: 1px solid #1e3d63;
+  color: #d0e6ff;
+  box-shadow: 0 4px 14px -4px rgba(0, 0, 0, 0.6), 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+body.dark-mode .quick-action-tile.blue-theme .icon {
+  color: #6fb5ff;
+}
+body.dark-mode .quick-action-tile.blue-theme:hover {
+  background: linear-gradient(140deg, #17324f 0%, #10263d 100%);
+  box-shadow: 0 12px 34px -8px rgba(0, 0, 0, 0.65),
+    0 4px 12px rgba(0, 0, 0, 0.45);
+}
+
+body.dark-mode .quick-actions .btn-icon {
+  background: linear-gradient(145deg, #142a44, #102033);
+  border-color: #1e3d63;
+  color: #6fb5ff;
+}
+body.dark-mode .quick-actions .btn-icon:hover {
+  background: linear-gradient(150deg, #1a3658, #142b44);
+  color: #94c9ff;
+  box-shadow: 0 6px 18px -4px rgba(0, 0, 0, 0.7);
+}
+body.dark-mode .quick-actions .btn-icon:active {
+  background: #142b44;
+  color: #d0e6ff;
+}
+
+body.dark-mode .btn-primary:focus-visible,
+body.dark-mode .btn-outline-primary:focus-visible,
+body.dark-mode .btn-gradient-primary:focus-visible,
+body.dark-mode .quick-actions .btn-icon:focus-visible,
+body.dark-mode .quick-action-tile.blue-theme:focus-visible {
+  box-shadow: 0 0 0 3px rgba(111, 181, 255, 0.4),
+    0 0 0 6px rgba(30, 60, 100, 0.5);
+  outline: none;
+}
+
+/* =============================================================
+   END BLUE BUTTON SYSTEM
+   ============================================================= */

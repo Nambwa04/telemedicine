@@ -22,12 +22,12 @@ const PatientDashboard = () => {
     ]);
 
     const [quickActions] = useState([
-        { title: 'Book Appointment', icon: 'calendar-plus', accent: 'gradient-primary', link: '/appointments' },
-        { title: 'Video Consultation', icon: 'video', accent: 'gradient-success', link: '/video-call' },
-        { title: 'Medication Tracker', icon: 'pills', accent: 'gradient-info', link: '/medications' },
-        { title: 'Find Caregiver', icon: 'user-nurse', accent: 'gradient-warning', link: '/caregivers' },
-        { title: 'Health Dashboard', icon: 'file-medical', accent: 'gradient-secondary', link: '/health-dashboard' },
-        { title: 'Emergency Contact', icon: 'phone', accent: 'gradient-danger', link: '/emergency' }
+        { title: 'Book Appointment', icon: 'calendar-plus', accent: 'blue-theme', link: '/appointments' },
+        { title: 'Video Consultation', icon: 'video', accent: 'blue-theme', link: '/video-call' },
+        { title: 'Medication Tracker', icon: 'pills', accent: 'blue-theme', link: '/medications' },
+        { title: 'Find Caregiver', icon: 'user-nurse', accent: 'blue-theme', link: '/caregivers' },
+        { title: 'Health Dashboard', icon: 'file-medical', accent: 'blue-theme', link: '/health-dashboard' },
+        { title: 'Emergency Contact', icon: 'phone', accent: 'blue-theme', link: '/emergency' }
     ]);
 
     return (

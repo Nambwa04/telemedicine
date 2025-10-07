@@ -1,24 +1,34 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Button, Table, Badge, ListGroup } from 'react-bootstrap';
 import QuickActionTile from '../Common/QuickActionTile';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { useAuth } from '../../context/AuthContext';
+import { fetchPatientList } from '../../services/healthService';
 
 const CaregiverDashboard = () => {
     const { user } = useAuth();
-    const [stats] = useState({
-        activeClients: 12,
-        todaySchedule: 4,
-        pendingRequests: 6,
-        monthlyEarnings: 2450
-    });
+    // Patient list state and fetch logic
+    const [patients, setPatients] = useState([]);
+    const [patientsLoading, setPatientsLoading] = useState(true);
+    const [patientsError, setPatientsError] = useState(null);
 
-    const [todaySchedule] = useState([
-        { id: 1, time: '08:00 AM', client: 'Mrs. Anderson', service: 'Personal Care', location: '123 Oak St', status: 'completed' },
-        { id: 2, time: '10:00 AM', client: 'Mr. Thompson', service: 'Medication Management', location: '456 Pine Ave', status: 'in-progress' },
-        { id: 3, time: '02:00 PM', client: 'Mrs. Garcia', service: 'Companionship', location: '789 Maple Dr', status: 'scheduled' },
-        { id: 4, time: '04:00 PM', client: 'Mr. Davis', service: 'Physical Therapy', location: '321 Elm St', status: 'scheduled' }
-    ]);
+    useEffect(() => {
+        let mounted = true;
+        (async () => {
+            setPatientsLoading(true);
+            setPatientsError(null);
+            try {
+                const list = await fetchPatientList();
+                if (mounted) setPatients(list);
+            } catch (e) {
+                if (mounted) setPatientsError('Failed to load patients');
+            } finally {
+                if (mounted) setPatientsLoading(false);
+            }
+        })();
+        return () => { mounted = false; };
+    }, []);
 
     const [serviceRequests] = useState([
         { id: 1, client: 'Johnson Family', service: 'Elder Care', duration: '3 months', rate: '$25/hour', urgent: true },
@@ -28,8 +38,15 @@ const CaregiverDashboard = () => {
 
     const [recentMessages] = useState([
         { id: 1, from: 'Mrs. Anderson', message: 'Thank you for the excellent care yesterday!', time: '2 hours ago' },
-        { id: 2, from: 'Thompson Family', message: 'Can we reschedule tomorrow\'s appointment?', time: '4 hours ago' },
+        { id: 2, from: 'Thompson Family', message: "Can we reschedule tomorrow's appointment?", time: '4 hours ago' },
         { id: 3, from: 'Care Coordinator', message: 'New client match available in your area', time: '1 day ago' }
+    ]);
+
+    const [todaySchedule] = useState([
+        { id: 1, time: '08:00 AM', client: 'Mrs. Anderson', service: 'Personal Care', location: '123 Oak St', status: 'completed' },
+        { id: 2, time: '10:00 AM', client: 'Mr. Thompson', service: 'Medication Management', location: '456 Pine Ave', status: 'in-progress' },
+        { id: 3, time: '02:00 PM', client: 'Mrs. Garcia', service: 'Companionship', location: '789 Maple Dr', status: 'scheduled' },
+        { id: 4, time: '04:00 PM', client: 'Mr. Davis', service: 'Physical Therapy', location: '321 Elm St', status: 'scheduled' }
     ]);
 
     const getStatusBadge = (status) => {
@@ -57,46 +74,34 @@ const CaregiverDashboard = () => {
                 </Row>
             </div>
 
-            {/* Statistics Cards */}
-            <Row className="mb-4">
-                <Col lg={3} md={6} className="mb-3">
-                    <Card className="stat-card h-100">
-                        <Card.Body className="text-center">
-                            <FontAwesomeIcon icon="users" className="text-primary mb-3" size="2x" />
-                            <span className="stat-number">{stats.activeClients}</span>
-                            <div className="stat-label">Active Clients</div>
-                        </Card.Body>
-                    </Card>
-                </Col>
-                <Col lg={3} md={6} className="mb-3">
-                    <Card className="stat-card h-100">
-                        <Card.Body className="text-center">
-                            <FontAwesomeIcon icon="calendar-day" className="text-success mb-3" size="2x" />
-                            <span className="stat-number">{stats.todaySchedule}</span>
-                            <div className="stat-label">Today's Schedule</div>
-                        </Card.Body>
-                    </Card>
-                </Col>
-                <Col lg={3} md={6} className="mb-3">
-                    <Card className="stat-card h-100">
-                        <Card.Body className="text-center">
-                            <FontAwesomeIcon icon="clipboard-list" className="text-warning mb-3" size="2x" />
-                            <span className="stat-number">{stats.pendingRequests}</span>
-                            <div className="stat-label">Service Requests</div>
-                        </Card.Body>
-                    </Card>
-                </Col>
-                <Col lg={3} md={6} className="mb-3">
-                    <Card className="stat-card h-100">
-                        <Card.Body className="text-center">
-                            <FontAwesomeIcon icon="dollar-sign" className="text-info mb-3" size="2x" />
-                            <span className="stat-number">${stats.monthlyEarnings}</span>
-                            <div className="stat-label">This Month</div>
+            {/* Patients List */}
+            <Row>
+                <Col lg={6} className="mb-4">
+                    <Card className="medical-card border-0 shadow-sm">
+                        <Card.Header>
+                            <FontAwesomeIcon icon="user-friends" className="me-2" />
+                            Patients
+                        </Card.Header>
+                        <Card.Body>
+                            {patientsLoading && <div className="text-center py-4">Loading patients...</div>}
+                            {patientsError && <div className="text-danger py-2">{patientsError}</div>}
+                            {!patientsLoading && !patientsError && patients.length === 0 && (
+                                <div className="text-center py-4 text-muted">No patients found.</div>
+                            )}
+                            {!patientsLoading && !patientsError && patients.map(p => (
+                                <div key={p.id} className="d-flex align-items-center justify-content-between p-3 mb-2 rounded bg-white shadow-sm patient-tile">
+                                    <div>
+                                        <h6 className="mb-1 fw-semibold">{p.name}</h6>
+                                        <small className="text-muted d-block">{p.condition || <span className="text-muted">—</span>}</small>
+                                    </div>
+                                </div>
+                            ))}
                         </Card.Body>
                     </Card>
                 </Col>
             </Row>
 
+            {/* Today's Schedule and Recent Messages */}
             <Row>
                 {/* Today's Schedule */}
                 <Col lg={8} className="mb-4">
@@ -184,6 +189,7 @@ const CaregiverDashboard = () => {
                 </Col>
             </Row>
 
+            {/* Service Requests and Quick Actions/Profile */}
             <Row>
                 {/* Service Requests */}
                 <Col lg={8} className="mb-4">

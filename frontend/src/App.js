@@ -66,6 +66,17 @@ function App() {
 
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  // Wrapper component to apply or remove sidebar spacing
+  const MainWrapper = ({ children }) => {
+    const location = useLocation();
+    const { user } = useAuth();
+    const publicPaths = ['/', '/login', '/register'];
+    const isPublic = publicPaths.includes(location.pathname);
+    const base = 'main-content';
+    const cls = (!user || isPublic) ? base : base + ' with-sidebar';
+    return <main className={cls}>{children}</main>;
+  };
+
   return (
     <AuthProvider>
       <NotificationProvider>
