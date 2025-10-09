@@ -32,6 +32,18 @@ const PatientListPage = () => {
         last_name: ''
     });
 
+    // Update Patient Modal state
+    const [showUpdateModal, setShowUpdateModal] = useState(false);
+    const [updatePatientLoading, setUpdatePatientLoading] = useState(false);
+    const [updatePatientError, setUpdatePatientError] = useState(null);
+    const [updatePatientSuccess, setUpdatePatientSuccess] = useState(null);
+    const [selectedPatient, setSelectedPatient] = useState(null);
+    const [updatedPatientData, setUpdatedPatientData] = useState({
+        first_name: '',
+        last_name: '',
+        primary_condition: ''
+    });
+
     // Initial load
     useEffect(() => {
         let mounted = true;
@@ -138,6 +150,82 @@ const PatientListPage = () => {
         }
     };
 
+    // Handle edit patient - open modal with patient data
+    const handleEditPatient = (patient) => {
+        setSelectedPatient(patient);
+        setUpdatedPatientData({
+            first_name: patient.first_name || patient.name?.split(' ')[0] || '',
+            last_name: patient.last_name || patient.name?.split(' ')[1] || '',
+            primary_condition: patient.condition || patient.primary_condition || ''
+        });
+        setUpdatePatientError(null);
+        setUpdatePatientSuccess(null);
+        setShowUpdateModal(true);
+    };
+
+    // Handle update patient submission
+    const handleUpdatePatient = async (e) => {
+        e.preventDefault();
+        if (!selectedPatient) return;
+
+        setUpdatePatientLoading(true);
+        setUpdatePatientError(null);
+        setUpdatePatientSuccess(null);
+
+        try {
+            let token = null;
+            if (user && user.access) {
+                token = user.access;
+            } else if (localStorage.getItem('access')) {
+                token = localStorage.getItem('access');
+            }
+
+            const headers = { 'Content-Type': 'application/json' };
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+
+            const res = await fetch(`${API_BASE}/accounts/doctor/patients/${selectedPatient.id}/update/`, {
+                method: 'PATCH',
+                headers,
+                body: JSON.stringify(updatedPatientData)
+            });
+
+            if (!res.ok) {
+                let msg = 'Failed to update patient';
+                try {
+                    const errData = await res.json();
+                    if (errData.detail) {
+                        msg = errData.detail;
+                    } else if (typeof errData === 'object') {
+                        msg = Object.entries(errData)
+                            .map(([field, val]) => `${field}: ${Array.isArray(val) ? val.join(', ') : val}`)
+                            .join(' | ');
+                    }
+                } catch {
+                    // Use default message
+                }
+                throw new Error(msg);
+            }
+
+            setUpdatePatientSuccess('Patient information updated successfully!');
+
+            // Refresh patient list
+            const updatedList = await fetchPatientList();
+            setPatients(updatedList);
+
+            // Close modal after 2 seconds
+            setTimeout(() => {
+                setShowUpdateModal(false);
+                setSelectedPatient(null);
+            }, 2000);
+        } catch (err) {
+            setUpdatePatientError(err.message || 'Failed to update patient');
+        } finally {
+            setUpdatePatientLoading(false);
+        }
+    };
+
     return (
         <Container fluid className="fade-in py-4">
             <Row className="mb-4 align-items-center">
@@ -148,10 +236,10 @@ const PatientListPage = () => {
                     </h2>
                 </Col>
                 <Col md={5} className="d-flex justify-content-end align-items-center">
-                    <Button variant="primary" className="me-2" onClick={() => { setShowAddModal(true); setAddPatientError(null); setAddPatientSuccess(null); }}>
+                    <Button variant="primary" size="sm" className="me-2" onClick={() => { setShowAddModal(true); setAddPatientError(null); setAddPatientSuccess(null); }}>
                         <FontAwesomeIcon icon="user-plus" className="me-2" /> Add New Patient
                     </Button>
-                    <InputGroup className="shadow-sm" style={{ maxWidth: 300 }}>
+                    <InputGroup size="sm" className="shadow-sm" style={{ maxWidth: 300 }}>
                         <InputGroup.Text className="bg-light border-0"><FontAwesomeIcon icon="search" className="text-muted" /></InputGroup.Text>
                         <Form.Control
                             placeholder={`Search ${heading.toLowerCase()}...`}
@@ -199,6 +287,60 @@ const PatientListPage = () => {
                 </Form>
             </Modal>
 
+            {/* Update Patient Modal */}
+            <Modal show={showUpdateModal} onHide={() => { setShowUpdateModal(false); setUpdatePatientError(null); setUpdatePatientSuccess(null); setSelectedPatient(null); }}>
+                <Modal.Header closeButton>
+                    <Modal.Title>Update Patient Information</Modal.Title>
+                </Modal.Header>
+                <Form onSubmit={handleUpdatePatient}>
+                    <Modal.Body>
+                        {updatePatientError && <Alert variant="danger">{updatePatientError}</Alert>}
+                        {updatePatientSuccess && <Alert variant="success">{updatePatientSuccess}</Alert>}
+                        <Form.Group className="mb-3" controlId="updateFirstName">
+                            <Form.Label>First Name</Form.Label>
+                            <Form.Control
+                                type="text"
+                                required
+                                value={updatedPatientData.first_name}
+                                onChange={e => setUpdatedPatientData(d => ({ ...d, first_name: e.target.value }))}
+                                placeholder="Enter first name"
+                            />
+                        </Form.Group>
+                        <Form.Group className="mb-3" controlId="updateLastName">
+                            <Form.Label>Last Name</Form.Label>
+                            <Form.Control
+                                type="text"
+                                required
+                                value={updatedPatientData.last_name}
+                                onChange={e => setUpdatedPatientData(d => ({ ...d, last_name: e.target.value }))}
+                                placeholder="Enter last name"
+                            />
+                        </Form.Group>
+                        <Form.Group className="mb-3" controlId="updateCondition">
+                            <Form.Label>Primary Condition</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={updatedPatientData.primary_condition}
+                                onChange={e => setUpdatedPatientData(d => ({ ...d, primary_condition: e.target.value }))}
+                                placeholder="Enter primary condition"
+                            />
+                        </Form.Group>
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button
+                            variant="secondary"
+                            onClick={() => { setShowUpdateModal(false); setSelectedPatient(null); }}
+                            disabled={updatePatientLoading}
+                        >
+                            Cancel
+                        </Button>
+                        <Button type="submit" variant="primary" disabled={updatePatientLoading}>
+                            {updatePatientLoading ? <Spinner size="sm" animation="border" /> : 'Update Patient'}
+                        </Button>
+                    </Modal.Footer>
+                </Form>
+            </Modal>
+
             <Card className="medical-card">
                 <Card.Header className="d-flex justify-content-between align-items-center">
                     <span className="fw-semibold">
@@ -227,7 +369,7 @@ const PatientListPage = () => {
                                     <tr>
                                         <th style={{ minWidth: '200px' }}>Name</th>
                                         <th style={{ minWidth: '180px' }}>Condition</th>
-                                        <th className="text-center" style={{ width: '140px' }}>Actions</th>
+                                        <th className="text-center" style={{ width: '180px' }}>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -243,7 +385,16 @@ const PatientListPage = () => {
                                             <td className="text-center">
                                                 <Button
                                                     size="sm"
-                                                    className="gradient-primary px-3"
+                                                    variant="outline-primary"
+                                                    className="me-2"
+                                                    onClick={() => handleEditPatient(p)}
+                                                    aria-label={`Edit ${p.name}`}
+                                                >
+                                                    <FontAwesomeIcon icon="edit" />
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    className="gradient-primary"
                                                     onClick={() => openDashboard(p.id)}
                                                     aria-label={`Open health dashboard for ${p.name}`}
                                                 >

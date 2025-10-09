@@ -9,20 +9,78 @@ import { fetchPatientList } from '../../services/healthService';
 import { createPrescription } from '../../services/prescriptionService';
 import { useNavigate } from 'react-router-dom';
 import API_BASE from '../../config';
+import { useCallback } from 'react';
 
 const DoctorDashboard = () => {
-    const navigate = useNavigate();
+    // Get time-based greeting
+    const getGreeting = () => {
+        const hour = new Date().getHours();
+        if (hour < 12) return 'Good morning';
+        if (hour < 18) return 'Good afternoon';
+        return 'Good evening';
+    };
+
+    // Fetch dashboard stats from backend
+    const [stats, setStats] = useState({
+        todayAppointments: 0,
+        totalPatients: 0,
+        pendingConsults: 0,
+        completedToday: 0
+    });
+    const [statsLoading, setStatsLoading] = useState(true);
+    const [statsError, setStatsError] = useState(null);
+
     const { user } = useAuth();
+    const fetchStats = useCallback(async () => {
+        setStatsLoading(true);
+        setStatsError(null);
+        try {
+            // Try to get token from user context or localStorage
+            let token = null;
+            if (user && user.access) {
+                token = user.access;
+            } else if (localStorage.getItem('access')) {
+                token = localStorage.getItem('access');
+            }
+            const headers = { 'Content-Type': 'application/json' };
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+            const res = await fetch(`${API_BASE}/accounts/dashboard-stats/`, {
+                headers
+            });
+            if (!res.ok) throw new Error('Failed to fetch dashboard stats');
+            const data = await res.json();
+            setStats({
+                todayAppointments: data.todayAppointments || 0,
+                totalPatients: data.totalPatients || 0,
+                pendingConsults: data.pendingConsults || 0,
+                completedToday: data.completedToday || 0
+            });
+        } catch (e) {
+            setStatsError(e.message || 'Failed to load stats');
+        } finally {
+            setStatsLoading(false);
+        }
+    }, [user]);
+
+    useEffect(() => {
+        fetchStats();
+    }, [fetchStats]);
+    const navigate = useNavigate();
     // State for add patient modal (all hooks must be at top level)
-    const [showAddPatient, setShowAddPatient] = useState(false);
-    const [addPatientLoading, setAddPatientLoading] = useState(false);
-    const [addPatientError, setAddPatientError] = useState(null);
-    const [addPatientSuccess, setAddPatientSuccess] = useState(null);
-    const [newPatient, setNewPatient] = useState({
-        email: '',
+    // Removed unused add patient modal state and newPatient state
+
+    // Update patient modal state
+    const [showUpdatePatient, setShowUpdatePatient] = useState(false);
+    const [updatePatientLoading, setUpdatePatientLoading] = useState(false);
+    const [updatePatientError, setUpdatePatientError] = useState(null);
+    const [updatePatientSuccess, setUpdatePatientSuccess] = useState(null);
+    const [selectedPatient, setSelectedPatient] = useState(null);
+    const [updatedPatientData, setUpdatedPatientData] = useState({
         first_name: '',
         last_name: '',
-        condition: ''
+        primary_condition: ''
     });
 
     // Prescription modal state
@@ -37,77 +95,44 @@ const DoctorDashboard = () => {
         frequency: '',
         next_due: ''
     });
-    const [stats] = useState({
-        todayAppointments: 8,
-        totalPatients: 156,
-        pendingConsults: 3,
-        completedToday: 5
-    });
 
-    // Add patient handler
-    const handleAddPatient = async (e) => {
-        e.preventDefault();
-        setAddPatientLoading(true);
-        setAddPatientError(null);
-        setAddPatientSuccess(null);
+    // Removed unused add patient handler and related state
+
+    // State for today's schedule
+    const [todaySchedule, setTodaySchedule] = useState([]);
+    const [scheduleLoading, setScheduleLoading] = useState(true);
+    const [scheduleError, setScheduleError] = useState(null);
+
+    // Fetch today's schedule from backend
+    const fetchSchedule = useCallback(async () => {
+        setScheduleLoading(true);
+        setScheduleError(null);
         try {
-            // Register patient via backend with default password
-            const res = await fetch(`${API_BASE}/accounts/register/`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    email: newPatient.email,
-                    password: 'Patient@123',
-                    role: 'patient',
-                    first_name: newPatient.first_name,
-                    last_name: newPatient.last_name,
-                    username: newPatient.email.split('@')[0],
-                    primary_condition: newPatient.condition
-                })
-            });
-            if (!res.ok) {
-                let msg = 'Registration failed';
-                try {
-                    const errText = await res.text();
-                    try {
-                        const errJson = JSON.parse(errText);
-                        if (errJson.detail) {
-                            msg = errJson.detail;
-                        } else if (typeof errJson === 'string') {
-                            msg = errJson;
-                        } else if (typeof errJson === 'object') {
-                            // Collect all field errors
-                            msg = Object.entries(errJson)
-                                .map(([field, val]) => `${field}: ${Array.isArray(val) ? val.join(', ') : val}`)
-                                .join(' | ');
-                        }
-                    } catch {
-                        // Not JSON, show raw text
-                        msg = errText || msg;
-                    }
-                } catch (e) {
-                    msg = msg + ' (no error details)';
-                }
-                throw new Error(msg);
+            let token = null;
+            if (user && user.access) {
+                token = user.access;
+            } else if (localStorage.getItem('access')) {
+                token = localStorage.getItem('access');
             }
-            setAddPatientSuccess('Patient added successfully!');
-            setNewPatient({ email: '', first_name: '', last_name: '', condition: '' });
-            // Refresh patient list after successful add
-            const updatedList = await fetchPatientList();
-            setRecentPatients(updatedList);
-        } catch (err) {
-            setAddPatientError(err.message);
+            const headers = { 'Content-Type': 'application/json' };
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+            // Adjust the endpoint as needed to match your backend
+            const res = await fetch(`${API_BASE}/appointments/today/`, { headers });
+            if (!res.ok) throw new Error('Failed to fetch today\'s schedule');
+            const data = await res.json();
+            setTodaySchedule(Array.isArray(data) ? data : []);
+        } catch (e) {
+            setScheduleError(e.message || 'Failed to load today\'s schedule');
         } finally {
-            setAddPatientLoading(false);
+            setScheduleLoading(false);
         }
-    };
+    }, [user]);
 
-    const [todaySchedule] = useState([
-        { id: 1, time: '09:00 AM', patient: 'John Baraza', type: 'Follow-up', status: 'completed' },
-        { id: 2, time: '10:00 AM', patient: 'Sarah Wangeci', type: 'Consultation', status: 'in-progress' },
-        { id: 3, time: '11:00 AM', patient: 'Mike Otieno', type: 'Check-up', status: 'scheduled' },
-        { id: 4, time: '02:00 PM', patient: 'Emily Mathenge', type: 'Urgent', status: 'scheduled' }
-    ]);
+    useEffect(() => {
+        fetchSchedule();
+    }, [fetchSchedule]);
 
     const [pendingTasks] = useState([
         { id: 1, task: 'Review test results for John Baraza', priority: 'high', type: 'review' },
@@ -149,6 +174,83 @@ const DoctorDashboard = () => {
         if (navigate) navigate(`/patients/${patient.id}`);
         else alert(`View patient: ${patient.name}`);
     };
+
+    // Handle edit patient - open modal with patient data
+    const handleEditPatient = (patient) => {
+        setSelectedPatient(patient);
+        setUpdatedPatientData({
+            first_name: patient.first_name || '',
+            last_name: patient.last_name || '',
+            primary_condition: patient.condition || patient.primary_condition || ''
+        });
+        setUpdatePatientError(null);
+        setUpdatePatientSuccess(null);
+        setShowUpdatePatient(true);
+    };
+
+    // Handle update patient submission
+    const handleUpdatePatientSubmit = async (e) => {
+        e.preventDefault();
+        if (!selectedPatient) return;
+
+        setUpdatePatientLoading(true);
+        setUpdatePatientError(null);
+        setUpdatePatientSuccess(null);
+
+        try {
+            let token = null;
+            if (user && user.access) {
+                token = user.access;
+            } else if (localStorage.getItem('access')) {
+                token = localStorage.getItem('access');
+            }
+
+            const headers = { 'Content-Type': 'application/json' };
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+
+            const res = await fetch(`${API_BASE}/accounts/doctor/patients/${selectedPatient.id}/update/`, {
+                method: 'PATCH',
+                headers,
+                body: JSON.stringify(updatedPatientData)
+            });
+
+            if (!res.ok) {
+                let msg = 'Failed to update patient';
+                try {
+                    const errData = await res.json();
+                    if (errData.detail) {
+                        msg = errData.detail;
+                    } else if (typeof errData === 'object') {
+                        msg = Object.entries(errData)
+                            .map(([field, val]) => `${field}: ${Array.isArray(val) ? val.join(', ') : val}`)
+                            .join(' | ');
+                    }
+                } catch {
+                    // Use default message
+                }
+                throw new Error(msg);
+            }
+
+            setUpdatePatientSuccess('Patient information updated successfully!');
+
+            // Refresh patient list
+            const updatedList = await fetchPatientList();
+            setRecentPatients(updatedList);
+
+            // Close modal after 2 seconds
+            setTimeout(() => {
+                setShowUpdatePatient(false);
+                setSelectedPatient(null);
+            }, 2000);
+        } catch (err) {
+            setUpdatePatientError(err.message || 'Failed to update patient');
+        } finally {
+            setUpdatePatientLoading(false);
+        }
+    };
+
     const handleViewAppointment = (appt) => {
         alert(`View appointment for ${appt.patient} at ${appt.time}`);
     };
@@ -169,7 +271,7 @@ const DoctorDashboard = () => {
     const handleQuickAction = (action) => {
         switch (action) {
             case 'New Patient':
-                setShowAddPatient(true);
+                alert('Add new patient (not implemented)');
                 break;
             case 'Consult':
                 alert('Start a new consult');
@@ -212,7 +314,13 @@ const DoctorDashboard = () => {
                     <Col>
                         <h1>
                             <FontAwesomeIcon icon="user-md" className="me-3" />
-                            Good morning, Dr. {user.name}!
+                            {user && user.first_name && user.last_name && typeof user.first_name === 'string' && typeof user.last_name === 'string' ? (
+                                <>{getGreeting()}, Dr. {user.first_name} {user.last_name}!</>
+                            ) : user && user.name && typeof user.name === 'string' ? (
+                                <>{getGreeting()}, Dr. {user.name}!</>
+                            ) : (
+                                <>{getGreeting()}, Doctor!</>
+                            )}
                         </h1>
                         <p className="mb-0 fs-5 opacity-75">Ready to make a difference today</p>
                     </Col>
@@ -221,42 +329,55 @@ const DoctorDashboard = () => {
 
             {/* Statistics Cards */}
             <Row className="mb-4">
-                <Col lg={3} md={6} className="mb-3">
-                    <Card className="stat-card h-100 border-0 shadow-sm">
-                        <Card.Body className="text-center">
-                            <FontAwesomeIcon icon="calendar-day" className="text-primary mb-3" size="2x" />
-                            <span className="stat-number">{stats.todayAppointments}</span>
-                            <div className="stat-label">Today's Appointments</div>
-                        </Card.Body>
-                    </Card>
-                </Col>
-                <Col lg={3} md={6} className="mb-3">
-                    <Card className="stat-card h-100 border-0 shadow-sm">
-                        <Card.Body className="text-center">
-                            <FontAwesomeIcon icon="users" className="text-success mb-3" size="2x" />
-                            <span className="stat-number">{stats.totalPatients}</span>
-                            <div className="stat-label">Total Patients</div>
-                        </Card.Body>
-                    </Card>
-                </Col>
-                <Col lg={3} md={6} className="mb-3">
-                    <Card className="stat-card h-100 border-0 shadow-sm">
-                        <Card.Body className="text-center">
-                            <FontAwesomeIcon icon="clock" className="text-warning mb-3" size="2x" />
-                            <span className="stat-number">{stats.pendingConsults}</span>
-                            <div className="stat-label">Pending Consults</div>
-                        </Card.Body>
-                    </Card>
-                </Col>
-                <Col lg={3} md={6} className="mb-3">
-                    <Card className="stat-card h-100 border-0 shadow-sm">
-                        <Card.Body className="text-center">
-                            <FontAwesomeIcon icon="check-circle" className="text-info mb-3" size="2x" />
-                            <span className="stat-number">{stats.completedToday}</span>
-                            <div className="stat-label">Completed Today</div>
-                        </Card.Body>
-                    </Card>
-                </Col>
+                {statsError && (
+                    <Col>
+                        <div className="text-danger text-center py-3">{statsError}</div>
+                    </Col>
+                )}
+                {statsLoading && !statsError ? (
+                    <Col>
+                        <div className="text-center py-3">Loading statistics...</div>
+                    </Col>
+                ) : !statsLoading && !statsError && (
+                    <>
+                        <Col lg={3} md={6} className="mb-3">
+                            <Card className="stat-card h-100 border-0 shadow-sm">
+                                <Card.Body className="text-center">
+                                    <FontAwesomeIcon icon="calendar-day" className="text-primary mb-3" size="2x" />
+                                    <span className="stat-number">{stats.todayAppointments}</span>
+                                    <div className="stat-label">Today's Appointments</div>
+                                </Card.Body>
+                            </Card>
+                        </Col>
+                        <Col lg={3} md={6} className="mb-3">
+                            <Card className="stat-card h-100 border-0 shadow-sm">
+                                <Card.Body className="text-center">
+                                    <FontAwesomeIcon icon="users" className="text-success mb-3" size="2x" />
+                                    <span className="stat-number">{stats.totalPatients}</span>
+                                    <div className="stat-label">Total Patients</div>
+                                </Card.Body>
+                            </Card>
+                        </Col>
+                        <Col lg={3} md={6} className="mb-3">
+                            <Card className="stat-card h-100 border-0 shadow-sm">
+                                <Card.Body className="text-center">
+                                    <FontAwesomeIcon icon="clock" className="text-warning mb-3" size="2x" />
+                                    <span className="stat-number">{stats.pendingConsults}</span>
+                                    <div className="stat-label">Pending Consults</div>
+                                </Card.Body>
+                            </Card>
+                        </Col>
+                        <Col lg={3} md={6} className="mb-3">
+                            <Card className="stat-card h-100 border-0 shadow-sm">
+                                <Card.Body className="text-center">
+                                    <FontAwesomeIcon icon="check-circle" className="text-info mb-3" size="2x" />
+                                    <span className="stat-number">{stats.completedToday}</span>
+                                    <div className="stat-label">Completed Today</div>
+                                </Card.Body>
+                            </Card>
+                        </Col>
+                    </>
+                )}
             </Row>
 
             <Row>
@@ -268,43 +389,6 @@ const DoctorDashboard = () => {
                                 <FontAwesomeIcon icon="calendar" className="me-2" />
                                 Today's Schedule
                             </span>
-                            <Button size="sm" className="btn-gradient-primary" onClick={() => setShowAddPatient(true)}>
-                                <FontAwesomeIcon icon="plus" className="me-1" /> Add Patient
-                            </Button>
-                            {/* Add Patient Modal */}
-                            <Modal show={showAddPatient} onHide={() => { setShowAddPatient(false); setAddPatientError(null); setAddPatientSuccess(null); }}>
-                                <Modal.Header closeButton>
-                                    <Modal.Title>Add New Patient</Modal.Title>
-                                </Modal.Header>
-                                <Form onSubmit={handleAddPatient}>
-                                    <Modal.Body>
-                                        {addPatientError && <Alert variant="danger">{addPatientError}</Alert>}
-                                        {addPatientSuccess && <Alert variant="success">{addPatientSuccess}</Alert>}
-                                        <Form.Group className="mb-3" controlId="addPatientEmail">
-                                            <Form.Label>Email</Form.Label>
-                                            <Form.Control type="email" required value={newPatient.email} onChange={e => setNewPatient(p => ({ ...p, email: e.target.value }))} />
-                                        </Form.Group>
-                                        <Form.Group className="mb-3" controlId="addPatientFirstName">
-                                            <Form.Label>First Name</Form.Label>
-                                            <Form.Control type="text" value={newPatient.first_name} onChange={e => setNewPatient(p => ({ ...p, first_name: e.target.value }))} />
-                                        </Form.Group>
-                                        <Form.Group className="mb-3" controlId="addPatientLastName">
-                                            <Form.Label>Last Name</Form.Label>
-                                            <Form.Control type="text" value={newPatient.last_name} onChange={e => setNewPatient(p => ({ ...p, last_name: e.target.value }))} />
-                                        </Form.Group>
-                                        <Form.Group className="mb-3" controlId="addPatientCondition">
-                                            <Form.Label>Condition</Form.Label>
-                                            <Form.Control type="text" placeholder="e.g. Diabetes, Hypertension" value={newPatient.condition} onChange={e => setNewPatient(p => ({ ...p, condition: e.target.value }))} />
-                                        </Form.Group>
-                                    </Modal.Body>
-                                    <Modal.Footer>
-                                        <Button variant="secondary" onClick={() => setShowAddPatient(false)} disabled={addPatientLoading}>Cancel</Button>
-                                        <Button type="submit" className="btn-gradient-primary" disabled={addPatientLoading}>
-                                            {addPatientLoading ? <Spinner size="sm" animation="border" /> : 'Add Patient'}
-                                        </Button>
-                                    </Modal.Footer>
-                                </Form>
-                            </Modal>
                         </Card.Header>
                         <Card.Body>
                             <Table hover responsive className="mb-0">
@@ -318,25 +402,37 @@ const DoctorDashboard = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {todaySchedule.map(appt => {
-                                        const meta = getStatusMeta('appointment', appt.status);
-                                        return (
-                                            <tr key={appt.id}>
-                                                <td className="fw-bold">{appt.time}</td>
-                                                <td>{appt.patient}</td>
-                                                <td>{appt.type}</td>
-                                                <td><span className={`badge ${meta.badgeClass}`}>{meta.label}</span></td>
-                                                <td className="quick-actions">
-                                                    <button type="button" className="btn-icon me-1" title="View" onClick={() => handleViewAppointment(appt)}>
-                                                        <FontAwesomeIcon icon="eye" />
-                                                    </button>
-                                                    <button type="button" className="btn-icon" title="Video" onClick={() => handleVideoAppointment(appt)}>
-                                                        <FontAwesomeIcon icon="video" />
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
+                                    {scheduleLoading ? (
+                                        <tr><td colSpan="5" className="text-center">Loading schedule...</td></tr>
+                                    ) : scheduleError ? (
+                                        <tr><td colSpan="5" className="text-danger text-center">{scheduleError}</td></tr>
+                                    ) : todaySchedule.length === 0 ? (
+                                        <tr><td colSpan="5" className="text-center text-muted">No appointments scheduled for today.</td></tr>
+                                    ) : (
+                                        todaySchedule.map(appt => {
+                                            const meta = getStatusMeta('appointment', appt.status);
+                                            return (
+                                                <tr key={appt.id}>
+                                                    <td className="fw-bold">{appt.time}</td>
+                                                    <td>
+                                                        {typeof appt.patient === 'object' && appt.patient
+                                                            ? `${appt.patient.first_name || ''} ${appt.patient.last_name || ''}`.trim() || appt.patient.email || 'Unknown'
+                                                            : appt.patient || 'Unknown'}
+                                                    </td>
+                                                    <td>{appt.type}</td>
+                                                    <td><span className={`badge ${meta.badgeClass}`}>{meta.label}</span></td>
+                                                    <td className="quick-actions">
+                                                        <button type="button" className="btn-icon me-1" title="View" onClick={() => handleViewAppointment(appt)}>
+                                                            <FontAwesomeIcon icon="eye" />
+                                                        </button>
+                                                        <button type="button" className="btn-icon" title="Video" onClick={() => handleVideoAppointment(appt)}>
+                                                            <FontAwesomeIcon icon="video" />
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
+                                    )}
                                 </tbody>
                             </Table>
                         </Card.Body>
@@ -353,21 +449,21 @@ const DoctorDashboard = () => {
                         <Card.Body>
                             {pendingTasks.map(task => {
                                 const pm = priorityMeta[task.priority] || { label: task.priority, badgeClass: 'badge-soft-secondary' };
-                                const icon = task.type === 'review' ? 'clipboard-check' : task.type === 'prescription' ? 'prescription' : 'edit';
+                                const icon = task.type === 'review' ? 'clipboard-check' : task.type === 'prescription' ? 'pills' : 'file-medical';
                                 return (
-                                    <div key={task.id} className="d-flex align-items-start mb-3 p-3 rounded border-0 shadow-sm bg-white position-relative task-tile">
-                                        <div className="me-3 mt-1">
-                                            <div className={`btn-icon`}>
-                                                <FontAwesomeIcon icon={icon} />
+                                    <div key={task.id} className="d-flex align-items-center justify-content-between mb-3 p-3 rounded border-0 shadow-sm bg-white position-relative task-tile">
+                                        <div className="d-flex align-items-center flex-grow-1">
+                                            <div className="me-3">
+                                                <FontAwesomeIcon icon={icon} className="text-primary" />
+                                            </div>
+                                            <div className="flex-grow-1">
+                                                <p className="mb-1 small fw-semibold">{task.task}</p>
+                                                <span className={`badge ${pm.badgeClass}`}>{pm.label}</span>
                                             </div>
                                         </div>
-                                        <div className="flex-grow-1">
-                                            <p className="mb-1 small fw-semibold">{task.task}</p>
-                                            <span className={`badge ${pm.badgeClass}`}>{pm.label}</span>
-                                        </div>
-                                        <div>
+                                        <div className="ms-2">
                                             <button type="button" className="btn-icon" title="Complete" onClick={() => handleCompleteTask(task)}>
-                                                <FontAwesomeIcon icon="check" />
+                                                <FontAwesomeIcon icon="circle-check" />
                                             </button>
                                         </div>
                                     </div>
@@ -397,22 +493,25 @@ const DoctorDashboard = () => {
                             )}
                             {!patientsLoading && !patientsError && recentPatients.map(p => (
                                 <div key={p.id} className="d-flex align-items-center justify-content-between p-3 mb-2 rounded bg-white shadow-sm patient-tile">
-                                    <div>
-                                        <h6 className="mb-1 fw-semibold">{p.name}</h6>
-                                        <small className="text-muted d-block">{p.condition || <span className="text-muted">—</span>}</small>
-                                    </div>
-                                    <div className="text-end">
-                                        <div>
-                                            <button type="button" className="btn-icon" title="View" onClick={() => handleViewPatient(p)}>
-                                                <FontAwesomeIcon icon="eye" />
-                                            </button>
+                                    <div className="d-flex align-items-center flex-grow-1">
+                                        <div className="me-3">
+                                            <FontAwesomeIcon icon="user-circle" className="text-primary" size="lg" />
                                         </div>
+                                        <div>
+                                            <h6 className="mb-1 fw-semibold">{p.name}</h6>
+                                            <small className="text-muted d-block">{p.condition ? p.condition : '—'}</small>
+                                        </div>
+                                    </div>
+                                    <div className="quick-actions">
+                                        <button type="button" className="btn-icon me-1" title="View Patient" onClick={() => handleViewPatient(p)}>
+                                            <FontAwesomeIcon icon="eye" />
+                                        </button>
+                                        <button type="button" className="btn-icon" title="Edit Patient" onClick={() => handleEditPatient(p)}>
+                                            <FontAwesomeIcon icon="pen-to-square" />
+                                        </button>
                                     </div>
                                 </div>
                             ))}
-                            <Button className="btn-gradient-primary w-100 fw-semibold mt-2" onClick={() => setShowAddPatient(true)}>
-                                <FontAwesomeIcon icon="plus" className="me-2" /> Add Patient
-                            </Button>
                             <Button className="btn-gradient-primary w-100 fw-semibold mt-2" onClick={handleViewAllPatients}>
                                 <FontAwesomeIcon icon="users" className="me-2" /> View All Patients
                             </Button>
@@ -470,6 +569,60 @@ const DoctorDashboard = () => {
                                 <Button variant="secondary" onClick={() => setShowPrescription(false)} disabled={prescriptionLoading}>Cancel</Button>
                                 <Button type="submit" className="btn-gradient-primary" disabled={prescriptionLoading}>
                                     {prescriptionLoading ? <Spinner size="sm" animation="border" /> : 'Submit Prescription'}
+                                </Button>
+                            </Modal.Footer>
+                        </Form>
+                    </Modal>
+
+                    {/* Update Patient Modal */}
+                    <Modal show={showUpdatePatient} onHide={() => { setShowUpdatePatient(false); setUpdatePatientError(null); setUpdatePatientSuccess(null); setSelectedPatient(null); }}>
+                        <Modal.Header closeButton>
+                            <Modal.Title>Update Patient Information</Modal.Title>
+                        </Modal.Header>
+                        <Form onSubmit={handleUpdatePatientSubmit}>
+                            <Modal.Body>
+                                {updatePatientError && <Alert variant="danger">{updatePatientError}</Alert>}
+                                {updatePatientSuccess && <Alert variant="success">{updatePatientSuccess}</Alert>}
+                                <Form.Group className="mb-3" controlId="updateFirstName">
+                                    <Form.Label>First Name</Form.Label>
+                                    <Form.Control
+                                        type="text"
+                                        required
+                                        value={updatedPatientData.first_name}
+                                        onChange={e => setUpdatedPatientData(d => ({ ...d, first_name: e.target.value }))}
+                                        placeholder="Enter first name"
+                                    />
+                                </Form.Group>
+                                <Form.Group className="mb-3" controlId="updateLastName">
+                                    <Form.Label>Last Name</Form.Label>
+                                    <Form.Control
+                                        type="text"
+                                        required
+                                        value={updatedPatientData.last_name}
+                                        onChange={e => setUpdatedPatientData(d => ({ ...d, last_name: e.target.value }))}
+                                        placeholder="Enter last name"
+                                    />
+                                </Form.Group>
+                                <Form.Group className="mb-3" controlId="updateCondition">
+                                    <Form.Label>Primary Condition</Form.Label>
+                                    <Form.Control
+                                        type="text"
+                                        value={updatedPatientData.primary_condition}
+                                        onChange={e => setUpdatedPatientData(d => ({ ...d, primary_condition: e.target.value }))}
+                                        placeholder="Enter primary condition"
+                                    />
+                                </Form.Group>
+                            </Modal.Body>
+                            <Modal.Footer>
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => { setShowUpdatePatient(false); setSelectedPatient(null); }}
+                                    disabled={updatePatientLoading}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button type="submit" className="btn-gradient-primary" disabled={updatePatientLoading}>
+                                    {updatePatientLoading ? <Spinner size="sm" animation="border" /> : 'Update Patient'}
                                 </Button>
                             </Modal.Footer>
                         </Form>

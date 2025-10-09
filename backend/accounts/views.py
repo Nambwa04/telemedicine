@@ -3,24 +3,56 @@ from rest_framework import generics, permissions, status, throttling
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.decorators import api_view, permission_classes
+from rest_framework.pagination import PageNumberPagination
 from django.db.models import Q, Count, Avg
 from django.db import models
 from django.contrib.auth import get_user_model
+from django.utils import timezone
+from django.http import JsonResponse
+from datetime import timedelta
 from .serializers import (
     RegisterSerializer, UserSerializer,
     EmailVerificationRequestSerializer, EmailVerificationConfirmSerializer,
     PasswordResetRequestSerializer, PasswordResetConfirmSerializer
 )
 from .models import EmailVerificationToken, PasswordResetToken
-from django.utils import timezone
-from datetime import timedelta
-# Patient detail view for GET, PATCH, DELETE (must be after UserSerializer is defined)
+from appointments.models import Appointment
+from accounts.models import User
 
 User = get_user_model()
+
+# Dashboard stats endpoint for doctor dashboard
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+# @permission_classes([permissions.IsAuthenticated])
+def dashboard_stats(request):
+    today = timezone.now().date()
+    # Appointments for today
+    today_appointments = Appointment.objects.filter(date=today).count()
+    # Total patients
+    total_patients = User.objects.filter(role='patient').count()
+    # Pending consults (in-progress)
+    pending_consults = Appointment.objects.filter(status='in-progress').count()
+    # Completed appointments today
+    completed_today = Appointment.objects.filter(date=today, status='completed').count()
+    return JsonResponse({
+        "todayAppointments": today_appointments,
+        "totalPatients": total_patients,
+        "pendingConsults": pending_consults,
+        "completedToday": completed_today
+    })
 
 class IsAdmin(BasePermission):
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.role == 'admin'
+
+class IsDoctor(BasePermission):
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and request.user.role == 'doctor'
+
+class IsDoctorOrAdmin(BasePermission):
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and request.user.role in ['doctor', 'admin']
 
 # Admin registration endpoint
 class AdminRegisterView(generics.CreateAPIView):
@@ -99,6 +131,13 @@ class AdminCaregiverDeleteView(generics.DestroyAPIView):
     permission_classes = [IsAdmin]
     def get_queryset(self):
         return User.objects.filter(role='caregiver')
+
+# Doctor: Update patient
+class DoctorUpdatePatientView(generics.UpdateAPIView):
+    serializer_class = UserSerializer
+    permission_classes = [IsDoctorOrAdmin]
+    def get_queryset(self):
+        return User.objects.filter(role='patient')
 
 # Admin: System analytics
 class AdminAnalyticsView(APIView):
@@ -253,16 +292,12 @@ class AdminAppointmentListView(generics.ListAPIView):
         queryset = queryset.order_by('-date', '-time')
         
         # Paginate
-        from rest_framework.pagination import PageNumberPagination
         paginator = PageNumberPagination()
-        paginator.page_size = 50
-        page = paginator.paginate_queryset(queryset, request)
+        paginated_queryset = paginator.paginate_queryset(queryset, request)
         
-        # Serialize
-        serializer = AppointmentSerializer(page, many=True)
+        serializer = AppointmentSerializer(paginated_queryset, many=True)
         return paginator.get_paginated_response(serializer.data)
 
-# Custom permission: only the patient or any doctor can update a patient
 class IsSelfOrDoctor(BasePermission):
     def has_object_permission(self, request, view, obj):
         # Allow safe (GET) methods for authenticated users

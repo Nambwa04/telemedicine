@@ -1,3 +1,26 @@
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from datetime import date
+from .models import Appointment
+from .serializers import AppointmentSerializer
+
+# ...existing code...
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def today_appointments(request):
+    """
+    Returns a list of today's appointments for the authenticated doctor.
+    """
+    user = request.user
+    today = date.today()
+    # Filter by doctor if your model has a doctor field, otherwise return all
+    qs = Appointment.objects.filter(date=today)
+    # If you want to filter by doctor:
+    # qs = Appointment.objects.filter(date=today, doctor=user)
+    serializer = AppointmentSerializer(qs, many=True)
+    return Response(serializer.data)
 from rest_framework import viewsets, permissions
 from .models import Appointment
 from .serializers import AppointmentSerializer

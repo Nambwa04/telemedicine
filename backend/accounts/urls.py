@@ -6,7 +6,7 @@ from .views import (
     AdminRegisterView, AdminUserListView, AdminDoctorCreateView, AdminDoctorDeleteView, AdminDoctorUpdateView,
     AdminPatientCreateView, AdminPatientUpdateView, AdminPatientDeleteView,
     AdminCaregiverCreateView, AdminCaregiverUpdateView, AdminCaregiverDeleteView,
-    AdminAnalyticsView, AdminAppointmentListView
+    AdminAnalyticsView, AdminAppointmentListView, dashboard_stats, DoctorUpdatePatientView
 )
 
 urlpatterns = [
@@ -21,6 +21,8 @@ urlpatterns = [
     path('admin/patients/create/', AdminPatientCreateView.as_view(), name='admin-patient-create'),
     path('admin/patients/<int:pk>/update/', AdminPatientUpdateView.as_view(), name='admin-patient-update'),
     path('admin/patients/<int:pk>/delete/', AdminPatientDeleteView.as_view(), name='admin-patient-delete'),
+    # Doctor patient management
+    path('doctor/patients/<int:pk>/update/', DoctorUpdatePatientView.as_view(), name='doctor-patient-update'),
     # Caregiver endpoints
     path('admin/caregivers/create/', AdminCaregiverCreateView.as_view(), name='admin-caregiver-create'),
     path('admin/caregivers/<int:pk>/update/', AdminCaregiverUpdateView.as_view(), name='admin-caregiver-update'),
@@ -28,6 +30,7 @@ urlpatterns = [
     # Analytics and monitoring
     path('admin/analytics/', AdminAnalyticsView.as_view(), name='admin-analytics'),
     path('admin/appointments/', AdminAppointmentListView.as_view(), name='admin-appointments'),
+    path('dashboard-stats/', dashboard_stats, name='dashboard-stats'),
     # Other endpoints
     path('me/', MeView.as_view(), name='me'),
     path('patients/', PatientListView.as_view(), name='patients'),
