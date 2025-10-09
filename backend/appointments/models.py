@@ -18,6 +18,7 @@ class Appointment(models.Model):
     notes = models.TextField(blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='scheduled')
     created_at = models.DateTimeField(auto_now_add=True)
+    video_link = models.URLField(blank=True, null=True, help_text="URL for video consultation (if any)")
 
     class Meta:
         ordering = ['date', 'time']

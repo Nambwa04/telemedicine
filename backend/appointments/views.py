@@ -8,6 +8,40 @@ class IsParticipant(permissions.BasePermission):
         return obj.patient == request.user or obj.doctor == request.user or request.user.is_staff
 
 class AppointmentViewSet(viewsets.ModelViewSet):
+    # Schedule appointment (already handled by create)
+
+    # Reschedule appointment
+    def partial_update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        # Only allow reschedule if status is scheduled or in-progress
+        if instance.status not in ['scheduled', 'in-progress']:
+            return Response({'detail': 'Cannot reschedule a completed or cancelled appointment.'}, status=400)
+        return super().partial_update(request, *args, **kwargs)
+
+    # Cancel appointment
+    def cancel(self, request, pk=None):
+        appointment = self.get_object()
+        if appointment.status == 'cancelled':
+            return Response({'detail': 'Appointment already cancelled.'}, status=400)
+        appointment.status = 'cancelled'
+        appointment.save(update_fields=['status'])
+        return Response({'detail': 'Appointment cancelled.'})
+
+    # Join video consultation (returns video link)
+    def join_video(self, request, pk=None):
+        appointment = self.get_object()
+        if not appointment.video_link:
+            return Response({'detail': 'No video link set for this appointment.'}, status=404)
+        return Response({'video_link': appointment.video_link})
+
+    from rest_framework.decorators import action
+    @action(detail=True, methods=['post'])
+    def cancel_appointment(self, request, pk=None):
+        return self.cancel(request, pk)
+
+    @action(detail=True, methods=['get'])
+    def join_video(self, request, pk=None):
+        return self.join_video(request, pk)
     queryset = Appointment.objects.all()
     serializer_class = AppointmentSerializer
     permission_classes = [permissions.IsAuthenticated, IsDoctorOrOwner]

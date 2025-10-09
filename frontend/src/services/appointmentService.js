@@ -1,9 +1,10 @@
+import { createApiClient } from './apiClient';
+import API_BASE from '../config';
+
 // appointmentService.js
 // Production version: all data comes from backend API. Removed previous mock/fallback layer.
 // Each appointment returned to UI is normalized with patientName & patientId fields for existing components.
 
-import { createApiClient } from './apiClient';
-import API_BASE from '../config';
 const api = createApiClient(
     () => ({ user: JSON.parse(localStorage.getItem('user') || 'null'), refreshToken: async () => null }),
     API_BASE
@@ -61,3 +62,13 @@ export async function deleteAppointment(id) {
 }
 
 // No mock or local state retained—source of truth is server.
+
+// Join video consultation (returns { video_link })
+export async function joinVideoConsultation(id) {
+    return api.get(`/appointments/${id}/join_video/`);
+}
+
+// Cancel appointment using backend action endpoint
+export async function cancelAppointmentAction(id) {
+    return api.post(`/appointments/${id}/cancel_appointment/`);
+}

@@ -38,7 +38,8 @@ const Login = () => {
             const dashboardMap = {
                 'patient': '/patient-dashboard',
                 'doctor': '/doctor-dashboard',
-                'caregiver': '/caregiver-dashboard'
+                'caregiver': '/caregiver-dashboard',
+                'admin': '/admin-dashboard'
             };
             navigate(dashboardMap[userRole] || '/');
         } else {

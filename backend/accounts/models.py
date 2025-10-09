@@ -5,6 +5,7 @@ import uuid
 
 class User(AbstractUser):
     ROLE_CHOICES = [
+        ('admin', 'Admin'),
         ('patient', 'Patient'),
         ('doctor', 'Doctor'),
         ('caregiver', 'Caregiver'),

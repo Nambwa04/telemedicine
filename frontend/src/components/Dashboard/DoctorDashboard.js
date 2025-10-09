@@ -6,9 +6,12 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { useAuth } from '../../context/AuthContext';
 import { getStatusMeta } from '../../utils/statusStyles';
 import { fetchPatientList } from '../../services/healthService';
+import { createPrescription } from '../../services/prescriptionService';
+import { useNavigate } from 'react-router-dom';
 import API_BASE from '../../config';
 
 const DoctorDashboard = () => {
+    const navigate = useNavigate();
     const { user } = useAuth();
     // State for add patient modal (all hooks must be at top level)
     const [showAddPatient, setShowAddPatient] = useState(false);
@@ -18,7 +21,21 @@ const DoctorDashboard = () => {
     const [newPatient, setNewPatient] = useState({
         email: '',
         first_name: '',
-        last_name: ''
+        last_name: '',
+        condition: ''
+    });
+
+    // Prescription modal state
+    const [showPrescription, setShowPrescription] = useState(false);
+    const [prescriptionLoading, setPrescriptionLoading] = useState(false);
+    const [prescriptionError, setPrescriptionError] = useState(null);
+    const [prescriptionSuccess, setPrescriptionSuccess] = useState(null);
+    const [prescription, setPrescription] = useState({
+        patient: '',
+        name: '',
+        dosage: '',
+        frequency: '',
+        next_due: ''
     });
     const [stats] = useState({
         todayAppointments: 8,
@@ -44,7 +61,8 @@ const DoctorDashboard = () => {
                     role: 'patient',
                     first_name: newPatient.first_name,
                     last_name: newPatient.last_name,
-                    username: newPatient.email.split('@')[0]
+                    username: newPatient.email.split('@')[0],
+                    primary_condition: newPatient.condition
                 })
             });
             if (!res.ok) {
@@ -73,7 +91,7 @@ const DoctorDashboard = () => {
                 throw new Error(msg);
             }
             setAddPatientSuccess('Patient added successfully!');
-            setNewPatient({ email: '', first_name: '', last_name: '' });
+            setNewPatient({ email: '', first_name: '', last_name: '', condition: '' });
             // Refresh patient list after successful add
             const updatedList = await fetchPatientList();
             setRecentPatients(updatedList);
@@ -118,10 +136,72 @@ const DoctorDashboard = () => {
         return () => { mounted = false; };
     }, []);
 
+
     const priorityMeta = {
         high: { label: 'High', badgeClass: 'badge-soft-danger' },
         medium: { label: 'Medium', badgeClass: 'badge-soft-warning' },
         low: { label: 'Low', badgeClass: 'badge-soft-success' }
+    };
+
+    // Action handlers
+    const handleViewPatient = (patient) => {
+        // Navigate to patient details page or show modal
+        if (navigate) navigate(`/patients/${patient.id}`);
+        else alert(`View patient: ${patient.name}`);
+    };
+    const handleViewAppointment = (appt) => {
+        alert(`View appointment for ${appt.patient} at ${appt.time}`);
+    };
+    const handleVideoAppointment = (appt) => {
+        alert(`Start video call for ${appt.patient} at ${appt.time}`);
+    };
+    const handleCompleteTask = (task) => {
+        alert(`Mark task as complete: ${task.task}`);
+    };
+    const handleViewAllTasks = () => {
+        alert('View all tasks (not implemented)');
+    };
+    const handleViewAllPatients = () => {
+        if (navigate) navigate('/patients');
+        else alert('View all patients');
+    };
+    // Quick actions
+    const handleQuickAction = (action) => {
+        switch (action) {
+            case 'New Patient':
+                setShowAddPatient(true);
+                break;
+            case 'Consult':
+                alert('Start a new consult');
+                break;
+            case 'Prescription':
+                setShowPrescription(true);
+                setPrescriptionError(null);
+                setPrescriptionSuccess(null);
+                break;
+            case 'Reports':
+                alert('View reports');
+                break;
+            default:
+                alert(`Action: ${action}`);
+        }
+    };
+
+    // Prescription submit handler
+    const handlePrescriptionSubmit = async (e) => {
+        e.preventDefault();
+        setPrescriptionLoading(true);
+        setPrescriptionError(null);
+        setPrescriptionSuccess(null);
+        try {
+            await createPrescription(prescription);
+            setPrescriptionSuccess('Prescription submitted successfully!');
+            setPrescription({ patient: '', name: '', dosage: '', frequency: '', next_due: '' });
+        } catch (err) {
+            setPrescriptionError(err.message || 'Failed to submit prescription');
+        } finally {
+            setPrescriptionLoading(false);
+        }
     };
 
     return (
@@ -212,6 +292,10 @@ const DoctorDashboard = () => {
                                             <Form.Label>Last Name</Form.Label>
                                             <Form.Control type="text" value={newPatient.last_name} onChange={e => setNewPatient(p => ({ ...p, last_name: e.target.value }))} />
                                         </Form.Group>
+                                        <Form.Group className="mb-3" controlId="addPatientCondition">
+                                            <Form.Label>Condition</Form.Label>
+                                            <Form.Control type="text" placeholder="e.g. Diabetes, Hypertension" value={newPatient.condition} onChange={e => setNewPatient(p => ({ ...p, condition: e.target.value }))} />
+                                        </Form.Group>
                                     </Modal.Body>
                                     <Modal.Footer>
                                         <Button variant="secondary" onClick={() => setShowAddPatient(false)} disabled={addPatientLoading}>Cancel</Button>
@@ -243,10 +327,10 @@ const DoctorDashboard = () => {
                                                 <td>{appt.type}</td>
                                                 <td><span className={`badge ${meta.badgeClass}`}>{meta.label}</span></td>
                                                 <td className="quick-actions">
-                                                    <button type="button" className="btn-icon me-1" title="View">
+                                                    <button type="button" className="btn-icon me-1" title="View" onClick={() => handleViewAppointment(appt)}>
                                                         <FontAwesomeIcon icon="eye" />
                                                     </button>
-                                                    <button type="button" className="btn-icon" title="Video">
+                                                    <button type="button" className="btn-icon" title="Video" onClick={() => handleVideoAppointment(appt)}>
                                                         <FontAwesomeIcon icon="video" />
                                                     </button>
                                                 </td>
@@ -282,14 +366,14 @@ const DoctorDashboard = () => {
                                             <span className={`badge ${pm.badgeClass}`}>{pm.label}</span>
                                         </div>
                                         <div>
-                                            <button type="button" className="btn-icon" title="Complete">
+                                            <button type="button" className="btn-icon" title="Complete" onClick={() => handleCompleteTask(task)}>
                                                 <FontAwesomeIcon icon="check" />
                                             </button>
                                         </div>
                                     </div>
                                 );
                             })}
-                            <Button variant="link" className="p-0 text-primary fw-semibold">
+                            <Button variant="link" className="p-0 text-primary fw-semibold" onClick={handleViewAllTasks}>
                                 View all tasks <FontAwesomeIcon icon="arrow-right" className="ms-1" />
                             </Button>
                         </Card.Body>
@@ -319,7 +403,7 @@ const DoctorDashboard = () => {
                                     </div>
                                     <div className="text-end">
                                         <div>
-                                            <button type="button" className="btn-icon" title="View">
+                                            <button type="button" className="btn-icon" title="View" onClick={() => handleViewPatient(p)}>
                                                 <FontAwesomeIcon icon="eye" />
                                             </button>
                                         </div>
@@ -329,7 +413,7 @@ const DoctorDashboard = () => {
                             <Button className="btn-gradient-primary w-100 fw-semibold mt-2" onClick={() => setShowAddPatient(true)}>
                                 <FontAwesomeIcon icon="plus" className="me-2" /> Add Patient
                             </Button>
-                            <Button className="btn-gradient-primary w-100 fw-semibold mt-2">
+                            <Button className="btn-gradient-primary w-100 fw-semibold mt-2" onClick={handleViewAllPatients}>
                                 <FontAwesomeIcon icon="users" className="me-2" /> View All Patients
                             </Button>
                         </Card.Body>
@@ -345,13 +429,51 @@ const DoctorDashboard = () => {
                         </Card.Header>
                         <Card.Body>
                             <Row>
-                                <Col md={6} className="mb-3"><QuickActionTile icon="plus" label="New Patient" accent="blue-theme" /></Col>
-                                <Col md={6} className="mb-3"><QuickActionTile icon="video" label="Consult" accent="blue-theme" /></Col>
-                                <Col md={6} className="mb-3"><QuickActionTile icon="prescription" label="Prescription" accent="blue-theme" /></Col>
-                                <Col md={6} className="mb-3"><QuickActionTile icon="chart-bar" label="Reports" accent="blue-theme" /></Col>
+                                <Col md={6} className="mb-3"><QuickActionTile icon="plus" label="New Patient" accent="blue-theme" onClick={() => handleQuickAction('New Patient')} /></Col>
+                                <Col md={6} className="mb-3"><QuickActionTile icon="video" label="Consult" accent="blue-theme" onClick={() => handleQuickAction('Consult')} /></Col>
+                                <Col md={6} className="mb-3"><QuickActionTile icon="prescription" label="Prescription" accent="blue-theme" onClick={() => handleQuickAction('Prescription')} /></Col>
+                                <Col md={6} className="mb-3"><QuickActionTile icon="chart-bar" label="Reports" accent="blue-theme" onClick={() => handleQuickAction('Reports')} /></Col>
                             </Row>
                         </Card.Body>
                     </Card>
+                    {/* Prescription Modal */}
+                    <Modal show={showPrescription} onHide={() => { setShowPrescription(false); setPrescriptionError(null); setPrescriptionSuccess(null); }}>
+                        <Modal.Header closeButton>
+                            <Modal.Title>New Prescription</Modal.Title>
+                        </Modal.Header>
+                        <Form onSubmit={handlePrescriptionSubmit}>
+                            <Modal.Body>
+                                {prescriptionError && <Alert variant="danger">{prescriptionError}</Alert>}
+                                {prescriptionSuccess && <Alert variant="success">{prescriptionSuccess}</Alert>}
+                                <Form.Group className="mb-3" controlId="prescriptionPatient">
+                                    <Form.Label>Patient ID or Email</Form.Label>
+                                    <Form.Control type="text" required value={prescription.patient} onChange={e => setPrescription(p => ({ ...p, patient: e.target.value }))} placeholder="Enter patient ID or email" />
+                                </Form.Group>
+                                <Form.Group className="mb-3" controlId="prescriptionName">
+                                    <Form.Label>Medication Name</Form.Label>
+                                    <Form.Control type="text" required value={prescription.name} onChange={e => setPrescription(p => ({ ...p, name: e.target.value }))} />
+                                </Form.Group>
+                                <Form.Group className="mb-3" controlId="prescriptionDosage">
+                                    <Form.Label>Dosage</Form.Label>
+                                    <Form.Control type="text" required value={prescription.dosage} onChange={e => setPrescription(p => ({ ...p, dosage: e.target.value }))} />
+                                </Form.Group>
+                                <Form.Group className="mb-3" controlId="prescriptionFrequency">
+                                    <Form.Label>Frequency</Form.Label>
+                                    <Form.Control type="text" required value={prescription.frequency} onChange={e => setPrescription(p => ({ ...p, frequency: e.target.value }))} />
+                                </Form.Group>
+                                <Form.Group className="mb-3" controlId="prescriptionNextDue">
+                                    <Form.Label>Next Due Date</Form.Label>
+                                    <Form.Control type="date" value={prescription.next_due} onChange={e => setPrescription(p => ({ ...p, next_due: e.target.value }))} />
+                                </Form.Group>
+                            </Modal.Body>
+                            <Modal.Footer>
+                                <Button variant="secondary" onClick={() => setShowPrescription(false)} disabled={prescriptionLoading}>Cancel</Button>
+                                <Button type="submit" className="btn-gradient-primary" disabled={prescriptionLoading}>
+                                    {prescriptionLoading ? <Spinner size="sm" animation="border" /> : 'Submit Prescription'}
+                                </Button>
+                            </Modal.Footer>
+                        </Form>
+                    </Modal>
                 </Col>
             </Row>
         </Container>

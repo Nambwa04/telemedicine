@@ -51,7 +51,7 @@ const Sidebar = ({ mobileOpen = false, onMobileClose }) => {
         ]
     };
 
-    const items = [...baseItems, ...(roleItemsMap[role] || [])];
+    let items = [...baseItems, ...(roleItemsMap[role] || [])];
 
     const handleLogout = () => {
         logout();

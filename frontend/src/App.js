@@ -10,6 +10,7 @@ import Register from './components/Auth/Register';
 import PatientDashboard from './components/Dashboard/PatientDashboard';
 import DoctorDashboard from './components/Dashboard/DoctorDashboard';
 import CaregiverDashboard from './components/Dashboard/CaregiverDashboard';
+import AdminDashboard from './components/Dashboard/AdminDashboard';
 import Navbar from './components/Common/Navbar';
 import Sidebar from './components/Common/Sidebar';
 import ProtectedRoute from './components/Common/ProtectedRoute';
@@ -38,7 +39,7 @@ function App() {
   const RootRoute = () => {
     const { user } = useAuth();
     if (user) {
-      const roleMap = { patient: '/patient-dashboard', doctor: '/doctor-dashboard', caregiver: '/caregiver-dashboard' };
+      const roleMap = { patient: '/patient-dashboard', doctor: '/doctor-dashboard', caregiver: '/caregiver-dashboard', admin: '/admin-dashboard' };
       return <Navigate to={roleMap[user.role] || '/patient-dashboard'} replace />;
     }
     return <HomePage />;
@@ -66,7 +67,8 @@ function App() {
 
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // Wrapper component to apply or remove sidebar spacing
+  // Wrapper component to apply or remove sidebar spacing (kept for future use)
+  // Note: currently unused by Routes/JSX but useful for layout changes later
   const MainWrapper = ({ children }) => {
     const location = useLocation();
     const { user } = useAuth();
@@ -85,7 +87,7 @@ function App() {
             {/* Decide if we are on a dashboard route to show sidebar instead of top navbar */}
             <RouteDecider onHamburger={() => setMobileOpen(true)} />
             {mobileOpen && <div className="sidebar-overlay d-lg-none" onClick={() => setMobileOpen(false)} aria-label="Close menu overlay" />}
-            <main className="main-content with-sidebar">
+            <MainWrapper>
               <Container fluid>
                 <Routes>
                   <Route path="/" element={<RootRoute />} />
@@ -114,6 +116,16 @@ function App() {
                     element={
                       <ProtectedRoute requiredRole="caregiver">
                         <CaregiverDashboard />
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  {/* Admin Dashboard */}
+                  <Route
+                    path="/admin-dashboard"
+                    element={
+                      <ProtectedRoute requiredRole="admin">
+                        <AdminDashboard />
                       </ProtectedRoute>
                     }
                   />
@@ -213,7 +225,7 @@ function App() {
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </Container>
-            </main>
+            </MainWrapper>
           </div>
         </Router>
       </NotificationProvider>

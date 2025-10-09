@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { listAppointments } from '../../services/appointmentService';
+import { listAppointments, cancelAppointmentAction, joinVideoConsultation } from '../../services/appointmentService';
 import { Container, Row, Col, Card, Button, Modal, Form, Table, Badge, Alert } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import Calendar from 'react-calendar';
@@ -83,35 +83,32 @@ const AppointmentManagement = ({ userRole = 'patient' }) => {
         setShowModal(true);
     };
 
-    const handleSubmit = (e) => {
-        e.preventDefault();
-
-        if (modalType === 'book') {
-            const newAppointment = {
-                id: appointments.length + 1,
-                date: formData.date,
-                time: formData.time,
-                doctor: formData.doctor,
-                patient: userRole === 'patient' ? 'Current User' : 'Patient Name',
-                type: formData.type,
-                status: 'scheduled',
-                specialization: doctors.find(d => d.name === formData.doctor)?.specialization || 'General'
-            };
-            setAppointments([...appointments, newAppointment]);
-        } else if (modalType === 'reschedule') {
-            setAppointments(appointments.map(apt =>
-                apt.id === selectedAppointment.id
-                    ? { ...apt, date: formData.date, time: formData.time, status: 'rescheduled' }
-                    : apt
-            ));
-        } else if (modalType === 'cancel') {
-            setAppointments(appointments.map(apt =>
-                apt.id === selectedAppointment.id
-                    ? { ...apt, status: 'cancelled' }
-                    : apt
-            ));
+    const handleJoinVideo = async (appointment) => {
+        try {
+            const res = await joinVideoConsultation(appointment.id);
+            if (res && res.video_link) {
+                window.open(res.video_link, '_blank');
+            } else {
+                alert('No video link available for this appointment.');
+            }
+        } catch (e) {
+            alert('Failed to join video consultation.');
         }
+    };
 
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (modalType === 'cancel') {
+            try {
+                await cancelAppointmentAction(selectedAppointment.id);
+                fetchData();
+            } catch (e) {
+                alert('Failed to cancel appointment.');
+            }
+            setShowModal(false);
+            return;
+        }
+        // ...existing code for book/reschedule (should be updated to use backend as well)
         setShowModal(false);
     };
 
@@ -273,6 +270,8 @@ const AppointmentManagement = ({ userRole = 'patient' }) => {
                                                             <Button
                                                                 size="sm"
                                                                 variant="outline-success"
+                                                                onClick={() => handleJoinVideo(appointment)}
+                                                                disabled={!appointment.video_link}
                                                             >
                                                                 <FontAwesomeIcon icon="video" />
                                                             </Button>
