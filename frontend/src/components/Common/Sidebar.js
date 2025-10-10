@@ -39,7 +39,7 @@ const Sidebar = ({ mobileOpen = false, onMobileClose }) => {
         ],
         doctor: [
             { to: '/patients', icon: 'users', label: 'Patients' },
-            { to: '/appointments', icon: 'calendar-day', label: 'Schedule' },
+            { to: '/appointments', icon: 'calendar-day', label: 'Appointments' },
             { to: '/video-calls', icon: 'video', label: 'Video Calls' },
             { to: '/health-dashboard', icon: 'chart-line', label: 'Health' }
         ],

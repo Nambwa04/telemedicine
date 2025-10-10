@@ -155,9 +155,6 @@ const AppointmentsPage = () => {
                                 </InputGroup>
                             </Form.Group>
                         </Col>
-                        <Col md={2}>
-                            <Button variant="outline-secondary" className="mt-4" onClick={() => { setDateFilter(''); setFilterText(''); }}>Reset</Button>
-                        </Col>
                     </Row>
                 </Card.Body>
             </Card>

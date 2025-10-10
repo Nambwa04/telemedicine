@@ -232,7 +232,7 @@ const AdminDashboard = () => {
                 {error && <Alert variant="danger">{error}</Alert>}
                 {loading ? <Spinner animation="border" /> : (
                     <Tabs activeKey={activeTab} onSelect={(k) => setActiveTab(k)} id="admin-dashboard-tabs" className="mb-3">
-                        <Tab eventKey="analytics" title="📊 Analytics">
+                        <Tab eventKey="analytics" title={<><FontAwesomeIcon icon="chart-line" className="me-2" />Analytics</>}>
                             {analyticsLoading ? (
                                 <div className="text-center py-5"><Spinner animation="border" /></div>
                             ) : analytics ? (
@@ -416,7 +416,7 @@ const AdminDashboard = () => {
                             )}
                         </Tab>
 
-                        <Tab eventKey="appointments" title="📅 Appointments">
+                        <Tab eventKey="appointments" title={<><FontAwesomeIcon icon="calendar" className="me-2" />Appointments</>}>
                             {appointmentsLoading ? (
                                 <div className="text-center py-5"><Spinner animation="border" /></div>
                             ) : (
@@ -502,7 +502,7 @@ const AdminDashboard = () => {
                             )}
                         </Tab>
 
-                        <Tab eventKey="doctors" title="👨‍⚕️ Doctors">
+                        <Tab eventKey="doctors" title={<><FontAwesomeIcon icon="user-md" className="me-2" />Doctors</>}>
                             <Row className="mb-2 align-items-center">
                                 <Col md={4}>
                                     <Button variant="primary" onClick={() => openModal('add-doctor')}>
@@ -584,7 +584,7 @@ const AdminDashboard = () => {
                                 </tbody>
                             </Table>
                         </Tab>
-                        <Tab eventKey="patients" title="🏥 Patients">
+                        <Tab eventKey="patients" title={<><FontAwesomeIcon icon="user-injured" className="me-2" />Patients</>}>
                             <Row className="mb-2 align-items-center">
                                 <Col md={4}>
                                     <Button variant="primary" onClick={() => openModal('add-patient')}>
@@ -668,7 +668,7 @@ const AdminDashboard = () => {
                                 </tbody>
                             </Table>
                         </Tab>
-                        <Tab eventKey="caregivers" title="🤝 Caregivers">
+                        <Tab eventKey="caregivers" title={<><FontAwesomeIcon icon="user-nurse" className="me-2" />Caregivers</>}>
                             <Row className="mb-2 align-items-center">
                                 <Col md={4}>
                                     <Button variant="primary" onClick={() => openModal('add-caregiver')}>
