@@ -33,6 +33,8 @@ const Sidebar = ({ mobileOpen = false, onMobileClose }) => {
 
     const roleItemsMap = {
         patient: [
+            { to: '/appointments', icon: 'calendar-day', label: 'Appointments' },
+            { to: '/video-call', icon: 'video', label: 'Video Call' },
             { to: '/medications', icon: 'pills', label: 'Medications' },
             { to: '/caregivers', icon: 'user-nurse', label: 'Caregivers' },
             { to: '/health-dashboard', icon: 'chart-line', label: 'Health' }

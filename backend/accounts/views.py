@@ -358,6 +358,18 @@ class DoctorListView(generics.ListAPIView):
         return qs.order_by('id')
 
 
+class CaregiverListView(generics.ListAPIView):
+    serializer_class = UserSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        qs = User.objects.filter(role='caregiver')
+        search = self.request.query_params.get('search')
+        if search:
+            qs = qs.filter(Q(first_name__icontains=search) | Q(last_name__icontains=search) | Q(email__icontains=search))
+        return qs.order_by('id')
+
+
 class ScopedRateThrottle(throttling.SimpleRateThrottle):
     scope = None
     def get_cache_key(self, request, view):

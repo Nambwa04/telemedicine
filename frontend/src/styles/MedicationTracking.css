@@ -1,0 +1,222 @@
+/* Medication Tracking Styles */
+
+.medication-tracking {
+  padding: 1rem 0;
+}
+
+.medication-card {
+  transition: all 0.3s ease;
+  border-left: 4px solid transparent;
+}
+
+.medication-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15) !important;
+  border-left-color: var(--bs-primary);
+}
+
+.refill-badge {
+  font-size: 0.75rem;
+  padding: 0.4rem 0.8rem;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.medication-progress,
+.compliance-progress {
+  height: 8px;
+  border-radius: 10px;
+}
+
+.medication-progress .progress-bar,
+.compliance-progress .progress-bar {
+  transition: width 0.6s ease;
+}
+
+.recent-logs {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 0.75rem;
+}
+
+.log-entry {
+  padding: 0.25rem 0;
+  display: flex;
+  align-items: center;
+}
+
+.log-entry:not(:last-child) {
+  border-bottom: 1px solid #dee2e6;
+}
+
+/* Compliance indicators */
+.text-success {
+  color: #28a745 !important;
+}
+
+.text-warning {
+  color: #ffc107 !important;
+}
+
+.text-danger {
+  color: #dc3545 !important;
+}
+
+/* Modal enhancements */
+.modal-header {
+  border-bottom: 2px solid var(--bs-primary);
+}
+
+.modal-body h5 {
+  color: var(--bs-primary);
+  margin-bottom: 0.5rem;
+}
+
+/* Medical card base styling */
+.medical-card {
+  border: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.medical-card .card-header {
+  background: linear-gradient(
+    135deg,
+    var(--bs-primary) 0%,
+    var(--bs-primary) 100%
+  );
+  color: white;
+  font-weight: 600;
+  padding: 1rem 1.25rem;
+  border: none;
+}
+
+/* Buttons */
+.btn {
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.btn-primary {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.btn-primary:hover {
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  transform: translateY(-1px);
+}
+
+.btn-outline-primary:hover {
+  transform: translateY(-1px);
+}
+
+/* Fade-in animation */
+.fade-in {
+  animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .medication-card h4 {
+    font-size: 1.25rem;
+  }
+
+  .refill-badge {
+    font-size: 0.7rem;
+    padding: 0.3rem 0.6rem;
+  }
+
+  .btn {
+    font-size: 0.875rem;
+  }
+}
+
+/* Progress bar animations */
+.progress-bar {
+  transition: width 1s ease-in-out;
+}
+
+/* Table styling */
+.table {
+  margin-bottom: 0;
+}
+
+.table thead th {
+  background-color: var(--bs-primary);
+  color: white;
+  border: none;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.85rem;
+  padding: 0.75rem;
+}
+
+.table tbody tr {
+  transition: background-color 0.2s ease;
+}
+
+.table tbody tr:hover {
+  background-color: rgba(var(--bs-primary-rgb), 0.05);
+}
+
+.table td {
+  vertical-align: middle;
+  padding: 0.75rem;
+}
+
+/* Alert styling */
+.alert {
+  border-radius: 8px;
+  border: none;
+}
+
+.alert-info {
+  background-color: rgba(var(--bs-info-rgb), 0.1);
+  color: var(--bs-info);
+}
+
+.alert-danger {
+  background-color: rgba(var(--bs-danger-rgb), 0.1);
+  color: var(--bs-danger);
+}
+
+/* Badge styling */
+.badge {
+  font-weight: 500;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+}
+
+/* Form elements */
+.form-label {
+  font-weight: 600;
+  color: #495057;
+  margin-bottom: 0.5rem;
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: var(--bs-primary);
+  box-shadow: 0 0 0 0.2rem rgba(var(--bs-primary-rgb), 0.25);
+}

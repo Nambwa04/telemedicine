@@ -52,6 +52,9 @@ export function mapTrendLabel(trend) {
         case 'stable': return { icon: 'minus', color: 'primary', text: 'Stable' };
         case 'declining': return { icon: 'arrow-down', color: 'danger', text: 'Declining' };
         case 'normal': return { icon: 'check', color: 'success', text: 'Normal' };
+        case 'abnormally high': return { icon: 'exclamation-triangle', color: 'danger', text: 'Abnormally High' };
+        case 'abnormally low': return { icon: 'exclamation-triangle', color: 'warning', text: 'Abnormally Low' };
+        case 'unknown': return { icon: 'question', color: 'secondary', text: 'No Data' };
         default: return { icon: 'question', color: 'secondary', text: 'Unknown' };
     }
 }

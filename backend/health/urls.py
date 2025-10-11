@@ -1,6 +1,6 @@
 from rest_framework.routers import DefaultRouter
 from django.urls import path
-from .views import VitalReadingViewSet, SymptomLogViewSet, LabResultViewSet, HealthOverviewViewSet
+from .views import VitalReadingViewSet, SymptomLogViewSet, LabResultViewSet, HealthOverviewViewSet, LabResultUploadView
 
 router = DefaultRouter()
 router.register(r'vitals', VitalReadingViewSet, basename='vitals')
@@ -11,4 +11,5 @@ overview = HealthOverviewViewSet.as_view({'get': 'overview'})
 
 urlpatterns = router.urls + [
 	path('overview/', overview, name='health-overview'),
+    path('lab-results/upload/', LabResultUploadView.as_view(), name='lab-result-upload'),
 ]

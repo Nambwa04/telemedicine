@@ -17,12 +17,12 @@ import ProtectedRoute from './components/Common/ProtectedRoute';
 import AuthProvider from './context/AuthContext';
 import { NotificationProvider } from './context/NotificationContext';
 
-import MedicationManagement from './components/Medications/MedicationManagement';
+import MedicationTracking from './components/Medications/MedicationTracking';
 import CaregiverMarketplace from './components/Caregivers/CaregiverMarketplace';
 import PatientHealthDashboard from './components/HealthDashboard/PatientHealthDashboard';
 import ProfileManagement from './components/Profile/ProfileManagement';
 import PatientListPage from './pages/PatientListPage';
-import AppointmentsPage from './pages/AppointmentsPage';
+import AppointmentsWrapper from './components/Appointments/AppointmentsWrapper';
 import RequestsPage from './pages/RequestsPage';
 import VideoConsultation from './components/VideoCall/VideoConsultation';
 import './App.css';
@@ -149,13 +149,21 @@ function App() {
                       </ProtectedRoute>
                     }
                   />
+                  <Route
+                    path="/video-call"
+                    element={
+                      <ProtectedRoute>
+                        <VideoConsultation />
+                      </ProtectedRoute>
+                    }
+                  />
 
                   {/* Appointments / Schedule */}
                   <Route
                     path="/appointments"
                     element={
                       <ProtectedRoute>
-                        <AppointmentsPage />
+                        <AppointmentsWrapper />
                       </ProtectedRoute>
                     }
                   />
@@ -163,7 +171,7 @@ function App() {
                     path="/schedule"
                     element={
                       <ProtectedRoute requiredRole="caregiver">
-                        <AppointmentsPage />
+                        <AppointmentsWrapper />
                       </ProtectedRoute>
                     }
                   />
@@ -191,7 +199,7 @@ function App() {
                     path="/medications"
                     element={
                       <ProtectedRoute>
-                        <MedicationManagement />
+                        <MedicationTracking />
                       </ProtectedRoute>
                     }
                   />

@@ -10,6 +10,18 @@ const api = createApiClient(
     API_BASE
 );
 
+// Fetch doctors from backend
+export async function listDoctors() {
+    // /accounts/doctors/ endpoint returns a list of doctor users
+    const raw = await api.get('/accounts/doctors/');
+    // If paginated
+    if (raw && Object.prototype.hasOwnProperty.call(raw, 'results')) {
+        return raw.results;
+    }
+    return Array.isArray(raw) ? raw : [];
+}
+// Each appointment returned to UI is normalized with patientName & patientId fields for existing components.
+
 function mapAppointment(a) {
     // Backend serializer returns patient & doctor nested userSimple objects
     const patientId = a.patient?.id ?? a.patient_id ?? a.patientId;

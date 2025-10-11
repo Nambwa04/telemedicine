@@ -1,3 +1,9 @@
+from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework import status
+from rest_framework.views import APIView
+from django.contrib.auth import get_user_model
+from .models import LabResult
+from .serializers import LabResultSerializer
 from rest_framework import viewsets, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -8,28 +14,91 @@ from .serializers import VitalReadingSerializer, SymptomLogSerializer, LabResult
 from medications.models import Medication
 from appointments.models import Appointment
 
+
+# LabResultUploadView: Handles file uploads for lab results
+class LabResultUploadView(APIView):
+    parser_classes = (MultiPartParser, FormParser)
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        # Expecting: file, patient_id, uploaded_by, upload_date
+        import datetime
+        file = request.FILES.get('file')
+        patient_id = request.data.get('patient_id')
+        test = request.data.get('test', 'Lab Result')
+        value = request.data.get('value', '')
+        range_ = request.data.get('range', '')
+        status_ = request.data.get('status', 'pending')
+        date = request.data.get('upload_date')
+        if not patient_id:
+            return Response({'detail': 'patient_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        User = get_user_model()
+        try:
+            patient = User.objects.get(id=patient_id, role='patient')
+        except User.DoesNotExist:
+            return Response({'detail': 'Patient not found'}, status=status.HTTP_404_NOT_FOUND)
+        date_obj = None
+        if date:
+            try:
+                # Try to parse as full ISO datetime first
+                date_obj = datetime.datetime.fromisoformat(date.replace('Z', '+00:00')).date()
+            except Exception:
+                try:
+                    # Try to parse as YYYY-MM-DD
+                    date_obj = datetime.datetime.strptime(date, '%Y-%m-%d').date()
+                except Exception:
+                    return Response({'detail': 'Invalid date format. Use YYYY-MM-DD or ISO format.'}, status=status.HTTP_400_BAD_REQUEST)
+        # For demo: just save file name and meta, not file content
+        lab_result = LabResult.objects.create(
+            patient=patient,
+            test=test,
+            value=file.name if file else value,
+            range=range_,
+            status=status_,
+            date=date_obj
+        )
+        return Response(LabResultSerializer(lab_result).data, status=status.HTTP_201_CREATED)
+
+
+# Mixin to automatically set patient field to current user
 class PatientOwnedMixin:
     def perform_create(self, serializer):
         serializer.save(patient=self.request.user)
 
     def get_queryset(self):
-        qs = super().get_queryset()
         user = self.request.user
         if user.role == 'patient':
-            return qs.filter(patient=user)
-        return qs
+            return self.queryset.filter(patient=user)
+        # For doctors/caregivers, allow querying by patient_id
+        patient_id = self.request.query_params.get('patient_id')
+        if patient_id:
+            return self.queryset.filter(patient_id=patient_id)
+        return self.queryset.filter(patient=user)
+
 
 class VitalReadingViewSet(PatientOwnedMixin, viewsets.ModelViewSet):
     queryset = VitalReading.objects.all()
     serializer_class = VitalReadingSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
 
 class SymptomLogViewSet(PatientOwnedMixin, viewsets.ModelViewSet):
     queryset = SymptomLog.objects.all()
     serializer_class = SymptomLogSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def create(self, request, *args, **kwargs):
+        print('DEBUG: Incoming symptom POST data:', request.data)
+        response = super().create(request, *args, **kwargs)
+        if response.status_code == 400:
+            print('DEBUG: Symptom serializer errors:', response.data)
+        return response
+
 
 class LabResultViewSet(PatientOwnedMixin, viewsets.ModelViewSet):
     queryset = LabResult.objects.all()
     serializer_class = LabResultSerializer
+    permission_classes = [permissions.IsAuthenticated]
 
 
 class HealthOverviewViewSet(viewsets.ViewSet):
@@ -47,35 +116,122 @@ class HealthOverviewViewSet(viewsets.ViewSet):
                 try:
                     user = User.objects.get(id=patient_id, role='patient')
                 except User.DoesNotExist:
-                    return Response({'detail': 'Patient not found'}, status=404)
-        vitals_qs = VitalReading.objects.filter(patient=user).order_by('-date')[:5]
+                    return Response({'detail': 'Patient not found'}, status=status.HTTP_404_NOT_FOUND)
+            else:
+                return Response({'detail': 'patient_id is required for non-patient users'}, status=status.HTTP_400_BAD_REQUEST)
+    
+        # Get recent data for the patient (works for both patient and non-patient users)
+        vitals_qs = VitalReading.objects.filter(patient=user).order_by('-date', '-created_at')[:5]
+        current_vital = vitals_qs.first() if vitals_qs else None
+        previous_vital = vitals_qs[1] if vitals_qs and len(vitals_qs) > 1 else None
+        
         labs_qs = LabResult.objects.filter(patient=user).order_by('-date')[:5]
         symptoms_qs = SymptomLog.objects.filter(patient=user).order_by('-date')[:5]
         meds_qs = Medication.objects.filter(patient=user)
         upcoming_appts = Appointment.objects.filter(patient=user, date__gte=timezone.now().date()).order_by('date', 'time')[:5]
 
-        # Simple latest metrics extraction
-        latest_vital = vitals_qs[0] if vitals_qs else None
+        # Risk analysis functions
+        def bp_risk(s, d):
+            if s is None or d is None:
+                return 'unknown'
+            if s >= 180 or d >= 120:
+                return 'abnormally high'
+            if s >= 140 or d >= 90:
+                return 'abnormally high'
+            if s < 90 or d < 60:
+                return 'abnormally low'
+            return 'normal'
+
+        def hr_risk(hr):
+            if hr is None:
+                return 'unknown'
+            if hr < 40:
+                return 'abnormally low'
+            if hr > 130:
+                return 'abnormally high'
+            if hr < 60:
+                return 'abnormally low'
+            if hr > 100:
+                return 'abnormally high'
+            return 'normal'
+
+        def temp_risk(temp):
+            if temp is None:
+                return 'unknown'
+            if temp >= 39.5:
+                return 'abnormally high'
+            if temp <= 34:
+                return 'abnormally low'
+            if temp >= 38:
+                return 'abnormally high'
+            if temp < 36:
+                return 'abnormally low'
+            return 'normal'
+
+        def sugar_risk(sugar):
+            if sugar is None:
+                return 'unknown'
+            if sugar < 54:
+                return 'abnormally low'
+            if sugar > 400:
+                return 'abnormally high'
+            if sugar < 70:
+                return 'abnormally low'
+            if sugar > 180:
+                return 'abnormally high'
+            return 'normal'
+
+        def weight_risk(weight):
+            if weight is None:
+                return 'unknown'
+            if weight < 40:
+                return 'abnormally low'
+            if weight > 200:
+                return 'abnormally high'
+            if weight < 50:
+                return 'abnormally low'
+            if weight > 150:
+                return 'abnormally high'
+            return 'normal'
+        # Compute risk for each vital
+        bp_s = current_vital.blood_pressure_systolic if current_vital else None
+        bp_d = current_vital.blood_pressure_diastolic if current_vital else None
+        bp_trend = bp_risk(bp_s, bp_d)
+        hr_trend = hr_risk(current_vital.heart_rate if current_vital else None)
+        temp_trend = temp_risk(current_vital.temperature if current_vital else None)
+        sugar_trend = sugar_risk(current_vital.blood_sugar if current_vital else None)
+        weight_trend = weight_risk(current_vital.weight if current_vital else None)
+
         overview = {
             'bloodPressure': {
-                'current': f"{latest_vital.blood_pressure_systolic}/{latest_vital.blood_pressure_diastolic}" if latest_vital else None,
-                'trend': 'stable',
-                'lastReading': latest_vital.date.isoformat() if latest_vital else None
+                'current': f"{bp_s}/{bp_d}" if (bp_s is not None and bp_d is not None) else None,
+                'previous': f"{previous_vital.blood_pressure_systolic}/{previous_vital.blood_pressure_diastolic}" if (previous_vital and previous_vital.blood_pressure_systolic is not None and previous_vital.blood_pressure_diastolic is not None) else None,
+                'trend': bp_trend,
+                'lastRecorded': current_vital.date.isoformat() if current_vital else None
             },
             'heartRate': {
-                'current': latest_vital.heart_rate if latest_vital else None,
-                'trend': 'normal',
-                'lastReading': latest_vital.date.isoformat() if latest_vital else None
+                'current': current_vital.heart_rate if (current_vital and current_vital.heart_rate is not None) else None,
+                'previous': previous_vital.heart_rate if (previous_vital and previous_vital.heart_rate is not None) else None,
+                'trend': hr_trend,
+                'lastRecorded': current_vital.date.isoformat() if current_vital else None
             },
             'weight': {
-                'current': latest_vital.weight if latest_vital else None,
-                'trend': 'stable',
-                'lastReading': latest_vital.date.isoformat() if latest_vital else None
+                'current': current_vital.weight if (current_vital and current_vital.weight is not None) else None,
+                'previous': previous_vital.weight if (previous_vital and previous_vital.weight is not None) else None,
+                'trend': weight_trend,
+                'lastRecorded': current_vital.date.isoformat() if current_vital else None
             },
             'bloodSugar': {
-                'current': latest_vital.blood_sugar if latest_vital else None,
-                'trend': 'stable',
-                'lastReading': latest_vital.date.isoformat() if latest_vital else None
+                'current': current_vital.blood_sugar if (current_vital and current_vital.blood_sugar is not None) else None,
+                'previous': previous_vital.blood_sugar if (previous_vital and previous_vital.blood_sugar is not None) else None,
+                'trend': sugar_trend,
+                'lastRecorded': current_vital.date.isoformat() if current_vital else None
+            },
+            'temperature': {
+                'current': current_vital.temperature if (current_vital and current_vital.temperature is not None) else None,
+                'previous': previous_vital.temperature if (previous_vital and previous_vital.temperature is not None) else None,
+                'trend': temp_trend,
+                'lastRecorded': current_vital.date.isoformat() if current_vital else None
             }
         }
         data = {

@@ -60,6 +60,25 @@ const PatientHealthDashboard = () => {
     const [medicationError, setMedicationError] = useState('');
     const [medicationSuccess, setMedicationSuccess] = useState('');
 
+    // Vitals Input Modal State
+    const [showVitalsModal, setShowVitalsModal] = useState(false);
+    const [vitalsFormData, setVitalsFormData] = useState({
+        blood_pressure_systolic: '',
+        blood_pressure_diastolic: '',
+        heart_rate: '',
+        weight: '',
+        blood_sugar: '',
+        temperature: '',
+        notes: ''
+    });
+    const [vitalsLoading, setVitalsLoading] = useState(false);
+    const [vitalsError, setVitalsError] = useState('');
+    const [vitalsSuccess, setVitalsSuccess] = useState('');
+
+
+    // Analytics vital filter state
+    const [selectedVital, setSelectedVital] = useState('bloodPressure');
+
     const showPatientSelector = userRole !== 'patient';
 
     useEffect(() => {
@@ -70,6 +89,8 @@ const PatientHealthDashboard = () => {
             try {
                 const data = await fetchPatientMetrics(currentPatientId);
                 if (!mounted) return;
+                console.log('Fetched metrics data:', data);
+                console.log('Vitals array:', data?.vitals);
                 setMetrics(data);
                 if (showPatientSelector) {
                     const list = await fetchPatientList();
@@ -162,8 +183,15 @@ const PatientHealthDashboard = () => {
                 'Authorization': `Bearer ${token}`
             };
 
+            // Map severity string to integer
+            const severityMap = { mild: 1, moderate: 2, severe: 3 };
             const payload = {
-                ...symptomFormData,
+                symptom: symptomFormData.symptoms, // map symptoms → symptom
+                date: symptomFormData.onset_date,  // map onset_date → date
+                severity: severityMap[symptomFormData.severity] || 2,
+                duration: symptomFormData.duration,
+                notes: symptomFormData.notes,
+                prescribed_treatment: symptomFormData.prescribed_treatment,
                 patient_id: currentPatientId,
                 recorded_by: user?.id || 'unknown',
                 recorded_by_role: userRole
@@ -206,6 +234,13 @@ const PatientHealthDashboard = () => {
         }
     };
 
+    // Refresh metrics when switching to the symptoms tab
+    useEffect(() => {
+        if (activeTab === 'symptoms') {
+            fetchPatientMetrics(currentPatientId).then(setMetrics);
+        }
+    }, [activeTab, currentPatientId]);
+
     // Handle Medication/Prescription Submit
     const handleMedicationSubmit = async (e) => {
         e.preventDefault();
@@ -221,7 +256,7 @@ const PatientHealthDashboard = () => {
             };
 
             const payload = {
-                patient: currentPatientId,
+                patient_id: currentPatientId,
                 name: medicationFormData.name,
                 dosage: medicationFormData.dosage,
                 frequency: medicationFormData.frequency,
@@ -260,6 +295,73 @@ const PatientHealthDashboard = () => {
             setMedicationError(err.message || 'Failed to add medication/prescription');
         } finally {
             setMedicationLoading(false);
+        }
+    };
+
+    // Handle Vitals Input Submit
+    const handleVitalsSubmit = async (e) => {
+        e.preventDefault();
+        setVitalsLoading(true);
+        setVitalsError('');
+        setVitalsSuccess('');
+
+        try {
+            const token = user?.access || localStorage.getItem('access');
+            const headers = {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            };
+
+            // Build payload with correct field names for backend
+            const payload = {
+                date: new Date().toISOString().split('T')[0],
+                blood_pressure_systolic: vitalsFormData.blood_pressure_systolic ? parseInt(vitalsFormData.blood_pressure_systolic) : null,
+                blood_pressure_diastolic: vitalsFormData.blood_pressure_diastolic ? parseInt(vitalsFormData.blood_pressure_diastolic) : null,
+                heart_rate: vitalsFormData.heart_rate ? parseInt(vitalsFormData.heart_rate) : null,
+                weight: vitalsFormData.weight ? parseFloat(vitalsFormData.weight) : null,
+                blood_sugar: vitalsFormData.blood_sugar ? parseInt(vitalsFormData.blood_sugar) : null,
+                temperature: vitalsFormData.temperature ? parseFloat(vitalsFormData.temperature) : null,
+                notes: vitalsFormData.notes || ''
+            };
+
+            const res = await fetch(`${API_BASE}/health/vitals/`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(payload)
+            });
+
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.detail || errData.error || 'Failed to record vitals');
+            }
+
+            setVitalsSuccess('Vital signs recorded successfully!');
+
+            // Refresh metrics data
+            console.log('Refreshing metrics after vitals submission...');
+            const updatedData = await fetchPatientMetrics(currentPatientId);
+            console.log('Updated metrics:', updatedData);
+            console.log('Updated vitals:', updatedData?.vitals);
+            setMetrics(updatedData);
+
+            // Reset form after 2 seconds
+            setTimeout(() => {
+                setShowVitalsModal(false);
+                setVitalsFormData({
+                    blood_pressure_systolic: '',
+                    blood_pressure_diastolic: '',
+                    heart_rate: '',
+                    weight: '',
+                    blood_sugar: '',
+                    temperature: '',
+                    notes: ''
+                });
+                setVitalsSuccess('');
+            }, 2000);
+        } catch (err) {
+            setVitalsError(err.message || 'Failed to record vital signs');
+        } finally {
+            setVitalsLoading(false);
         }
     };
 
@@ -456,7 +558,7 @@ const PatientHealthDashboard = () => {
                         bloodPressure: 'heartbeat', heartRate: 'heart', weight: 'weight', bloodSugar: 'tint', temperature: 'thermometer-half'
                     };
                     const units = {
-                        heartRate: 'BPM', weight: 'lbs', temperature: '°F', bloodSugar: 'mg/dL', bloodPressure: ''
+                        heartRate: 'BPM', weight: 'kg', temperature: '°C', bloodSugar: 'mg/dL', bloodPressure: ''
                     };
 
                     // Show empty state if no data
@@ -466,7 +568,7 @@ const PatientHealthDashboard = () => {
                                 <Card className="medical-card h-100 bg-light">
                                     <Card.Body className="text-center">
                                         <FontAwesomeIcon icon={icons[key]} size="2x" className="text-muted mb-2 opacity-50" />
-                                        <h6 className="text-muted">{labels[key]}</h6>
+                                        <h6 className="text-muted mb-1">{labels[key]}</h6>
                                         <h4 className="text-muted">--</h4>
                                         <div className="small text-muted">
                                             <FontAwesomeIcon icon="exclamation-circle" className="me-1" />
@@ -479,20 +581,55 @@ const PatientHealthDashboard = () => {
                     }
 
                     const trend = mapTrendLabel(item.trend);
+
+                    // Format the date if available
+                    const formatDate = (dateStr) => {
+                        if (!dateStr) return null;
+                        try {
+                            const date = new Date(dateStr);
+                            const now = new Date();
+                            const diffMs = now - date;
+                            const diffMins = Math.floor(diffMs / 60000);
+                            const diffHours = Math.floor(diffMs / 3600000);
+                            const diffDays = Math.floor(diffMs / 86400000);
+
+                            if (diffMins < 1) return 'Just now';
+                            if (diffMins < 60) return `${diffMins}m ago`;
+                            if (diffHours < 24) return `${diffHours}h ago`;
+                            if (diffDays < 7) return `${diffDays}d ago`;
+                            return date.toLocaleDateString();
+                        } catch {
+                            return null;
+                        }
+                    };
+
+                    const lastRecorded = formatDate(item.lastRecorded || item.last_recorded);
+
                     return (
                         <Col key={key} lg={2} md={4} sm={6} className="mb-3">
                             <Card className="medical-card h-100">
                                 <Card.Body className="text-center">
                                     <FontAwesomeIcon icon={icons[key]} size="2x" className="text-primary mb-2" />
-                                    <h6>{labels[key]}</h6>
-                                    <h4 className="text-primary">
+                                    <h6 className="mb-1">{labels[key]}</h6>
+                                    <h4 className="text-primary mb-1">
                                         {item.current}
                                         {units[key] && <span className="small ms-1">{units[key]}</span>}
                                     </h4>
-                                    <div className="small">
+                                    <div className="small mb-1">
                                         <FontAwesomeIcon icon={trend.icon} className={`text-${trend.color} me-1`} />
                                         {trend.text}
                                     </div>
+                                    {lastRecorded && (
+                                        <div className="small text-muted" style={{ fontSize: '0.7rem' }}>
+                                            <FontAwesomeIcon icon="clock" className="me-1" />
+                                            {lastRecorded}
+                                        </div>
+                                    )}
+                                    {item.previous && (
+                                        <div className="small text-muted" style={{ fontSize: '0.7rem' }}>
+                                            Previous: {item.previous} {units[key]}
+                                        </div>
+                                    )}
                                 </Card.Body>
                             </Card>
                         </Col>
@@ -541,33 +678,113 @@ const PatientHealthDashboard = () => {
                             <Card.Body>
                                 <Tab.Content>
                                     <Tab.Pane eventKey="vitals">
+                                        <div className="d-flex justify-content-between align-items-center mb-3">
+                                            <h6 className="mb-0">Vital Signs</h6>
+                                            <Button
+                                                size="sm"
+                                                variant="primary"
+                                                onClick={() => {
+                                                    setShowVitalsModal(true);
+                                                    setVitalsError('');
+                                                    setVitalsSuccess('');
+                                                }}
+                                            >
+                                                <FontAwesomeIcon icon="plus" className="me-1" />
+                                                Add Vitals
+                                            </Button>
+                                        </div>
                                         {!metrics?.vitals || metrics.vitals.length === 0 ? (
                                             <div className="text-center py-5 text-muted">
                                                 <FontAwesomeIcon icon="chart-line" size="3x" className="mb-3 opacity-50" />
                                                 <p className="mb-1">No vital signs data available</p>
                                                 <small>Vital signs will appear here once recorded</small>
+                                                <div className="mt-3">
+                                                    <Button
+                                                        variant="outline-primary"
+                                                        size="sm"
+                                                        onClick={() => setShowVitalsModal(true)}
+                                                    >
+                                                        <FontAwesomeIcon icon="plus" className="me-1" />
+                                                        Record Your First Vitals
+                                                    </Button>
+                                                </div>
                                             </div>
                                         ) : (
                                             <Row>
-                                                <Col lg={8} className="mb-4">
-                                                    <h6>Blood Pressure</h6>
-                                                    <ResponsiveContainer width="100%" height={300}>
-                                                        <LineChart data={metrics.vitals}>
-                                                            <CartesianGrid strokeDasharray="3 3" />
-                                                            <XAxis dataKey="date" /><YAxis /><Tooltip />
-                                                            <Line type="monotone" dataKey="bloodPressure" stroke="#007bff" strokeWidth={3} />
-                                                        </LineChart>
-                                                    </ResponsiveContainer>
-                                                </Col>
-                                                <Col lg={4} className="mb-4">
-                                                    <h6>Heart Rate</h6>
-                                                    <ResponsiveContainer width="100%" height={300}>
-                                                        <BarChart data={metrics.vitals}>
-                                                            <CartesianGrid strokeDasharray="3 3" />
-                                                            <XAxis dataKey="date" /><YAxis /><Tooltip />
-                                                            <Bar dataKey="heartRate" fill="#28a745" />
-                                                        </BarChart>
-                                                    </ResponsiveContainer>
+                                                <Col lg={12} className="mb-4">
+                                                    <Form.Group className="mb-3 d-flex align-items-center" controlId="vitalFilter">
+                                                        <Form.Label className="me-2 mb-0">Select Vital:</Form.Label>
+                                                        <Form.Select style={{ maxWidth: 220 }}
+                                                            value={selectedVital || 'bloodPressure'}
+                                                            onChange={e => setSelectedVital(e.target.value)}
+                                                        >
+                                                            <option value="bloodPressure">Blood Pressure</option>
+                                                            <option value="heartRate">Heart Rate</option>
+                                                            <option value="weight">Weight</option>
+                                                            <option value="bloodSugar">Blood Sugar</option>
+                                                            <option value="temperature">Temperature</option>
+                                                        </Form.Select>
+                                                    </Form.Group>
+                                                    {selectedVital === 'bloodPressure' && (
+                                                        <>
+                                                            <h6>Blood Pressure</h6>
+                                                            <ResponsiveContainer width="100%" height={300}>
+                                                                <LineChart data={metrics.vitals}>
+                                                                    <CartesianGrid strokeDasharray="3 3" />
+                                                                    <XAxis dataKey="date" /><YAxis /><Tooltip />
+                                                                    <Line type="monotone" dataKey="bloodPressure" stroke="#007bff" strokeWidth={3} />
+                                                                </LineChart>
+                                                            </ResponsiveContainer>
+                                                        </>
+                                                    )}
+                                                    {selectedVital === 'heartRate' && (
+                                                        <>
+                                                            <h6>Heart Rate</h6>
+                                                            <ResponsiveContainer width="100%" height={300}>
+                                                                <BarChart data={metrics.vitals}>
+                                                                    <CartesianGrid strokeDasharray="3 3" />
+                                                                    <XAxis dataKey="date" /><YAxis /><Tooltip />
+                                                                    <Bar dataKey="heartRate" fill="#28a745" />
+                                                                </BarChart>
+                                                            </ResponsiveContainer>
+                                                        </>
+                                                    )}
+                                                    {selectedVital === 'weight' && (
+                                                        <>
+                                                            <h6>Weight</h6>
+                                                            <ResponsiveContainer width="100%" height={300}>
+                                                                <LineChart data={metrics.vitals}>
+                                                                    <CartesianGrid strokeDasharray="3 3" />
+                                                                    <XAxis dataKey="date" /><YAxis /><Tooltip />
+                                                                    <Line type="monotone" dataKey="weight" stroke="#6c757d" strokeWidth={3} />
+                                                                </LineChart>
+                                                            </ResponsiveContainer>
+                                                        </>
+                                                    )}
+                                                    {selectedVital === 'bloodSugar' && (
+                                                        <>
+                                                            <h6>Blood Sugar</h6>
+                                                            <ResponsiveContainer width="100%" height={300}>
+                                                                <LineChart data={metrics.vitals}>
+                                                                    <CartesianGrid strokeDasharray="3 3" />
+                                                                    <XAxis dataKey="date" /><YAxis /><Tooltip />
+                                                                    <Line type="monotone" dataKey="blood_sugar" stroke="#e67e22" strokeWidth={3} />
+                                                                </LineChart>
+                                                            </ResponsiveContainer>
+                                                        </>
+                                                    )}
+                                                    {selectedVital === 'temperature' && (
+                                                        <>
+                                                            <h6>Temperature</h6>
+                                                            <ResponsiveContainer width="100%" height={300}>
+                                                                <LineChart data={metrics.vitals}>
+                                                                    <CartesianGrid strokeDasharray="3 3" />
+                                                                    <XAxis dataKey="date" /><YAxis /><Tooltip />
+                                                                    <Line type="monotone" dataKey="temperature" stroke="#d35400" strokeWidth={3} />
+                                                                </LineChart>
+                                                            </ResponsiveContainer>
+                                                        </>
+                                                    )}
                                                 </Col>
                                             </Row>
                                         )}
@@ -823,9 +1040,11 @@ const PatientHealthDashboard = () => {
             <Row className="mt-4">
                 <Col>
                     <Card className="medical-card">
-                        <Card.Header>
-                            <FontAwesomeIcon icon="lightbulb" className="me-2" />
-                            Health Insights
+                        <Card.Header className="bg-white border-bottom" style={{ color: '#000', fontWeight: '600' }}>
+                            <h5 className="mb-0" style={{ color: '#000' }}>
+                                <FontAwesomeIcon icon="lightbulb" className="me-2 text-primary" />
+                                Health Insights
+                            </h5>
                         </Card.Header>
                         <Card.Body>
                             {insights.length === 0 ? (
@@ -1157,6 +1376,212 @@ const PatientHealthDashboard = () => {
                                 <>
                                     <FontAwesomeIcon icon="check" className="me-2" />
                                     Prescribe Medication
+                                </>
+                            )}
+                        </Button>
+                    </Modal.Footer>
+                </Form>
+            </Modal>
+
+            {/* Vitals Input Modal */}
+            <Modal show={showVitalsModal} onHide={() => setShowVitalsModal(false)} size="lg">
+                <Modal.Header closeButton>
+                    <Modal.Title>
+                        <FontAwesomeIcon icon="heartbeat" className="me-2" />
+                        Record Vital Signs
+                    </Modal.Title>
+                </Modal.Header>
+                <Form onSubmit={handleVitalsSubmit}>
+                    <Modal.Body>
+                        {vitalsError && <Alert variant="danger">{vitalsError}</Alert>}
+                        {vitalsSuccess && <Alert variant="success">{vitalsSuccess}</Alert>}
+
+                        <Alert variant="info" className="mb-3">
+                            <FontAwesomeIcon icon="info-circle" className="me-2" />
+                            Record your vital signs. Fill in the measurements you have available.
+                        </Alert>
+
+                        {/* Blood Pressure */}
+                        <Row>
+                            <Col md={6}>
+                                <Form.Group className="mb-3">
+                                    <Form.Label>
+                                        <FontAwesomeIcon icon="heartbeat" className="me-2" />
+                                        Blood Pressure - Systolic
+                                    </Form.Label>
+                                    <Form.Control
+                                        type="number"
+                                        placeholder="e.g., 120"
+                                        value={vitalsFormData.blood_pressure_systolic}
+                                        onChange={(e) => setVitalsFormData({ ...vitalsFormData, blood_pressure_systolic: e.target.value })}
+                                        min="50"
+                                        max="250"
+                                    />
+                                    <Form.Text className="text-muted">
+                                        Top number (mmHg)
+                                    </Form.Text>
+                                </Form.Group>
+                            </Col>
+                            <Col md={6}>
+                                <Form.Group className="mb-3">
+                                    <Form.Label>
+                                        <FontAwesomeIcon icon="heartbeat" className="me-2" />
+                                        Blood Pressure - Diastolic
+                                    </Form.Label>
+                                    <Form.Control
+                                        type="number"
+                                        placeholder="e.g., 80"
+                                        value={vitalsFormData.blood_pressure_diastolic}
+                                        onChange={(e) => setVitalsFormData({ ...vitalsFormData, blood_pressure_diastolic: e.target.value })}
+                                        min="30"
+                                        max="150"
+                                    />
+                                    <Form.Text className="text-muted">
+                                        Bottom number (mmHg)
+                                    </Form.Text>
+                                </Form.Group>
+                            </Col>
+                        </Row>
+
+                        {/* Heart Rate and Temperature */}
+                        <Row>
+                            <Col md={6}>
+                                <Form.Group className="mb-3">
+                                    <Form.Label>
+                                        <FontAwesomeIcon icon="heart" className="me-2" />
+                                        Heart Rate
+                                    </Form.Label>
+                                    <Form.Control
+                                        type="number"
+                                        placeholder="e.g., 72"
+                                        value={vitalsFormData.heart_rate}
+                                        onChange={(e) => setVitalsFormData({ ...vitalsFormData, heart_rate: e.target.value })}
+                                        min="30"
+                                        max="220"
+                                    />
+                                    <Form.Text className="text-muted">
+                                        Beats per minute (BPM)
+                                    </Form.Text>
+                                </Form.Group>
+                            </Col>
+                            <Col md={6}>
+                                <Form.Group className="mb-3">
+                                    <Form.Label>
+                                        <FontAwesomeIcon icon="thermometer-half" className="me-2" />
+                                        Temperature
+                                    </Form.Label>
+                                    <Form.Control
+                                        type="number"
+                                        step="0.1"
+                                        placeholder="e.g., 37.0"
+                                        value={vitalsFormData.temperature}
+                                        onChange={(e) => setVitalsFormData({ ...vitalsFormData, temperature: e.target.value })}
+                                        min="35"
+                                        max="43"
+                                    />
+                                    <Form.Text className="text-muted">
+                                        Degrees Celsius (°C)
+                                    </Form.Text>
+                                </Form.Group>
+                            </Col>
+                        </Row>
+
+                        {/* Weight and Blood Sugar */}
+                        <Row>
+                            <Col md={6}>
+                                <Form.Group className="mb-3">
+                                    <Form.Label>
+                                        <FontAwesomeIcon icon="weight" className="me-2" />
+                                        Weight
+                                    </Form.Label>
+                                    <Form.Control
+                                        type="number"
+                                        step="0.1"
+                                        placeholder="e.g., 75.0"
+                                        value={vitalsFormData.weight}
+                                        onChange={(e) => setVitalsFormData({ ...vitalsFormData, weight: e.target.value })}
+                                        min="20"
+                                        max="250"
+                                    />
+                                    <Form.Text className="text-muted">
+                                        Kilograms (kg)
+                                    </Form.Text>
+                                </Form.Group>
+                            </Col>
+                            <Col md={6}>
+                                <Form.Group className="mb-3">
+                                    <Form.Label>
+                                        <FontAwesomeIcon icon="tint" className="me-2" />
+                                        Blood Sugar
+                                    </Form.Label>
+                                    <Form.Control
+                                        type="number"
+                                        placeholder="e.g., 95"
+                                        value={vitalsFormData.blood_sugar}
+                                        onChange={(e) => setVitalsFormData({ ...vitalsFormData, blood_sugar: e.target.value })}
+                                        min="20"
+                                        max="600"
+                                    />
+                                    <Form.Text className="text-muted">
+                                        mg/dL
+                                    </Form.Text>
+                                </Form.Group>
+                            </Col>
+                        </Row>
+
+                        {/* Notes */}
+                        <Form.Group className="mb-3">
+                            <Form.Label>
+                                <FontAwesomeIcon icon="notes-medical" className="me-2" />
+                                Notes (Optional)
+                            </Form.Label>
+                            <Form.Control
+                                as="textarea"
+                                rows={2}
+                                placeholder="Add any relevant notes about these readings..."
+                                value={vitalsFormData.notes}
+                                onChange={(e) => setVitalsFormData({ ...vitalsFormData, notes: e.target.value })}
+                            />
+                        </Form.Group>
+
+                        <Alert variant="warning" className="mb-0">
+                            <FontAwesomeIcon icon="exclamation-triangle" className="me-2" />
+                            <small>
+                                <strong>Note:</strong> These readings are for tracking purposes.
+                                If you experience any concerning symptoms or abnormal readings,
+                                please consult with your healthcare provider immediately.
+                            </small>
+                        </Alert>
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button
+                            variant="secondary"
+                            onClick={() => {
+                                setShowVitalsModal(false);
+                                setVitalsFormData({
+                                    blood_pressure_systolic: '',
+                                    blood_pressure_diastolic: '',
+                                    heart_rate: '',
+                                    weight: '',
+                                    blood_sugar: '',
+                                    temperature: '',
+                                    notes: ''
+                                });
+                            }}
+                            disabled={vitalsLoading}
+                        >
+                            Cancel
+                        </Button>
+                        <Button variant="primary" type="submit" disabled={vitalsLoading}>
+                            {vitalsLoading ? (
+                                <>
+                                    <Spinner size="sm" animation="border" className="me-2" />
+                                    Saving...
+                                </>
+                            ) : (
+                                <>
+                                    <FontAwesomeIcon icon="save" className="me-2" />
+                                    Record Vitals
                                 </>
                             )}
                         </Button>

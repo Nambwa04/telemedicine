@@ -1,6 +1,6 @@
 from django.urls import path
 from .views import (
-    RegisterView, MeView, PatientListView, DoctorListView,
+    RegisterView, MeView, PatientListView, DoctorListView, CaregiverListView,
     EmailVerificationRequestView, EmailVerificationConfirmView,
     PasswordResetRequestView, PasswordResetConfirmView,
     AdminRegisterView, AdminUserListView, AdminDoctorCreateView, AdminDoctorDeleteView, AdminDoctorUpdateView,
@@ -35,6 +35,7 @@ urlpatterns = [
     path('me/', MeView.as_view(), name='me'),
     path('patients/', PatientListView.as_view(), name='patients'),
     path('doctors/', DoctorListView.as_view(), name='doctors'),
+    path('caregivers/', CaregiverListView.as_view(), name='caregivers'),
     path('email/verify/request/', EmailVerificationRequestView.as_view(), name='email-verify-request'),
     path('email/verify/confirm/', EmailVerificationConfirmView.as_view(), name='email-verify-confirm'),
     path('password/reset/request/', PasswordResetRequestView.as_view(), name='password-reset-request'),

@@ -3,14 +3,18 @@ from django.conf import settings
 
 User = settings.AUTH_USER_MODEL
 
+from django.utils import timezone
+
 class VitalReading(models.Model):
     patient = models.ForeignKey(User, on_delete=models.CASCADE, related_name='vital_readings')
-    date = models.DateField()
-    blood_pressure_systolic = models.IntegerField()
-    blood_pressure_diastolic = models.IntegerField()
-    heart_rate = models.IntegerField()
-    weight = models.FloatField()
-    blood_sugar = models.IntegerField()
+    date = models.DateField(default=timezone.now)
+    blood_pressure_systolic = models.IntegerField(null=True, blank=True)
+    blood_pressure_diastolic = models.IntegerField(null=True, blank=True)
+    heart_rate = models.IntegerField(null=True, blank=True)
+    weight = models.FloatField(null=True, blank=True)
+    blood_sugar = models.IntegerField(null=True, blank=True)
+    temperature = models.FloatField(null=True, blank=True)
+    notes = models.TextField(blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

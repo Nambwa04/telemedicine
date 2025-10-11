@@ -1,0 +1,268 @@
+/* Patient Appointments Card View Styling */
+
+.appointment-card {
+  transition: all 0.3s ease;
+  border-left: 4px solid transparent;
+}
+
+.appointment-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15) !important;
+  border-left-color: var(--bs-primary);
+}
+.appointment-date {
+  padding: 1rem;
+}
+
+.appointment-date .date-month {
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 600;
+}
+
+.appointment-date .date-day {
+  line-height: 1;
+  margin: 0.5rem 0;
+}
+
+.appointment-date .date-time {
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.calendar-appointments {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  font-size: 1.5rem;
+}
+
+/* Calendar styling */
+.react-calendar {
+  border: none !important;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  font-family: inherit;
+}
+
+.react-calendar__tile {
+  border-radius: 6px;
+  padding: 0.75rem 0.5rem;
+}
+
+.react-calendar__tile--active {
+  background: var(--bs-primary) !important;
+  color: white !important;
+}
+
+.react-calendar__tile--now {
+  background: rgba(var(--bs-primary-rgb), 0.1) !important;
+}
+
+.react-calendar__tile:enabled:hover {
+  background: rgba(var(--bs-primary-rgb), 0.2);
+}
+.react-calendar__month-view__days__day--weekend {
+  color: #dc3545;
+}
+
+/* Badge enhancements */
+.badge {
+  font-weight: 500;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+}
+
+/* Button group styling - consistent sizing */
+.btn-group .btn {
+  font-weight: 500;
+  padding: 0.75rem 1.5rem;
+}
+
+/* Uniform button styling */
+.btn {
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.btn-primary {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.btn-primary:hover {
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  transform: translateY(-1px);
+}
+
+.btn-outline-primary:hover {
+  transform: translateY(-1px);
+}
+
+.btn-success {
+  background: linear-gradient(135deg, #28a745 0%, #20833a 100%);
+  border: none;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.btn-success:hover {
+  background: linear-gradient(135deg, #20833a 0%, #1e7938 100%);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  transform: translateY(-1px);
+}
+
+.btn-outline-warning:hover,
+.btn-outline-danger:hover {
+  transform: translateY(-1px);
+}
+
+/* Consistent button sizing in action columns */
+.d-grid .btn {
+  font-size: 0.875rem;
+  font-weight: 500;
+  padding: 0.5rem 1rem;
+} /* Responsive adjustments */
+@media (max-width: 768px) {
+  .appointment-card .border-end {
+    border-right: none !important;
+    border-bottom: 1px solid #dee2e6 !important;
+    padding-bottom: 1rem;
+  }
+
+  .appointment-date {
+    padding: 0.5rem;
+  }
+
+  .appointment-date .date-day {
+    font-size: 2.5rem;
+  }
+
+  .btn-group .btn {
+    font-size: 0.85rem;
+    padding: 0.5rem 1rem;
+  }
+}
+
+/* Empty state styling */
+.text-center .fa-calendar-times {
+  display: block;
+}
+
+/* Modal enhancements */
+.modal-header {
+  border-bottom: 2px solid #17a2b8;
+}
+
+.modal-footer {
+  border-top: 1px solid #dee2e6;
+}
+
+/* Fade-in animation */
+.fade-in {
+  animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Medical card enhancement */
+.medical-card {
+  border: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.medical-card .card-header {
+  background: linear-gradient(
+    135deg,
+    var(--bs-primary) 0%,
+    var(--bs-primary) 100%
+  );
+  color: white;
+  font-weight: 600;
+  padding: 1rem 1.25rem;
+  border: none;
+}
+
+/* Status badges with icons */
+.badge.bg-info {
+  background-color: var(--bs-info) !important;
+}
+
+.badge.bg-success {
+  background-color: var(--bs-success) !important;
+}
+
+.badge.bg-danger {
+  background-color: var(--bs-danger) !important;
+}
+
+.badge.bg-warning {
+  background-color: var(--bs-warning) !important;
+  color: #212529 !important;
+}
+
+.badge.bg-light {
+  background-color: #f8f9fa !important;
+  border: 1px solid #dee2e6;
+}
+
+/* Action button styling */
+.d-grid .btn {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.btn-success {
+  background: linear-gradient(135deg, #28a745 0%, #20833a 100%);
+  border: none;
+}
+
+.btn-success:hover {
+  background: linear-gradient(135deg, #20833a 0%, #1e7938 100%);
+}
+
+/* Modal enhancements */
+.modal-header {
+  border-bottom: 2px solid var(--bs-primary);
+}
+
+.modal-footer {
+  border-top: 1px solid #dee2e6;
+}
+
+.modal-footer .btn {
+  min-width: 120px;
+}
+
+/* Quick info styling */
+.text-muted.small {
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+/* Alert enhancements */
+.alert {
+  border-radius: 8px;
+  border: none;
+}
+
+.alert-warning {
+  background-color: #fff3cd;
+  color: #856404;
+}
+
+.alert-danger {
+  background-color: #f8d7da;
+  color: #721c24;
+}
