@@ -17,6 +17,40 @@ export async function fetchPatientMetrics(patientId) {
 
 export async function fetchPatientList(search) {
     try {
+        // Get current user to check role
+        const user = JSON.parse(localStorage.getItem('user') || 'null');
+
+        // If caregiver, fetch only their active clients from service requests
+        if (user && user.role === 'caregiver') {
+            // Import caregiverService to get active clients
+            const { listCareRequests } = await import('./caregiverService');
+            const allRequests = await listCareRequests();
+
+            // Filter for active requests (accepted/in-progress)
+            const activeStatuses = ['accepted', 'in-progress'];
+            const activeRequests = allRequests.filter(req =>
+                activeStatuses.includes(req.status)
+            );
+
+            // Extract unique clients and map to expected format
+            const seen = new Set();
+            const clients = activeRequests
+                .filter(req => req.family)
+                .filter(req => {
+                    if (seen.has(req.family)) return false;
+                    seen.add(req.family);
+                    return true;
+                })
+                .map((req, index) => ({
+                    id: req.id || index,
+                    name: req.family,
+                    condition: null // Service requests don't have condition info
+                }));
+
+            return clients;
+        }
+
+        // For doctors/admins, fetch all patients from backend
         const qs = search ? `?search=${encodeURIComponent(search)}` : '';
         const raw = await api.get(`/accounts/patients/${qs}`);
         // Handle paginated response: use raw.results if present, else raw

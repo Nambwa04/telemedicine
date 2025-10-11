@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Form, Button, Card, Alert, Spinner, Row, Col } from 'react-bootstrap';
+import { Form, Button, Card, Alert, Spinner, Row, Col, InputGroup } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { GoogleLogin } from '@react-oauth/google';
 
 const Register = () => {
     const [formData, setFormData] = useState({
@@ -16,9 +17,11 @@ const Register = () => {
         experience: '', // for caregivers
         licenseNumber: '' // for doctors
     });
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
-    const { register } = useAuth();
+    const { register, googleLogin } = useAuth();
     const navigate = useNavigate();
 
     const roles = [
@@ -86,6 +89,22 @@ const Register = () => {
         }
 
         setLoading(false);
+    };
+
+    const handleGoogleSuccess = async (credentialResponse) => {
+        setError('');
+        setLoading(true);
+        const result = await googleLogin(credentialResponse.credential, formData.role);
+        setLoading(false);
+        if (result.success) {
+            navigate('/login', { state: { registered: true } });
+        } else {
+            setError(result.error || 'Google sign-up failed. Please try again.');
+        }
+    };
+
+    const handleGoogleError = () => {
+        setError('Google sign-up failed. Please try again.');
     };
 
     return (
@@ -190,14 +209,23 @@ const Register = () => {
                                     <FontAwesomeIcon icon="lock" className="me-2" />
                                     Password
                                 </Form.Label>
-                                <Form.Control
-                                    type="password"
-                                    name="password"
-                                    value={formData.password}
-                                    onChange={handleInputChange}
-                                    placeholder="Create a password"
-                                    required
-                                />
+                                <InputGroup>
+                                    <Form.Control
+                                        type={showPassword ? "text" : "password"}
+                                        name="password"
+                                        value={formData.password}
+                                        onChange={handleInputChange}
+                                        placeholder="Create a password"
+                                        required
+                                    />
+                                    <Button
+                                        variant="outline-secondary"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        className="password-toggle-btn"
+                                    >
+                                        <FontAwesomeIcon icon={showPassword ? "eye-slash" : "eye"} />
+                                    </Button>
+                                </InputGroup>
                             </Form.Group>
                         </Col>
                         <Col md={6}>
@@ -206,14 +234,23 @@ const Register = () => {
                                     <FontAwesomeIcon icon="lock" className="me-2" />
                                     Confirm Password
                                 </Form.Label>
-                                <Form.Control
-                                    type="password"
-                                    name="confirmPassword"
-                                    value={formData.confirmPassword}
-                                    onChange={handleInputChange}
-                                    placeholder="Confirm your password"
-                                    required
-                                />
+                                <InputGroup>
+                                    <Form.Control
+                                        type={showConfirmPassword ? "text" : "password"}
+                                        name="confirmPassword"
+                                        value={formData.confirmPassword}
+                                        onChange={handleInputChange}
+                                        placeholder="Confirm your password"
+                                        required
+                                    />
+                                    <Button
+                                        variant="outline-secondary"
+                                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                        className="password-toggle-btn"
+                                    >
+                                        <FontAwesomeIcon icon={showConfirmPassword ? "eye-slash" : "eye"} />
+                                    </Button>
+                                </InputGroup>
                             </Form.Group>
                         </Col>
                     </Row>
@@ -296,6 +333,22 @@ const Register = () => {
                         )}
                     </Button>
                 </Form>
+
+                <div className="auth-divider">
+                    <span>OR</span>
+                </div>
+
+                <div className="google-login-wrapper">
+                    <GoogleLogin
+                        onSuccess={handleGoogleSuccess}
+                        onError={handleGoogleError}
+                        theme="outline"
+                        size="large"
+                        text="signup_with"
+                        width="100%"
+                        logo_alignment="left"
+                    />
+                </div>
 
                 <div className="text-center">
                     <p>

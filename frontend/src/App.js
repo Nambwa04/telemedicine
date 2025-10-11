@@ -22,11 +22,13 @@ import CaregiverMarketplace from './components/Caregivers/CaregiverMarketplace';
 import PatientHealthDashboard from './components/HealthDashboard/PatientHealthDashboard';
 import ProfileManagement from './components/Profile/ProfileManagement';
 import PatientListPage from './pages/PatientListPage';
+import CaregiverClientsPage from './pages/CaregiverClientsPage';
 import AppointmentsWrapper from './components/Appointments/AppointmentsWrapper';
 import RequestsPage from './pages/RequestsPage';
 import VideoConsultation from './components/VideoCall/VideoConsultation';
 import './App.css';
 import HomePage from './pages/HomePage';
+import TimesheetPage from './pages/TimesheetPage';
 import { useAuth } from './context/AuthContext';
 import { useLocation } from 'react-router-dom';
 import './styles/sidebar.css';
@@ -70,12 +72,12 @@ function App() {
   // Wrapper component to apply or remove sidebar spacing (kept for future use)
   // Note: currently unused by Routes/JSX but useful for layout changes later
   const MainWrapper = ({ children }) => {
-    const location = useLocation();
     const { user } = useAuth();
+    const location = useLocation();
     const publicPaths = ['/', '/login', '/register'];
     const isPublic = publicPaths.includes(location.pathname);
-    const base = 'main-content';
-    const cls = (!user || isPublic) ? base : base + ' with-sidebar';
+    const hasSidebar = Boolean(user) && !isPublic;
+    const cls = 'main-content' + (hasSidebar ? ' with-sidebar' : '');
     return <main className={cls}>{children}</main>;
   };
 
@@ -189,7 +191,7 @@ function App() {
                     path="/clients"
                     element={
                       <ProtectedRoute requiredRole="caregiver">
-                        <PatientListPage />
+                        <CaregiverClientsPage />
                       </ProtectedRoute>
                     }
                   />
@@ -225,6 +227,18 @@ function App() {
                     element={
                       <ProtectedRoute>
                         <ProfileManagement />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/timesheet"
+                    element={<TimesheetPage />}
+                  />
+                  <Route
+                    path="/caregiver/timesheet"
+                    element={
+                      <ProtectedRoute requiredRole="caregiver">
+                        <TimesheetPage />
                       </ProtectedRoute>
                     }
                   />

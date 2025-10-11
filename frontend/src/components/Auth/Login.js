@@ -1,18 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { Form, Button, Card, Alert, Spinner } from 'react-bootstrap';
+import { Form, Button, Card, Alert, Spinner, InputGroup } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { GoogleLogin } from '@react-oauth/google';
 
 const Login = () => {
     const [formData, setFormData] = useState({
         email: '',
         password: ''
     });
+    const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
     const [info, setInfo] = useState('');
     const [loading, setLoading] = useState(false);
-    const { login } = useAuth();
+    const { login, googleLogin } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -45,6 +47,29 @@ const Login = () => {
         } else {
             setError(result.error || 'Login failed. Please try again.');
         }
+    };
+
+    const handleGoogleSuccess = async (credentialResponse) => {
+        setError('');
+        setLoading(true);
+        const result = await googleLogin(credentialResponse.credential);
+        setLoading(false);
+        if (result.success) {
+            const userRole = result.user.role;
+            const dashboardMap = {
+                'patient': '/patient-dashboard',
+                'doctor': '/doctor-dashboard',
+                'caregiver': '/caregiver-dashboard',
+                'admin': '/admin-dashboard'
+            };
+            navigate(dashboardMap[userRole] || '/');
+        } else {
+            setError(result.error || 'Google sign-in failed. Please try again.');
+        }
+    };
+
+    const handleGoogleError = () => {
+        setError('Google sign-in failed. Please try again.');
     };
 
     return (
@@ -95,15 +120,24 @@ const Login = () => {
                             <FontAwesomeIcon icon="lock" className="me-2" />
                             Password
                         </Form.Label>
-                        <Form.Control
-                            type="password"
-                            name="password"
-                            value={formData.password}
-                            onChange={handleInputChange}
-                            placeholder="Enter your password"
-                            required
-                            className="form-control"
-                        />
+                        <InputGroup>
+                            <Form.Control
+                                type={showPassword ? "text" : "password"}
+                                name="password"
+                                value={formData.password}
+                                onChange={handleInputChange}
+                                placeholder="Enter your password"
+                                required
+                                className="form-control"
+                            />
+                            <Button
+                                variant="outline-secondary"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="password-toggle-btn"
+                            >
+                                <FontAwesomeIcon icon={showPassword ? "eye-slash" : "eye"} />
+                            </Button>
+                        </InputGroup>
                     </Form.Group>
 
                     <Button
@@ -124,6 +158,22 @@ const Login = () => {
                         )}
                     </Button>
                 </Form>
+
+                <div className="auth-divider">
+                    <span>OR</span>
+                </div>
+
+                <div className="google-login-wrapper">
+                    <GoogleLogin
+                        onSuccess={handleGoogleSuccess}
+                        onError={handleGoogleError}
+                        theme="outline"
+                        size="large"
+                        text="continue_with"
+                        width="100%"
+                        logo_alignment="left"
+                    />
+                </div>
 
                 <div className="text-center">
                     <p className="mb-2">

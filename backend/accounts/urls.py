@@ -6,7 +6,8 @@ from .views import (
     AdminRegisterView, AdminUserListView, AdminDoctorCreateView, AdminDoctorDeleteView, AdminDoctorUpdateView,
     AdminPatientCreateView, AdminPatientUpdateView, AdminPatientDeleteView,
     AdminCaregiverCreateView, AdminCaregiverUpdateView, AdminCaregiverDeleteView,
-    AdminAnalyticsView, AdminAppointmentListView, dashboard_stats, DoctorUpdatePatientView
+    AdminAnalyticsView, AdminAppointmentListView, dashboard_stats, DoctorUpdatePatientView,
+    GoogleAuthView
 )
 
 urlpatterns = [
@@ -40,4 +41,5 @@ urlpatterns = [
     path('email/verify/confirm/', EmailVerificationConfirmView.as_view(), name='email-verify-confirm'),
     path('password/reset/request/', PasswordResetRequestView.as_view(), name='password-reset-request'),
     path('password/reset/confirm/', PasswordResetConfirmView.as_view(), name='password-reset-confirm'),
+    path('google-auth/', GoogleAuthView.as_view(), name='google-auth'),
 ]

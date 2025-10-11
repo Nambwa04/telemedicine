@@ -71,3 +71,22 @@ button:focus-visible,
     opacity: 0;
   }
 }
+
+/* Dark mode button adjustments */
+body.dark-mode button:focus-visible,
+body.dark-mode [role="button"]:focus-visible,
+body.dark-mode .btn:focus-visible {
+  outline-color: #60a5fa66;
+}
+
+body.dark-mode button:hover:not(:disabled),
+body.dark-mode [role="button"]:hover:not([aria-disabled="true"]),
+body.dark-mode .btn:hover:not(:disabled) {
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+}
+
+body.dark-mode button:active:not(:disabled),
+body.dark-mode [role="button"]:active:not([aria-disabled="true"]),
+body.dark-mode .btn:active:not(:disabled) {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}

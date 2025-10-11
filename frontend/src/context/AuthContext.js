@@ -129,6 +129,38 @@ const AuthProvider = ({ children }) => {
         }
     };
 
+    const googleLogin = async (credential, role = 'patient') => {
+        setAuthError(null);
+        try {
+            setLoading(true);
+            const res = await fetch(`${API_BASE}/accounts/google-auth/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    credential,
+                    role
+                })
+            });
+
+            if (!res.ok) {
+                let msg = 'Google authentication failed';
+                try { const errJson = await res.json(); msg = errJson.detail || msg; } catch { /* ignore */ }
+                throw new Error(msg);
+            }
+
+            const data = await res.json();
+            const authUser = { ...data.user, access: data.access, refresh: data.refresh };
+            saveUser(authUser);
+            setLoading(false);
+            return { success: true, user: authUser };
+        } catch (error) {
+            console.error('Google login error:', error);
+            setLoading(false);
+            setAuthError(error.message || 'Google authentication failed');
+            return { success: false, error: error.message };
+        }
+    };
+
     const logout = () => {
         setUser(null);
         localStorage.removeItem('user');
@@ -154,6 +186,7 @@ const AuthProvider = ({ children }) => {
         user,
         login,
         register,
+        googleLogin,
         logout,
         updateUser,
         loading,

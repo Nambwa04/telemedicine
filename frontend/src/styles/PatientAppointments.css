@@ -266,3 +266,66 @@
   background-color: #f8d7da;
   color: #721c24;
 }
+
+/* Dark mode support for Patient Appointments */
+body.dark-mode .appointment-card {
+  background: #1e293b;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+
+body.dark-mode .appointment-card:hover {
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4) !important;
+  border-left-color: #60a5fa;
+}
+
+body.dark-mode .appointment-date {
+  color: #e2e8f0;
+}
+
+body.dark-mode .react-calendar {
+  background: #1e293b;
+  color: #e2e8f0;
+}
+
+body.dark-mode .react-calendar__tile {
+  color: #e2e8f0;
+}
+
+body.dark-mode .react-calendar__tile:enabled:hover,
+body.dark-mode .react-calendar__tile:enabled:focus {
+  background-color: #24324a;
+}
+
+body.dark-mode .react-calendar__tile--active {
+  background: #2563eb;
+  color: white;
+}
+
+body.dark-mode .react-calendar__tile--now {
+  background: #1e3a8a;
+  color: #93c5fd;
+}
+
+body.dark-mode .react-calendar__month-view__weekdays {
+  color: #94a3b8;
+}
+
+body.dark-mode .react-calendar__navigation button {
+  color: #e2e8f0;
+}
+
+body.dark-mode .react-calendar__navigation button:enabled:hover,
+body.dark-mode .react-calendar__navigation button:enabled:focus {
+  background-color: #24324a;
+}
+
+body.dark-mode .alert-warning {
+  background-color: rgba(234, 179, 8, 0.15);
+  color: #fde047;
+}
+
+body.dark-mode .alert-danger {
+  background-color: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+}

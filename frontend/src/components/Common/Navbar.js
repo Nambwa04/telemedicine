@@ -47,7 +47,7 @@ const NavigationBar = () => {
     }, [user]);
 
     return (
-        <Navbar bg="white" expand="lg" fixed="top" className="shadow-sm">
+        <Navbar bg={dark ? "dark" : "white"} variant={dark ? "dark" : "light"} expand="lg" fixed="top" className="shadow-sm">
             <Container>
                 <Navbar.Brand as={Link} to={user ? getDashboardLink() : '/'} className="fw-bold text-primary">
                     <FontAwesomeIcon icon="heartbeat" className="me-2" />
@@ -179,6 +179,16 @@ const NavigationBar = () => {
                     ) : (
                         <Nav className="ms-auto align-items-lg-center gap-2">
                             <Nav.Link as={NavLink} to="/" end className={({ isActive }) => isActive ? 'active fw-semibold' : undefined}>Home</Nav.Link>
+                            <Button
+                                variant={dark ? 'outline-light' : 'outline-secondary'}
+                                size="sm"
+                                onClick={toggle}
+                                aria-label="Toggle dark mode"
+                                className="d-flex align-items-center"
+                            >
+                                <FontAwesomeIcon icon={dark ? 'sun' : 'moon'} className="me-1" />
+                                <span className="d-none d-md-inline">{dark ? 'Light' : 'Dark'}</span>
+                            </Button>
                             <Button as={Link} to="/login" variant="outline-primary" className="me-2">
                                 Login
                             </Button>

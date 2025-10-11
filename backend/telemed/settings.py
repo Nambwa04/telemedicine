@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     'health',
     'requestsapp',
     'medications',
+    'timesheet',
 ]
 
 MIDDLEWARE = [

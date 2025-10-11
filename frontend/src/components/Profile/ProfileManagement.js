@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Button, Form, Badge, Alert, Modal } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { useAuth } from '../../context/AuthContext';
+import { fetchUserProfile, updateUserProfile } from '../../services/profileService';
 
 const ProfileManagement = () => {
     const { user, updateUser } = useAuth();
@@ -9,8 +10,10 @@ const ProfileManagement = () => {
     const [showChangePassword, setShowChangePassword] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [formData, setFormData] = useState({
-        name: '',
+        firstName: '',
+        lastName: '',
         email: '',
+        primaryCondition: '',
         phone: '',
         address: '',
         dateOfBirth: '',
@@ -49,42 +52,36 @@ const ProfileManagement = () => {
 
     const [alerts, setAlerts] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [isFetching, setIsFetching] = useState(true);
 
     useEffect(() => {
-        // Initialize form with user data
+        // Fetch user profile from backend
+        const loadProfile = async () => {
+            setIsFetching(true);
+            try {
+                const profileData = await fetchUserProfile();
+
+                setFormData(prev => ({
+                    ...prev,
+                    firstName: profileData.firstName || '',
+                    lastName: profileData.lastName || '',
+                    email: profileData.email || '',
+                    primaryCondition: profileData.primaryCondition || '',
+                    // Preserve other fields that aren't in backend yet
+                    phone: user?.phone || '',
+                    address: user?.address || '',
+                    dateOfBirth: user?.dateOfBirth || '',
+                    gender: user?.gender || '',
+                }));
+            } catch (error) {
+                addAlert('danger', 'Failed to load profile data');
+            } finally {
+                setIsFetching(false);
+            }
+        };
+
         if (user) {
-            setFormData({
-                name: user.name || '',
-                email: user.email || '',
-                phone: user.phone || '',
-                address: user.address || '',
-                dateOfBirth: user.dateOfBirth || '',
-                gender: user.gender || '',
-                emergencyContact: user.emergencyContact || {
-                    name: '',
-                    phone: '',
-                    relationship: ''
-                },
-                medicalInfo: user.medicalInfo || {
-                    allergies: '',
-                    bloodType: '',
-                    chronicConditions: '',
-                    insurance: ''
-                },
-                preferences: user.preferences || {
-                    notifications: {
-                        email: true,
-                        sms: false,
-                        push: true
-                    },
-                    privacy: {
-                        shareData: false,
-                        profileVisibility: 'private'
-                    },
-                    language: 'en',
-                    timezone: 'UTC-8'
-                }
-            });
+            loadProfile();
         }
     }, [user]);
 
@@ -131,15 +128,27 @@ const ProfileManagement = () => {
         setIsLoading(true);
 
         try {
-            // Simulate API call
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            // Update profile via backend API
+            const updatedProfile = await updateUserProfile({
+                firstName: formData.firstName,
+                lastName: formData.lastName,
+                primaryCondition: formData.primaryCondition,
+                phone: formData.phone
+            });
 
-            // Update user context
-            await updateUser({ ...user, ...formData });
+            // Update user context with new data
+            await updateUser({
+                ...user,
+                first_name: updatedProfile.firstName,
+                last_name: updatedProfile.lastName,
+                name: updatedProfile.name,
+                primary_condition: updatedProfile.primaryCondition,
+                phone: updatedProfile.phone
+            });
 
             addAlert('success', 'Profile updated successfully!');
         } catch (error) {
-            addAlert('danger', 'Failed to update profile. Please try again.');
+            addAlert('danger', error.message || 'Failed to update profile. Please try again.');
         } finally {
             setIsLoading(false);
         }
@@ -298,12 +307,25 @@ const ProfileManagement = () => {
                                     <Row>
                                         <Col md={6} className="mb-3">
                                             <Form.Group>
-                                                <Form.Label>Full Name</Form.Label>
+                                                <Form.Label>First Name</Form.Label>
                                                 <Form.Control
                                                     type="text"
-                                                    value={formData.name}
-                                                    onChange={(e) => handleInputChange(null, 'name', e.target.value)}
+                                                    value={formData.firstName}
+                                                    onChange={(e) => handleInputChange(null, 'firstName', e.target.value)}
                                                     required
+                                                    disabled={isFetching}
+                                                />
+                                            </Form.Group>
+                                        </Col>
+                                        <Col md={6} className="mb-3">
+                                            <Form.Group>
+                                                <Form.Label>Last Name</Form.Label>
+                                                <Form.Control
+                                                    type="text"
+                                                    value={formData.lastName}
+                                                    onChange={(e) => handleInputChange(null, 'lastName', e.target.value)}
+                                                    required
+                                                    disabled={isFetching}
                                                 />
                                             </Form.Group>
                                         </Col>
@@ -313,11 +335,32 @@ const ProfileManagement = () => {
                                                 <Form.Control
                                                     type="email"
                                                     value={formData.email}
-                                                    onChange={(e) => handleInputChange(null, 'email', e.target.value)}
-                                                    required
+                                                    disabled
+                                                    readOnly
+                                                    title="Email cannot be changed"
                                                 />
+                                                <Form.Text className="text-muted">
+                                                    Email cannot be changed
+                                                </Form.Text>
                                             </Form.Group>
                                         </Col>
+                                        {user?.role === 'patient' && (
+                                            <Col md={6} className="mb-3">
+                                                <Form.Group>
+                                                    <Form.Label>Primary Condition</Form.Label>
+                                                    <Form.Control
+                                                        type="text"
+                                                        value={formData.primaryCondition}
+                                                        onChange={(e) => handleInputChange(null, 'primaryCondition', e.target.value)}
+                                                        placeholder="e.g., Diabetes, Hypertension"
+                                                        disabled={isFetching}
+                                                    />
+                                                    <Form.Text className="text-muted">
+                                                        Your main health condition
+                                                    </Form.Text>
+                                                </Form.Group>
+                                            </Col>
+                                        )}
                                         <Col md={6} className="mb-3">
                                             <Form.Group>
                                                 <Form.Label>Phone Number</Form.Label>
@@ -325,7 +368,12 @@ const ProfileManagement = () => {
                                                     type="tel"
                                                     value={formData.phone}
                                                     onChange={(e) => handleInputChange(null, 'phone', e.target.value)}
+                                                    placeholder="e.g., +1234567890"
+                                                    disabled={isFetching}
                                                 />
+                                                <Form.Text className="text-muted">
+                                                    Your contact phone number
+                                                </Form.Text>
                                             </Form.Group>
                                         </Col>
                                         <Col md={6} className="mb-3">

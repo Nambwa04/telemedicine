@@ -220,3 +220,31 @@
   border-color: var(--bs-primary);
   box-shadow: 0 0 0 0.2rem rgba(var(--bs-primary-rgb), 0.25);
 }
+
+/* Dark mode support for Medication Tracking */
+body.dark-mode .medication-tracking-container {
+  color: #e2e8f0;
+}
+
+body.dark-mode .table thead th {
+  background-color: #24324a;
+  color: #f1f5f9;
+}
+
+body.dark-mode .table tbody tr:hover {
+  background-color: rgba(96, 165, 250, 0.1);
+}
+
+body.dark-mode .form-label {
+  color: #cbd5e1;
+}
+
+body.dark-mode .alert-info {
+  background-color: rgba(14, 165, 233, 0.15);
+  color: #7dd3fc;
+}
+
+body.dark-mode .alert-danger {
+  background-color: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+}

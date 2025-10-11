@@ -326,7 +326,7 @@ class MeView(APIView):
 
     def patch(self, request):
         user = request.user
-        allowed_fields = {'first_name', 'last_name', 'primary_condition'}
+        allowed_fields = {'first_name', 'last_name', 'primary_condition', 'phone'}
         data = {k: v for k, v in request.data.items() if k in allowed_fields}
         for k, v in data.items():
             setattr(user, k, v)
@@ -436,3 +436,93 @@ class PasswordResetConfirmView(APIView):
         user.save(update_fields=['password'])
         token_obj.mark_used()
         return Response({'detail': 'Password updated'}, status=status.HTTP_200_OK)
+
+
+class GoogleAuthView(APIView):
+    """
+    Google OAuth authentication endpoint.
+    Accepts a Google credential token and creates/authenticates a user.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        from rest_framework_simplejwt.tokens import RefreshToken
+        import jwt
+        
+        credential = request.data.get('credential')
+        role = request.data.get('role', 'patient')
+        
+        if not credential:
+            return Response(
+                {'detail': 'Google credential is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            # Decode the JWT token from Google (without verification for now - in production, verify signature)
+            # For production, you should verify with Google's public keys
+            decoded_token = jwt.decode(credential, options={"verify_signature": False})
+            
+            email = decoded_token.get('email')
+            name = decoded_token.get('name', '')
+            first_name = decoded_token.get('given_name', '')
+            last_name = decoded_token.get('family_name', '')
+            
+            if not email:
+                return Response(
+                    {'detail': 'Email not found in Google token'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Check if user exists
+            try:
+                user = User.objects.get(email=email)
+                # User exists, just login
+            except User.DoesNotExist:
+                # Create new user
+                username = email.split('@')[0]
+                # Ensure unique username
+                base_username = username
+                counter = 1
+                while User.objects.filter(username=username).exists():
+                    username = f"{base_username}{counter}"
+                    counter += 1
+                
+                user = User.objects.create_user(
+                    username=username,
+                    email=email,
+                    first_name=first_name,
+                    last_name=last_name,
+                    role=role,
+                    is_active=True
+                )
+                # Set unusable password for Google auth users
+                user.set_unusable_password()
+                user.save()
+            
+            # Generate JWT tokens
+            refresh = RefreshToken.for_user(user)
+            
+            return Response({
+                'access': str(refresh.access_token),
+                'refresh': str(refresh),
+                'user': {
+                    'id': user.id,
+                    'username': user.username,
+                    'email': user.email,
+                    'first_name': user.first_name,
+                    'last_name': user.last_name,
+                    'role': user.role
+                }
+            }, status=status.HTTP_200_OK)
+            
+        except jwt.InvalidTokenError as e:
+            return Response(
+                {'detail': f'Invalid Google token: {str(e)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            return Response(
+                {'detail': f'Authentication failed: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

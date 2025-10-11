@@ -48,7 +48,7 @@ const Sidebar = ({ mobileOpen = false, onMobileClose }) => {
         caregiver: [
             { to: '/clients', icon: 'users', label: 'Clients' },
             { to: '/requests', icon: 'clipboard-list', label: 'Requests' },
-            { to: '/schedule', icon: 'calendar-alt', label: 'Schedule' },
+            { to: '/caregiver/timesheet', icon: 'clock', label: 'Timesheet' },
             { to: '/health-dashboard', icon: 'chart-line', label: 'Health' }
         ]
     };

@@ -1040,8 +1040,8 @@ const PatientHealthDashboard = () => {
             <Row className="mt-4">
                 <Col>
                     <Card className="medical-card">
-                        <Card.Header className="bg-white border-bottom" style={{ color: '#000', fontWeight: '600' }}>
-                            <h5 className="mb-0" style={{ color: '#000' }}>
+                        <Card.Header className="border-bottom">
+                            <h5 className="mb-0">
                                 <FontAwesomeIcon icon="lightbulb" className="me-2 text-primary" />
                                 Health Insights
                             </h5>
