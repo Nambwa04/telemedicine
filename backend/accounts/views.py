@@ -23,18 +23,38 @@ User = get_user_model()
 
 # Dashboard stats endpoint for doctor dashboard
 @api_view(['GET'])
-@permission_classes([permissions.AllowAny])
-# @permission_classes([permissions.IsAuthenticated])
+@permission_classes([permissions.IsAuthenticated])
 def dashboard_stats(request):
     today = timezone.now().date()
-    # Appointments for today
-    today_appointments = Appointment.objects.filter(date=today).count()
-    # Total patients
-    total_patients = User.objects.filter(role='patient').count()
-    # Pending consults (in-progress)
-    pending_consults = Appointment.objects.filter(status='in-progress').count()
-    # Completed appointments today
-    completed_today = Appointment.objects.filter(date=today, status='completed').count()
+    user = request.user
+    
+    # For doctors, filter by their patients; admins see all
+    if user.role == 'doctor':
+        # Appointments for today for this doctor's patients
+        today_appointments = Appointment.objects.filter(
+            date=today,
+            patient__doctor=user
+        ).count()
+        # Total patients assigned to this doctor
+        total_patients = User.objects.filter(role='patient', doctor=user).count()
+        # Pending consults for this doctor's patients
+        pending_consults = Appointment.objects.filter(
+            status='in-progress',
+            patient__doctor=user
+        ).count()
+        # Completed appointments today for this doctor's patients
+        completed_today = Appointment.objects.filter(
+            date=today,
+            status='completed',
+            patient__doctor=user
+        ).count()
+    else:
+        # Admin or other roles see all stats
+        today_appointments = Appointment.objects.filter(date=today).count()
+        total_patients = User.objects.filter(role='patient').count()
+        pending_consults = Appointment.objects.filter(status='in-progress').count()
+        completed_today = Appointment.objects.filter(date=today, status='completed').count()
+    
     return JsonResponse({
         "todayAppointments": today_appointments,
         "totalPatients": total_patients,
@@ -339,10 +359,21 @@ class PatientListView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
+        user = self.request.user
+        
+        # Start with all patients
         qs = User.objects.filter(role='patient')
+        
+        # If user is a doctor, only show their assigned patients
+        if user.role == 'doctor':
+            qs = qs.filter(doctor=user)
+        # Admins see all patients (no additional filter needed)
+        
+        # Apply search filter if provided
         search = self.request.query_params.get('search')
         if search:
             qs = qs.filter(Q(first_name__icontains=search) | Q(last_name__icontains=search) | Q(email__icontains=search))
+        
         return qs.order_by('id')
 
 
@@ -417,25 +448,96 @@ class EmailVerificationConfirmView(APIView):
 class PasswordResetRequestView(APIView):
     permission_classes = [permissions.AllowAny]
     throttle_classes = [PasswordResetRequestThrottle]
+    
     def post(self, request):
+        from django.core.mail import send_mail
+        from django.conf import settings
+        
         serializer = PasswordResetRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = User.objects.get(email=serializer.validated_data['email'])
         token = PasswordResetToken.objects.create(user=user)
-        return Response({'detail': 'Password reset email dispatched', 'token': str(token.token)})
+        
+        # Build reset URL (use frontend URL)
+        frontend_url = request.META.get('HTTP_ORIGIN', 'http://localhost:3000')
+        reset_url = f"{frontend_url}/password-reset?token={token.token}"
+        
+        # Send email
+        subject = 'Password Reset Request - TeleMed+'
+        message = f"""
+Hello {user.first_name or user.email},
+
+You recently requested to reset your password for your TeleMed+ account.
+
+Click the link below to reset your password:
+{reset_url}
+
+If you didn't request this, you can safely ignore this email.
+
+This link will expire in 24 hours for security reasons.
+
+Best regards,
+The TeleMed+ Team
+"""
+        
+        try:
+            send_mail(
+                subject=subject,
+                message=message,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[user.email],
+                fail_silently=False,
+            )
+        except Exception as e:
+            print(f"Failed to send password reset email: {e}")
+            # Continue anyway - for development, email will be in console
+        
+        return Response({
+            'detail': 'Password reset email sent. Check your inbox.',
+            'token': str(token.token)  # Include token for development/testing
+        })
 
 
 class PasswordResetConfirmView(APIView):
     permission_classes = [permissions.AllowAny]
+    
     def post(self, request):
+        from datetime import timedelta
+        from django.utils import timezone
+        
         serializer = PasswordResetConfirmSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        token_obj = PasswordResetToken.objects.get(token=serializer.validated_data['token'], used=False)
-        user = token_obj.user
-        user.set_password(serializer.validated_data['new_password'])
-        user.save(update_fields=['password'])
-        token_obj.mark_used()
-        return Response({'detail': 'Password updated'}, status=status.HTTP_200_OK)
+        
+        try:
+            token_obj = PasswordResetToken.objects.get(
+                token=serializer.validated_data['token'], 
+                used=False
+            )
+            
+            # Check if token is expired (24 hours)
+            expiry_time = token_obj.created_at + timedelta(hours=24)
+            if timezone.now() > expiry_time:
+                return Response(
+                    {'detail': 'This password reset link has expired. Please request a new one.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Update password
+            user = token_obj.user
+            user.set_password(serializer.validated_data['new_password'])
+            user.save(update_fields=['password'])
+            token_obj.mark_used()
+            
+            return Response(
+                {'detail': 'Password successfully reset. You can now login with your new password.'},
+                status=status.HTTP_200_OK
+            )
+            
+        except PasswordResetToken.DoesNotExist:
+            return Response(
+                {'detail': 'Invalid or already used reset link.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
 
 class GoogleAuthView(APIView):

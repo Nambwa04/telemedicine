@@ -5,6 +5,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { useAuth } from '../../context/AuthContext';
 import { fetchPatientMetrics } from '../../services/healthService';
 import { useNavigate } from 'react-router-dom';
+import { listDoctorRequests } from '../../services/doctorService';
 
 const PatientDashboard = () => {
     // Get time-based greeting
@@ -14,7 +15,7 @@ const PatientDashboard = () => {
         if (hour < 18) return 'Good afternoon';
         return 'Good evening';
     };
-    const { user } = useAuth();
+    const { user, refreshUserProfile } = useAuth();
     const navigate = useNavigate();
     const [stats, setStats] = useState({
         upcomingAppointments: 0,
@@ -24,6 +25,8 @@ const PatientDashboard = () => {
     });
     const [recentActivity, setRecentActivity] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [doctorRequests, setDoctorRequests] = useState([]);
+    const [assignedDoctor, setAssignedDoctor] = useState(null);
 
     useEffect(() => {
         async function loadStats() {
@@ -135,13 +138,57 @@ const PatientDashboard = () => {
         loadStats();
     }, [user]);
 
+    // Fetch doctor requests and assigned doctor
+    useEffect(() => {
+        let mounted = true;
+
+        async function loadDoctorInfo() {
+            if (!user) return;
+            try {
+                // First refresh user profile to get latest data (including doctor assignment)
+                const refreshResult = await refreshUserProfile();
+
+                if (!mounted) return;
+
+                // Then fetch doctor requests
+                const requests = await listDoctorRequests();
+
+                if (!mounted) return;
+                setDoctorRequests(requests);
+
+                // Check if user has an assigned doctor (from refreshed user data)
+                if (refreshResult.success && refreshResult.user.doctor) {
+                    // Store doctor info with name from backend
+                    setAssignedDoctor({
+                        id: refreshResult.user.doctor,
+                        name: refreshResult.user.doctor_name || 'Assigned Doctor'
+                    });
+                } else if (user.doctor) {
+                    setAssignedDoctor({
+                        id: user.doctor,
+                        name: user.doctor_name || 'Assigned Doctor'
+                    });
+                }
+            } catch (error) {
+                console.error('Failed to load doctor information:', error);
+            }
+        }
+
+        loadDoctorInfo();
+
+        return () => {
+            mounted = false;
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // Only run once on mount to avoid infinite loop
+
     const [quickActions] = useState([
         { title: 'Book Appointment', icon: 'calendar-plus', accent: 'blue-theme', link: '/appointments' },
         { title: 'Video Consultation', icon: 'video', accent: 'blue-theme', link: '/video-call' },
         { title: 'Medication Tracker', icon: 'pills', accent: 'blue-theme', link: '/medications' },
+        { title: 'Find a Doctor', icon: 'user-md', accent: 'blue-theme', link: '/doctors' },
         { title: 'Find Caregiver', icon: 'user-nurse', accent: 'blue-theme', link: '/caregivers' },
-        { title: 'Health Dashboard', icon: 'file-medical', accent: 'blue-theme', link: '/health-dashboard' },
-        { title: 'Emergency Contact', icon: 'phone', accent: 'blue-theme', link: '/emergency' }
+        { title: 'Health Dashboard', icon: 'file-medical', accent: 'blue-theme', link: '/health-dashboard' }
     ]);
 
     return (
@@ -299,6 +346,54 @@ const PatientDashboard = () => {
                                         <FontAwesomeIcon icon="arrow-right" className="ms-1" />
                                     </Button>
                                 </>
+                            )}
+                        </Card.Body>
+                    </Card>
+                </Col>
+            </Row>
+
+            {/* Doctor Assignment Section */}
+            <Row>
+                <Col lg={12} className="mb-4">
+                    <Card className="medical-card">
+                        <Card.Header className="bg-white border-bottom" style={{ color: '#000', fontWeight: '600' }}>
+                            <h5 className="mb-0" style={{ color: '#000' }}>
+                                <FontAwesomeIcon icon="user-md" className="me-2 text-primary" />
+                                My Doctor
+                            </h5>
+                        </Card.Header>
+                        <Card.Body>
+                            {assignedDoctor ? (
+                                <div className="d-flex align-items-center p-3 rounded border">
+                                    <div className="me-3">
+                                        <FontAwesomeIcon icon="user-md" size="2x" className="text-primary" />
+                                    </div>
+                                    <div>
+                                        <h6 className="mb-1">
+                                            {assignedDoctor.name || 'Assigned Doctor'}
+                                        </h6>
+                                        <small className="text-muted">Your assigned healthcare provider</small>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div>
+                                    <p className="text-muted mb-3">
+                                        You don't have an assigned doctor yet. Browse our qualified doctors and request assignment.
+                                    </p>
+                                    {doctorRequests.length > 0 && (
+                                        <Alert variant="info" className="mb-3">
+                                            <FontAwesomeIcon icon="clock" className="me-2" />
+                                            You have {doctorRequests.length} pending doctor request(s). Your request is being reviewed.
+                                        </Alert>
+                                    )}
+                                    <Button
+                                        variant="primary"
+                                        onClick={() => navigate('/doctors')}
+                                    >
+                                        <FontAwesomeIcon icon="search" className="me-2" />
+                                        Find a Doctor
+                                    </Button>
+                                </div>
                             )}
                         </Card.Body>
                     </Card>

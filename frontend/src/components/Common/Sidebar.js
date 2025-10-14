@@ -36,12 +36,14 @@ const Sidebar = ({ mobileOpen = false, onMobileClose }) => {
             { to: '/appointments', icon: 'calendar-day', label: 'Appointments' },
             { to: '/video-call', icon: 'video', label: 'Video Call' },
             { to: '/medications', icon: 'pills', label: 'Medications' },
+            { to: '/doctors', icon: 'user-md', label: 'Find a Doctor' },
             { to: '/caregivers', icon: 'user-nurse', label: 'Caregivers' },
             { to: '/health-dashboard', icon: 'chart-line', label: 'Health' }
         ],
         doctor: [
             { to: '/patients', icon: 'users', label: 'Patients' },
             { to: '/appointments', icon: 'calendar-day', label: 'Appointments' },
+            { to: '/assignment-requests', icon: 'user-plus', label: 'Assignment Requests' },
             { to: '/video-calls', icon: 'video', label: 'Video Calls' },
             { to: '/health-dashboard', icon: 'chart-line', label: 'Health' }
         ],

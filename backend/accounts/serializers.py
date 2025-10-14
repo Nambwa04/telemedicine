@@ -6,9 +6,17 @@ from .models import EmailVerificationToken, PasswordResetToken
 User = get_user_model()
 
 class UserSerializer(serializers.ModelSerializer):
+    doctor_name = serializers.SerializerMethodField()
+    
     class Meta:
         model = User
-        fields = ['id', 'email', 'username', 'role', 'first_name', 'last_name', 'primary_condition', 'phone']
+        fields = ['id', 'email', 'username', 'role', 'first_name', 'last_name', 'primary_condition', 'phone', 'doctor', 'doctor_name']
+    
+    def get_doctor_name(self, obj):
+        """Return the assigned doctor's full name if exists"""
+        if obj.doctor:
+            return f"{obj.doctor.first_name} {obj.doctor.last_name}".strip() or obj.doctor.email
+        return None
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)

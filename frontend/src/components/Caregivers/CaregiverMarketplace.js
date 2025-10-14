@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Container, Row, Col, Card, Button, Form, InputGroup, Badge, Modal, Table, ListGroup, Spinner, Alert } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { listCaregivers, listCareRequests, createCareRequest, updateCareRequest, deleteCareRequest } from '../../services/caregiverService';
+import { listCaregivers, listCareRequests, createCareRequest, deleteCareRequest } from '../../services/caregiverService';
 
 const CaregiverMarketplace = ({ userRole = 'patient' }) => {
     const [caregivers, setCaregivers] = useState([]);
@@ -65,16 +65,25 @@ const CaregiverMarketplace = ({ userRole = 'patient' }) => {
     useEffect(() => {
         // Filter caregivers based on search criteria
         let filtered = caregivers.filter(caregiver => {
-            const matchesSearch = caregiver.name.toLowerCase().includes(searchFilters.searchTerm.toLowerCase()) ||
-                caregiver.specializations.some(spec =>
-                    spec.toLowerCase().includes(searchFilters.searchTerm.toLowerCase()));
+            const searchTerm = searchFilters.searchTerm.toLowerCase();
+            const matchesSearch = caregiver.name.toLowerCase().includes(searchTerm) ||
+                caregiver.specializations.some(spec => spec.toLowerCase().includes(searchTerm));
 
             const matchesSpecialization = !searchFilters.specialization ||
                 caregiver.specializations.includes(searchFilters.specialization);
 
             const matchesRate = caregiver.hourlyRate <= searchFilters.maxRate;
             const matchesRating = caregiver.rating >= searchFilters.rating;
-            const matchesDistance = parseFloat(caregiver.distance) <= searchFilters.distance;
+
+            // Distance can sometimes be a string such as 'N/A' or '2.3 miles'.
+            // We attempt to parse a leading float; if parse fails (NaN), we treat it as 0 so caregiver isn't excluded.
+            let numericDistance = caregiver.distance;
+            if (typeof numericDistance === 'string') {
+                const match = numericDistance.match(/\d+(\.\d+)?/);
+                numericDistance = match ? parseFloat(match[0]) : 0; // default 0 == closest
+            }
+            if (typeof numericDistance !== 'number' || isNaN(numericDistance)) numericDistance = 0;
+            const matchesDistance = numericDistance <= searchFilters.distance;
 
             return matchesSearch && matchesSpecialization && matchesRate && matchesRating && matchesDistance;
         });

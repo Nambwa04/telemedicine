@@ -138,6 +138,16 @@ const Login = () => {
                                 <FontAwesomeIcon icon={showPassword ? "eye-slash" : "eye"} />
                             </Button>
                         </InputGroup>
+                        <div className="text-end mt-2">
+                            <Button
+                                variant="link"
+                                className="text-decoration-none p-0 text-muted"
+                                onClick={() => navigate('/password-reset')}
+                                style={{ fontSize: '0.9rem' }}
+                            >
+                                Forgot Password?
+                            </Button>
+                        </div>
                     </Form.Group>
 
                     <Button

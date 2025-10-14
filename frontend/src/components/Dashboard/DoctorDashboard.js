@@ -10,6 +10,7 @@ import { createPrescription } from '../../services/prescriptionService';
 import { useNavigate } from 'react-router-dom';
 import API_BASE from '../../config';
 import { useCallback } from 'react';
+import { listDoctorRequests, acceptDoctorRequest, declineDoctorRequest } from '../../services/doctorService';
 
 const DoctorDashboard = () => {
     // Get time-based greeting
@@ -171,6 +172,61 @@ const DoctorDashboard = () => {
         })();
         return () => { mounted = false; };
     }, []);
+
+    // Doctor assignment requests state
+    const [doctorRequests, setDoctorRequests] = useState([]);
+    const [requestsLoading, setRequestsLoading] = useState(true);
+    const [requestsError, setRequestsError] = useState(null);
+
+    // Fetch pending doctor assignment requests
+    const fetchDoctorRequests = useCallback(async () => {
+        setRequestsLoading(true);
+        setRequestsError(null);
+        try {
+            const data = await listDoctorRequests({ status: 'new', ordering: '-created_at' });
+            setDoctorRequests(data);
+        } catch (error) {
+            console.error('Failed to fetch doctor requests:', error);
+            setRequestsError('Failed to load assignment requests');
+        } finally {
+            setRequestsLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchDoctorRequests();
+    }, [fetchDoctorRequests]);
+
+    // Handle accepting a doctor request
+    const handleAcceptRequest = async (requestId) => {
+        if (!window.confirm('Are you sure you want to accept this patient assignment?')) {
+            return;
+        }
+
+        const result = await acceptDoctorRequest(requestId);
+        if (result.success) {
+            alert('Patient assignment accepted successfully!');
+            fetchDoctorRequests(); // Refresh the list
+            fetchStats(); // Refresh stats
+        } else {
+            alert(`Failed to accept request: ${result.error}`);
+        }
+    };
+
+    // Handle declining a doctor request
+    const handleDeclineRequest = async (requestId) => {
+        if (!window.confirm('Are you sure you want to decline this patient assignment?')) {
+            return;
+        }
+
+        const result = await declineDoctorRequest(requestId);
+        if (result.success) {
+            alert('Patient assignment declined.');
+            fetchDoctorRequests(); // Refresh the list
+        } else {
+            alert(`Failed to decline request: ${result.error}`);
+        }
+    };
 
 
     const priorityMeta = {
@@ -825,6 +881,108 @@ const DoctorDashboard = () => {
                             </Modal.Footer>
                         </Form>
                     </Modal>
+                </Col>
+            </Row>
+
+            {/* Patient Assignment Requests Row */}
+            <Row id="assignment-requests">
+                <Col lg={12} className="mb-4">
+                    <Card className="medical-card border-0 shadow-sm">
+                        <Card.Header>
+                            <FontAwesomeIcon icon="user-plus" className="me-2" />
+                            Patient Assignment Requests
+                        </Card.Header>
+                        <Card.Body>
+                            {requestsLoading && (
+                                <div className="text-center py-4">
+                                    <Spinner animation="border" role="status">
+                                        <span className="visually-hidden">Loading requests...</span>
+                                    </Spinner>
+                                </div>
+                            )}
+                            {requestsError && (
+                                <Alert variant="danger">{requestsError}</Alert>
+                            )}
+                            {!requestsLoading && !requestsError && doctorRequests.length === 0 && (
+                                <div className="text-center py-4 text-muted">
+                                    No pending patient assignment requests.
+                                </div>
+                            )}
+                            {!requestsLoading && !requestsError && doctorRequests.length > 0 && (
+                                <Row>
+                                    {doctorRequests.map(request => (
+                                        <Col md={6} lg={4} key={request.id} className="mb-3">
+                                            <Card className="h-100 border shadow-sm">
+                                                <Card.Body>
+                                                    <div className="d-flex justify-content-between align-items-start mb-3">
+                                                        <div>
+                                                            <h6 className="fw-bold mb-1">{request.patientName}</h6>
+                                                            <small className="text-muted">{request.patientEmail}</small>
+                                                        </div>
+                                                        {request.urgent && (
+                                                            <span className="badge bg-danger">Urgent</span>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="mb-2">
+                                                        <strong className="small">Reason:</strong>
+                                                        <p className="mb-1 small">{request.reason}</p>
+                                                    </div>
+
+                                                    {request.symptoms && (
+                                                        <div className="mb-2">
+                                                            <strong className="small">Symptoms:</strong>
+                                                            <p className="mb-1 small">{request.symptoms}</p>
+                                                        </div>
+                                                    )}
+
+                                                    {request.preferredDate && (
+                                                        <div className="mb-2">
+                                                            <small className="text-muted">
+                                                                <FontAwesomeIcon icon="calendar" className="me-1" />
+                                                                {new Date(request.preferredDate).toLocaleDateString()}
+                                                                {request.preferredTime && ` at ${request.preferredTime}`}
+                                                            </small>
+                                                        </div>
+                                                    )}
+
+                                                    <div className="mb-2">
+                                                        <small className="text-muted">
+                                                            <FontAwesomeIcon icon="clock" className="me-1" />
+                                                            Requested {new Date(request.createdAt).toLocaleDateString()}
+                                                        </small>
+                                                    </div>
+
+                                                    <div className="d-flex gap-2 mt-3">
+                                                        <Button
+                                                            variant="success"
+                                                            size="sm"
+                                                            className="flex-fill"
+                                                            onClick={() => handleAcceptRequest(request.id)}
+                                                            disabled={!request.canAccept}
+                                                        >
+                                                            <FontAwesomeIcon icon="check" className="me-1" />
+                                                            Accept
+                                                        </Button>
+                                                        <Button
+                                                            variant="outline-danger"
+                                                            size="sm"
+                                                            className="flex-fill"
+                                                            onClick={() => handleDeclineRequest(request.id)}
+                                                            disabled={!request.canDecline}
+                                                        >
+                                                            <FontAwesomeIcon icon="times" className="me-1" />
+                                                            Decline
+                                                        </Button>
+                                                    </div>
+                                                </Card.Body>
+                                            </Card>
+                                        </Col>
+                                    ))}
+                                </Row>
+                            )}
+                        </Card.Body>
+                    </Card>
                 </Col>
             </Row>
         </Container>

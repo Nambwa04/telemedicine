@@ -7,6 +7,7 @@ import { fas } from '@fortawesome/free-solid-svg-icons';
 // Import components
 import Login from './components/Auth/Login';
 import Register from './components/Auth/Register';
+import PasswordReset from './pages/PasswordReset';
 import PatientDashboard from './components/Dashboard/PatientDashboard';
 import DoctorDashboard from './components/Dashboard/DoctorDashboard';
 import CaregiverDashboard from './components/Dashboard/CaregiverDashboard';
@@ -19,6 +20,8 @@ import { NotificationProvider } from './context/NotificationContext';
 
 import MedicationTracking from './components/Medications/MedicationTracking';
 import CaregiverMarketplace from './components/Caregivers/CaregiverMarketplace';
+import DoctorMarketplace from './pages/DoctorMarketplace';
+import AssignmentRequests from './pages/AssignmentRequests';
 import PatientHealthDashboard from './components/HealthDashboard/PatientHealthDashboard';
 import ProfileManagement from './components/Profile/ProfileManagement';
 import PatientListPage from './pages/PatientListPage';
@@ -95,6 +98,7 @@ function App() {
                   <Route path="/" element={<RootRoute />} />
                   <Route path="/login" element={<Login />} />
                   <Route path="/register" element={<Register />} />
+                  <Route path="/password-reset" element={<PasswordReset />} />
 
                   {/* Protected Routes */}
                   <Route
@@ -110,6 +114,14 @@ function App() {
                     element={
                       <ProtectedRoute requiredRole="doctor">
                         <DoctorDashboard />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/assignment-requests"
+                    element={
+                      <ProtectedRoute requiredRole="doctor">
+                        <AssignmentRequests />
                       </ProtectedRoute>
                     }
                   />
@@ -210,6 +222,14 @@ function App() {
                     element={
                       <ProtectedRoute>
                         <CaregiverMarketplace />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/doctors"
+                    element={
+                      <ProtectedRoute>
+                        <DoctorMarketplace />
                       </ProtectedRoute>
                     }
                   />

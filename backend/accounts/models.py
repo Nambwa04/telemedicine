@@ -15,6 +15,15 @@ class User(AbstractUser):
     role = models.CharField(max_length=20, choices=ROLE_CHOICES)
     primary_condition = models.CharField(max_length=120, blank=True)
     phone = models.CharField(max_length=20, blank=True)
+    # Doctor assignment for patients
+    doctor = models.ForeignKey(
+        'self', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='patients',
+        limit_choices_to={'role': 'doctor'}
+    )
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username']

@@ -6,7 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 // Patient list removed; caregivers should only see clients they serve
 import { listAppointments } from '../../services/appointmentService';
-import { listCareRequests } from '../../services/caregiverService';
+import { listCareRequests, acceptCareRequest, declineCareRequest } from '../../services/caregiverService';
 
 const CaregiverDashboard = () => {
     const { user } = useAuth();
@@ -53,6 +53,50 @@ const CaregiverDashboard = () => {
         fetchRequests();
         return () => { mounted = false; };
     }, []);
+
+    // Handler for accepting a care request
+    const handleAcceptRequest = async (requestId) => {
+        try {
+            console.log('Attempting to accept request:', requestId);
+            const result = await acceptCareRequest(requestId);
+            console.log('Accept result:', result);
+
+            if (result.success) {
+                // Refresh the list to show updated status
+                const reqs = await listCareRequests({ status: 'new' });
+                setServiceRequests(Array.isArray(reqs) ? reqs : []);
+                // Show success message
+                alert('Request accepted successfully!');
+            } else {
+                alert(`Failed to accept request: ${result.error || 'Unknown error'}`);
+            }
+        } catch (error) {
+            console.error('Error in handleAcceptRequest:', error);
+            alert(`Error accepting request: ${error.message}`);
+        }
+    };
+
+    // Handler for declining a care request
+    const handleDeclineRequest = async (requestId) => {
+        try {
+            console.log('Attempting to decline request:', requestId);
+            const result = await declineCareRequest(requestId);
+            console.log('Decline result:', result);
+
+            if (result.success) {
+                // Refresh the list to remove declined request
+                const reqs = await listCareRequests({ status: 'new' });
+                setServiceRequests(Array.isArray(reqs) ? reqs : []);
+                // Show success message
+                alert('Request declined successfully!');
+            } else {
+                alert(`Failed to decline request: ${result.error || 'Unknown error'}`);
+            }
+        } catch (error) {
+            console.error('Error in handleDeclineRequest:', error);
+            alert(`Error declining request: ${error.message}`);
+        }
+    };
 
     // Placeholder for future backend messages integration
     const [recentMessages] = useState([]);
@@ -314,10 +358,21 @@ const CaregiverDashboard = () => {
                                                 <div className="fw-medium">Rate: {request.hourlyRate ? `$${request.hourlyRate}/hour` : request.rate ? request.rate : '—'}</div>
                                             </Col>
                                             <Col md={4} className="text-end">
-                                                <Button size="sm" className="gradient-success me-2">
+                                                <Button
+                                                    size="sm"
+                                                    className="gradient-success me-2"
+                                                    onClick={() => handleAcceptRequest(request.id)}
+                                                    disabled={!request.canAccept}
+                                                >
                                                     <FontAwesomeIcon icon="check" className="me-1" /> Accept
                                                 </Button>
-                                                <Button size="sm" variant="outline-secondary" className="text-muted">
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline-secondary"
+                                                    className="text-muted"
+                                                    onClick={() => handleDeclineRequest(request.id)}
+                                                    disabled={!request.canDecline}
+                                                >
                                                     <FontAwesomeIcon icon="times" className="me-1" /> Decline
                                                 </Button>
                                             </Col>

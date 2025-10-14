@@ -182,6 +182,19 @@ const AuthProvider = ({ children }) => {
         }
     };
 
+    const refreshUserProfile = useCallback(async () => {
+        try {
+            if (!user || !user.access) return { success: false, error: 'Not authenticated' };
+            const fresh = await fetchMe(user.access);
+            const merged = { ...user, ...fresh };
+            saveUser(merged);
+            return { success: true, user: merged };
+        } catch (error) {
+            console.error('Failed to refresh user profile:', error);
+            return { success: false, error: error.message };
+        }
+    }, [user]);
+
     const value = {
         user,
         login,
@@ -189,6 +202,7 @@ const AuthProvider = ({ children }) => {
         googleLogin,
         logout,
         updateUser,
+        refreshUserProfile,
         loading,
         authError,
         refreshToken
