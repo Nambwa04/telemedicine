@@ -56,8 +56,9 @@ export function deleteCaregiver(caregiverId) {
 }
 
 // ===== Analytics =====
-export function fetchAnalytics() {
-    return apiClient.get('/accounts/admin/analytics/');
+export function fetchAnalytics(queryString = '') {
+    const suffix = queryString ? (queryString.startsWith('?') ? queryString : `?${queryString}`) : '';
+    return apiClient.get(`/accounts/admin/analytics/${suffix}`);
 }
 
 // ===== Appointments Management =====

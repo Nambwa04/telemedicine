@@ -11,7 +11,7 @@ Props:
  - onClick (handler)
  - asButton (boolean) if true renders button element for semantics; default div role=button
 */
-const QuickActionTile = ({ icon, label, accent = 'gradient-primary', onClick, asButton = false, className = '', ...rest }) => {
+const QuickActionTile = ({ icon, label, count, accent = 'gradient-primary', onClick, asButton = false, className = '', ...rest }) => {
     const baseClass = `quick-action-tile ${accent} ${className}`.trim();
     const commonProps = {
         className: baseClass,
@@ -42,6 +42,9 @@ const QuickActionTile = ({ icon, label, accent = 'gradient-primary', onClick, as
         <div {...commonProps}>
             <FontAwesomeIcon icon={icon} className="icon" />
             <span className="label">{label}</span>
+            {typeof count === 'number' && (
+                <span className="badge rounded-pill bg-danger ms-2">{count}</span>
+            )}
         </div>
     );
 };
@@ -49,6 +52,7 @@ const QuickActionTile = ({ icon, label, accent = 'gradient-primary', onClick, as
 QuickActionTile.propTypes = {
     icon: PropTypes.oneOfType([PropTypes.string, PropTypes.array]).isRequired,
     label: PropTypes.string.isRequired,
+    count: PropTypes.number,
     accent: PropTypes.string,
     onClick: PropTypes.func,
     asButton: PropTypes.bool,

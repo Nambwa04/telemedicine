@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { fetchPrescriptions, logMedicationIntake, getMedicationLogs } from '../../services/prescriptionService';
+import { fetchPrescriptions, logMedicationIntake, getMedicationLogs, createMedicationFollowUp, scanAndCreateFollowUps, listFollowUps, completeFollowUp, cancelFollowUp } from '../../services/prescriptionService';
 import { useAuth } from '../../context/AuthContext';
 import { Container, Row, Col, Card, Button, Badge, Alert, ProgressBar, Modal, Form, Table } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -8,6 +8,7 @@ import '../../styles/MedicationTracking.css';
 
 const MedicationTracking = ({ userRole = 'patient' }) => {
     const { user } = useAuth();
+    const role = user?.role || userRole;
     const [medications, setMedications] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -20,13 +21,23 @@ const MedicationTracking = ({ userRole = 'patient' }) => {
     const [selectedMedication, setSelectedMedication] = useState(null);
     const [medicationLogs, setMedicationLogs] = useState([]);
     const [logNotes, setLogNotes] = useState('');
+    // Follow-ups state
+    const [showFollowUpsModal, setShowFollowUpsModal] = useState(false);
+    const [followUps, setFollowUps] = useState([]);
+    const [fuLoading, setFuLoading] = useState(false);
+    // Create Follow-Up modal state
+    const [showCreateFU, setShowCreateFU] = useState(false);
+    const [fuMedication, setFuMedication] = useState(null);
+    const [fuReason, setFuReason] = useState('high_risk');
+    const [fuNotes, setFuNotes] = useState('');
+    const [fuSubmitting, setFuSubmitting] = useState(false);
 
     const fetchData = useCallback(async () => {
         setLoading(true);
         setError(null);
         try {
             let patientId = user?.id;
-            if (userRole === 'caregiver') {
+            if (role === 'caregiver') {
                 if (!selectedPatient) {
                     setMedications([]);
                     setLoading(false);
@@ -42,17 +53,108 @@ const MedicationTracking = ({ userRole = 'patient' }) => {
         } finally {
             setLoading(false);
         }
-    }, [user?.id, userRole, selectedPatient?.id]);
+    }, [user?.id, role, selectedPatient?.id]);
 
     useEffect(() => {
         fetchData();
     }, [fetchData]);
 
     useEffect(() => {
-        if (userRole === 'caregiver') {
+        if (role === 'caregiver') {
             fetchPatientList().then(setPatients).catch(() => setPatients([]));
         }
-    }, [userRole]);
+    }, [role]);
+
+    const riskVariant = (riskLevel) => {
+        if (riskLevel === 'high') return 'danger';
+        if (riskLevel === 'medium') return 'warning';
+        return 'success';
+    };
+
+    const suggestReason = (med) => {
+        if (med?.needs_refill) return 'refill_needed';
+        if (med?.risk_level === 'high') return 'high_risk';
+        if ((med?.compliance_rate ?? 100) < 80) return 'low_compliance';
+        return 'high_risk';
+    };
+
+    const openCreateFollowUp = (med) => {
+        setFuMedication(med);
+        setFuReason(suggestReason(med));
+        setFuNotes('');
+        setShowCreateFU(true);
+    };
+
+    const handleSubmitCreateFU = async () => {
+        if (!fuMedication) return;
+        try {
+            setFuSubmitting(true);
+            await createMedicationFollowUp(fuMedication.id, { reason: fuReason, notes: fuNotes });
+            setShowCreateFU(false);
+            setFuMedication(null);
+            setFuNotes('');
+            alert('Follow-up created');
+            if (showFollowUpsModal) {
+                await refreshFollowUps();
+            }
+            // Optimistically bump the pending follow-ups count on the card
+            setMedications(prev => prev.map(m => m.id === fuMedication.id
+                ? { ...m, pending_followups_count: (m.pending_followups_count || 0) + 1 }
+                : m
+            ));
+        } catch (e) {
+            alert('Failed to create follow-up: ' + (e.message || 'Unknown error'));
+        } finally {
+            setFuSubmitting(false);
+        }
+    };
+
+    const handleScanFollowUps = async () => {
+        try {
+            const res = await scanAndCreateFollowUps();
+            alert('Scan complete. Created: ' + JSON.stringify(res.created));
+        } catch (e) {
+            alert('Scan failed: ' + (e.message || 'Unknown error'));
+        }
+    };
+
+    const openFollowUps = async () => {
+        try {
+            setFuLoading(true);
+            const data = await listFollowUps();
+            setFollowUps(Array.isArray(data) ? data : []);
+            setShowFollowUpsModal(true);
+        } catch (e) {
+            alert('Failed to load follow-ups');
+        } finally {
+            setFuLoading(false);
+        }
+    };
+
+    const refreshFollowUps = async () => {
+        try {
+            const data = await listFollowUps();
+            setFollowUps(Array.isArray(data) ? data : []);
+        } catch { }
+    };
+
+    const handleCompleteFU = async (fu) => {
+        try {
+            await completeFollowUp(fu.id);
+            await refreshFollowUps();
+        } catch (e) {
+            alert('Failed to complete follow-up: ' + (e.message || 'Unknown error'));
+        }
+    };
+
+    const handleCancelFU = async (fu) => {
+        try {
+            await cancelFollowUp(fu.id);
+            await refreshFollowUps();
+        } catch (e) {
+            alert('Failed to cancel follow-up: ' + (e.message || 'Unknown error'));
+        }
+    };
 
     const handleLogIntake = async () => {
         if (!selectedMedication) return;
@@ -122,7 +224,7 @@ const MedicationTracking = ({ userRole = 'patient' }) => {
             </Row>
 
             {/* Caregiver patient selection */}
-            {userRole === 'caregiver' && (
+            {(role === 'caregiver' || role === 'doctor') && (
                 <Row className="mb-3">
                     <Col md={6}>
                         <Card className="medical-card">
@@ -145,6 +247,17 @@ const MedicationTracking = ({ userRole = 'patient' }) => {
                                         ))}
                                     </Form.Select>
                                 </Form.Group>
+                                <div className="mt-3 d-flex gap-2">
+                                    <Button variant="outline-secondary" size="sm" onClick={fetchData}>
+                                        <FontAwesomeIcon icon="sync" className="me-2" /> Refresh
+                                    </Button>
+                                    <Button variant="outline-danger" size="sm" onClick={handleScanFollowUps}>
+                                        <FontAwesomeIcon icon="bullhorn" className="me-2" /> Scan & Create Follow-Ups
+                                    </Button>
+                                    <Button variant="outline-primary" size="sm" onClick={openFollowUps}>
+                                        <FontAwesomeIcon icon="list" className="me-2" /> View Follow-Ups
+                                    </Button>
+                                </div>
                             </Card.Body>
                         </Card>
                     </Col>
@@ -197,6 +310,18 @@ const MedicationTracking = ({ userRole = 'patient' }) => {
                                                 Out of Stock
                                             </Badge>
                                         )}
+                                        {med.risk_level && (
+                                            <Badge bg={riskVariant(med.risk_level)} className="ms-2">
+                                                <FontAwesomeIcon icon="flag" className="me-1" />
+                                                Risk: {med.risk_level.toUpperCase()} {typeof med.noncompliance_risk === 'number' ? `(${Math.round(med.noncompliance_risk * 100)}%)` : ''}
+                                            </Badge>
+                                        )}
+                                        {(med.pending_followups_count > 0) && (
+                                            <Badge bg="danger" className="ms-2">
+                                                <FontAwesomeIcon icon="flag" className="me-1" />
+                                                {med.pending_followups_count} follow-up{med.pending_followups_count > 1 ? 's' : ''}
+                                            </Badge>
+                                        )}
                                     </div>
 
                                     {/* Quantity Progress */}
@@ -211,7 +336,7 @@ const MedicationTracking = ({ userRole = 'patient' }) => {
                                             </strong>
                                         </div>
                                         <ProgressBar
-                                            now={(med.remaining_quantity / med.total_quantity) * 100}
+                                            now={(med.total_quantity ? (med.remaining_quantity / med.total_quantity) * 100 : 0)}
                                             variant={getQuantityColor(med.remaining_quantity, med.refill_threshold)}
                                             className="medication-progress"
                                         />
@@ -286,6 +411,15 @@ const MedicationTracking = ({ userRole = 'patient' }) => {
                                             <FontAwesomeIcon icon="clipboard-list" className="me-2" />
                                             View Full History
                                         </Button>
+                                        {(role === 'caregiver' || role === 'doctor') && (
+                                            <Button
+                                                variant="outline-danger"
+                                                onClick={() => openCreateFollowUp(med)}
+                                            >
+                                                <FontAwesomeIcon icon="bullhorn" className="me-2" />
+                                                Create Follow-Up
+                                            </Button>
+                                        )}
                                     </div>
                                 </Card.Body>
                             </Card>
@@ -402,6 +536,121 @@ const MedicationTracking = ({ userRole = 'patient' }) => {
                 <Modal.Footer>
                     <Button variant="secondary" onClick={() => setShowHistoryModal(false)}>
                         Close
+                    </Button>
+                </Modal.Footer>
+            </Modal>
+
+            {/* Follow-Ups Modal */}
+            <Modal show={showFollowUpsModal} onHide={() => setShowFollowUpsModal(false)} size="lg" centered>
+                <Modal.Header closeButton>
+                    <Modal.Title>
+                        <FontAwesomeIcon icon="flag" className="me-2 text-primary" />
+                        Compliance Follow-Ups
+                    </Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    {fuLoading ? (
+                        <div className="text-center py-4">
+                            <FontAwesomeIcon icon="spinner" spin className="text-primary" /> Loading...
+                        </div>
+                    ) : followUps.length > 0 ? (
+                        <Table striped hover responsive>
+                            <thead>
+                                <tr>
+                                    <th>Patient</th>
+                                    <th>Medication</th>
+                                    <th>Reason</th>
+                                    <th>Status</th>
+                                    <th>Due</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {followUps.map(fu => (
+                                    <tr key={fu.id}>
+                                        <td>{fu.patient_email || fu.patient}</td>
+                                        <td>{fu.medication_name || (fu.medication || '-')}</td>
+                                        <td><Badge bg="secondary">{fu.reason}</Badge></td>
+                                        <td>
+                                            <Badge bg={{ pending: 'warning', completed: 'success', canceled: 'secondary' }[fu.status] || 'secondary'}>
+                                                {fu.status}
+                                            </Badge>
+                                        </td>
+                                        <td>{fu.due_at ? new Date(fu.due_at).toLocaleString() : '-'}</td>
+                                        <td className="d-flex gap-2">
+                                            {fu.status === 'pending' && (
+                                                <>
+                                                    <Button size="sm" variant="success" onClick={() => handleCompleteFU(fu)}>
+                                                        Complete
+                                                    </Button>
+                                                    <Button size="sm" variant="outline-secondary" onClick={() => handleCancelFU(fu)}>
+                                                        Cancel
+                                                    </Button>
+                                                </>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </Table>
+                    ) : (
+                        <Alert variant="info">No follow-ups found.</Alert>
+                    )}
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowFollowUpsModal(false)}>
+                        Close
+                    </Button>
+                </Modal.Footer>
+            </Modal>
+
+            {/* Create Follow-Up Modal */}
+            <Modal show={showCreateFU} onHide={() => setShowCreateFU(false)} centered>
+                <Modal.Header closeButton>
+                    <Modal.Title>
+                        <FontAwesomeIcon icon="flag" className="me-2 text-primary" />
+                        Create Follow-Up
+                    </Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    {fuMedication && (
+                        <>
+                            <h5 className="mb-2">{fuMedication.name}</h5>
+                            <p className="text-muted mb-3">{fuMedication.dosage} · {fuMedication.frequency}</p>
+                            <Form.Group className="mb-3">
+                                <Form.Label>Reason</Form.Label>
+                                <Form.Select value={fuReason} onChange={(e) => setFuReason(e.target.value)}>
+                                    <option value="high_risk">High risk</option>
+                                    <option value="refill_needed">Refill needed</option>
+                                    <option value="no_logs">No recent logs</option>
+                                    <option value="low_compliance">Low compliance</option>
+                                </Form.Select>
+                            </Form.Group>
+                            <Form.Group>
+                                <Form.Label>Notes (optional)</Form.Label>
+                                <Form.Control
+                                    as="textarea"
+                                    rows={3}
+                                    value={fuNotes}
+                                    onChange={(e) => setFuNotes(e.target.value)}
+                                    placeholder="Add any context for this follow-up..."
+                                />
+                            </Form.Group>
+                        </>
+                    )}
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowCreateFU(false)} disabled={fuSubmitting}>Cancel</Button>
+                    <Button variant="danger" onClick={handleSubmitCreateFU} disabled={fuSubmitting}>
+                        {fuSubmitting ? (
+                            <>
+                                <FontAwesomeIcon icon="spinner" spin className="me-2" /> Creating...
+                            </>
+                        ) : (
+                            <>
+                                <FontAwesomeIcon icon="bullhorn" className="me-2" /> Create Follow-Up
+                            </>
+                        )}
                     </Button>
                 </Modal.Footer>
             </Modal>

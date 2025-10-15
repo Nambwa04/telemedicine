@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Container, Row, Col, Card, Button, Table, Badge, ListGroup, Modal, Form } from 'react-bootstrap';
 import QuickActionTile from '../Common/QuickActionTile';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -6,6 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 // Patient list removed; caregivers should only see clients they serve
 import { listAppointments } from '../../services/appointmentService';
+import { listFollowUps } from '../../services/prescriptionService';
 import { listCareRequests, acceptCareRequest, declineCareRequest } from '../../services/caregiverService';
 
 const CaregiverDashboard = () => {
@@ -97,6 +98,17 @@ const CaregiverDashboard = () => {
             alert(`Error declining request: ${error.message}`);
         }
     };
+
+    // Follow-ups pending count
+    const [pendingFollowUps, setPendingFollowUps] = useState(0);
+    const loadFollowUpsCount = useCallback(async () => {
+        try {
+            const fu = await listFollowUps();
+            const count = (Array.isArray(fu) ? fu : []).filter(x => x.status === 'pending').length;
+            setPendingFollowUps(count);
+        } catch { }
+    }, []);
+    useEffect(() => { loadFollowUpsCount(); }, [loadFollowUpsCount]);
 
     // Placeholder for future backend messages integration
     const [recentMessages] = useState([]);
@@ -408,6 +420,15 @@ const CaregiverDashboard = () => {
                                         label="Availability"
                                         accent="blue-theme"
                                         onClick={handleOpenAvailability}
+                                    />
+                                </div>
+                                <div className="col-12">
+                                    <QuickActionTile
+                                        icon="flag"
+                                        label="Follow-Ups"
+                                        accent="blue-theme"
+                                        count={pendingFollowUps}
+                                        onClick={() => navigate('/follow-ups')}
                                     />
                                 </div>
                             </div>

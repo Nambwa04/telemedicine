@@ -1,8 +1,9 @@
 from rest_framework import serializers
-from .models import Medication, MedicationLog
+from .models import Medication, MedicationLog, ComplianceFollowUp
 from django.db.models import Count, Q
 from django.utils import timezone
 from datetime import timedelta
+from .utils import compute_noncompliance_risk
 
 class MedicationLogSerializer(serializers.ModelSerializer):
     class Meta:
@@ -17,6 +18,9 @@ class MedicationSerializer(serializers.ModelSerializer):
     is_depleted = serializers.ReadOnlyField()
     recent_logs = serializers.SerializerMethodField()
     compliance_rate = serializers.SerializerMethodField()
+    noncompliance_risk = serializers.SerializerMethodField()
+    risk_level = serializers.SerializerMethodField()
+    pending_followups_count = serializers.SerializerMethodField()
     
     class Meta:
         model = Medication
@@ -24,7 +28,8 @@ class MedicationSerializer(serializers.ModelSerializer):
             'id', 'patient', 'patient_id', 'name', 'dosage', 'frequency', 
             'compliance', 'next_due', 'total_quantity', 'remaining_quantity',
             'refill_threshold', 'start_date', 'end_date', 'created_at',
-            'needs_refill', 'is_depleted', 'recent_logs', 'compliance_rate'
+            'needs_refill', 'is_depleted', 'recent_logs', 'compliance_rate',
+            'noncompliance_risk', 'risk_level', 'pending_followups_count'
         ]
         read_only_fields = ['patient', 'id', 'created_at', 'needs_refill', 'is_depleted']
     
@@ -63,4 +68,36 @@ class MedicationSerializer(serializers.ModelSerializer):
         
         compliance_rate = min((actual_logs / expected_doses) * 100, 100)
         return round(compliance_rate, 1)
+
+    def get_noncompliance_risk(self, obj):
+        score = compute_noncompliance_risk(obj)
+        return round(score, 3)
+
+    def get_risk_level(self, obj):
+        score = compute_noncompliance_risk(obj)
+        if score >= 0.7:
+            return 'high'
+        if score >= 0.4:
+            return 'medium'
+        return 'low'
+
+    def get_pending_followups_count(self, obj):
+        try:
+            return obj.followups.filter(status='pending').count()
+        except Exception:
+            return 0
+
+
+class ComplianceFollowUpSerializer(serializers.ModelSerializer):
+    patient_email = serializers.EmailField(source='patient.email', read_only=True)
+    medication_name = serializers.CharField(source='medication.name', read_only=True)
+
+    class Meta:
+        model = ComplianceFollowUp
+        fields = [
+            'id', 'patient', 'patient_email', 'medication', 'medication_name',
+            'due_at', 'status', 'reason', 'notes', 'created_at', 'created_by',
+            'completed_at', 'risk_score_snapshot'
+        ]
+        read_only_fields = ['id', 'created_at', 'created_by', 'risk_score_snapshot']
 

@@ -32,6 +32,7 @@ import VideoConsultation from './components/VideoCall/VideoConsultation';
 import './App.css';
 import HomePage from './pages/HomePage';
 import TimesheetPage from './pages/TimesheetPage';
+import FollowUpsPage from './pages/FollowUpsPage';
 import { useAuth } from './context/AuthContext';
 import { useLocation } from 'react-router-dom';
 import './styles/sidebar.css';
@@ -259,6 +260,16 @@ function App() {
                     element={
                       <ProtectedRoute requiredRole="caregiver">
                         <TimesheetPage />
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  {/* Follow-Ups (caregiver/doctor) */}
+                  <Route
+                    path="/follow-ups"
+                    element={
+                      <ProtectedRoute>
+                        <FollowUpsPage />
                       </ProtectedRoute>
                     }
                   />

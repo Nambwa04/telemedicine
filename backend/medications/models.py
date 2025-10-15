@@ -48,3 +48,36 @@ class MedicationLog(models.Model):
     def __str__(self):
         return f"{self.medication.name} - {self.taken_at.strftime('%Y-%m-%d %H:%M')}"
 
+
+class ComplianceFollowUp(models.Model):
+    """A follow-up task created when a patient is at risk of non-compliance, missing doses, or needs a refill."""
+    class Status(models.TextChoices):
+        PENDING = 'pending', 'Pending'
+        COMPLETED = 'completed', 'Completed'
+        CANCELED = 'canceled', 'Canceled'
+
+    class Reason(models.TextChoices):
+        LOW_COMPLIANCE = 'low_compliance', 'Low compliance'
+        MISSED_DOSES = 'missed_doses', 'Missed doses'
+        REFILL_NEEDED = 'refill_needed', 'Refill needed'
+        NO_LOGS = 'no_logs', 'No recent logs'
+        HIGH_RISK = 'high_risk', 'High non-compliance risk'
+
+    patient = models.ForeignKey(User, on_delete=models.CASCADE, related_name='compliance_followups')
+    medication = models.ForeignKey(Medication, on_delete=models.CASCADE, related_name='followups', null=True, blank=True)
+    due_at = models.DateTimeField(default=timezone.now)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    reason = models.CharField(max_length=50, choices=Reason.choices)
+    notes = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_followups')
+    completed_at = models.DateTimeField(null=True, blank=True)
+    risk_score_snapshot = models.FloatField(null=True, blank=True, help_text="Risk score (0-1) at time of creation")
+
+    class Meta:
+        ordering = ['status', 'due_at']
+
+    def __str__(self):
+        med = f" for {self.medication.name}" if self.medication else ""
+        return f"Follow-up({self.get_reason_display()}{med}) -> {self.get_status_display()} due {self.due_at:%Y-%m-%d %H:%M}"
+

@@ -10,6 +10,7 @@ import { createPrescription } from '../../services/prescriptionService';
 import { useNavigate } from 'react-router-dom';
 import API_BASE from '../../config';
 import { useCallback } from 'react';
+import { listFollowUps } from '../../services/prescriptionService';
 import { listDoctorRequests, acceptDoctorRequest, declineDoctorRequest } from '../../services/doctorService';
 
 const DoctorDashboard = () => {
@@ -172,6 +173,17 @@ const DoctorDashboard = () => {
         })();
         return () => { mounted = false; };
     }, []);
+
+    // Follow-ups pending count
+    const [pendingFollowUps, setPendingFollowUps] = useState(0);
+    const loadFollowUpsCount = useCallback(async () => {
+        try {
+            const fu = await listFollowUps();
+            const count = (Array.isArray(fu) ? fu : []).filter(x => x.status === 'pending').length;
+            setPendingFollowUps(count);
+        } catch { }
+    }, []);
+    useEffect(() => { loadFollowUpsCount(); }, [loadFollowUpsCount]);
 
     // Doctor assignment requests state
     const [doctorRequests, setDoctorRequests] = useState([]);
@@ -667,6 +679,7 @@ const DoctorDashboard = () => {
                                 <Col md={6} className="mb-3"><QuickActionTile icon="plus" label="New Patient" accent="blue-theme" onClick={() => handleQuickAction('New Patient')} /></Col>
                                 <Col md={6} className="mb-3"><QuickActionTile icon="video" label="Consult" accent="blue-theme" onClick={() => handleQuickAction('Consult')} /></Col>
                                 <Col md={6} className="mb-3"><QuickActionTile icon="prescription" label="Prescription" accent="blue-theme" onClick={() => handleQuickAction('Prescription')} /></Col>
+                                <Col md={6} className="mb-3"><QuickActionTile icon="flag" label="Follow-Ups" count={pendingFollowUps} accent="blue-theme" onClick={() => window.location.assign('/follow-ups')} /></Col>
                                 <Col md={6} className="mb-3"><QuickActionTile icon="chart-bar" label="Reports" accent="blue-theme" onClick={() => handleQuickAction('Reports')} /></Col>
                             </Row>
                         </Card.Body>

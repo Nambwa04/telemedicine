@@ -169,7 +169,24 @@ class AdminAnalyticsView(APIView):
         from health.models import VitalReading, SymptomLog, LabResult
         from django.db.models import Count, Q
         from datetime import datetime, timedelta
+        from django.utils.dateparse import parse_date
         
+    # Optional filters (date only)
+        date_from_str = request.query_params.get('date_from')
+        date_to_str = request.query_params.get('date_to')
+
+        # Parse dates (inclusive range)
+        date_from = parse_date(date_from_str) if date_from_str else None
+        if date_from_str and not date_from:
+            return Response({'detail': 'Invalid date_from. Expected YYYY-MM-DD.'}, status=status.HTTP_400_BAD_REQUEST)
+        date_to = parse_date(date_to_str) if date_to_str else None
+        if date_to_str and not date_to:
+            return Response({'detail': 'Invalid date_to. Expected YYYY-MM-DD.'}, status=status.HTTP_400_BAD_REQUEST)
+        if date_from and date_to and date_from > date_to:
+            return Response({'detail': 'date_from must be before or equal to date_to.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Build filtered appointments by date range only
+
         # User statistics
         total_users = User.objects.count()
         patient_count = User.objects.filter(role='patient').count()
@@ -182,26 +199,100 @@ class AdminAnalyticsView(APIView):
         recent_registrations = User.objects.filter(date_joined__gte=thirty_days_ago).count()
         
         # Appointment statistics
-        total_appointments = Appointment.objects.count()
-        scheduled_appointments = Appointment.objects.filter(status='scheduled').count()
-        completed_appointments = Appointment.objects.filter(status='completed').count()
-        cancelled_appointments = Appointment.objects.filter(status='cancelled').count()
+        base_apts = Appointment.objects.all()
+        filtered_apts = base_apts
+        if date_from:
+            filtered_apts = filtered_apts.filter(date__gte=date_from)
+        if date_to:
+            filtered_apts = filtered_apts.filter(date__lte=date_to)
+
+        total_appointments = filtered_apts.count()
+        scheduled_appointments = filtered_apts.filter(status='scheduled').count()
+        completed_appointments = filtered_apts.filter(status='completed').count()
+        cancelled_appointments = filtered_apts.filter(status='cancelled').count()
         
-        # Today's appointments
+        # Today's appointments (global, not restricted by date filters)
         today = timezone.now().date()
-        today_appointments = Appointment.objects.filter(date=today).count()
+        today_appointments = base_apts.filter(date=today).count()
         
         # This week's appointments
         week_start = today - timedelta(days=today.weekday())
-        this_week_appointments = Appointment.objects.filter(
-            date__gte=week_start,
-            date__lte=today
-        ).count()
+        this_week_qs = base_apts.filter(date__gte=week_start, date__lte=today)
+        this_week_appointments = this_week_qs.count()
         
         # Appointments by status
         appointments_by_status = list(
-            Appointment.objects.values('status').annotate(count=Count('id'))
+            filtered_apts.values('status').annotate(count=Count('id'))
         )
+
+        # Appointments trend (daily counts within selected range or last 7 days by default)
+        if date_from and date_to:
+            trend_start, trend_end = date_from, date_to
+        else:
+            trend_end = today
+            trend_start = today - timedelta(days=6)
+        trend_qs = base_apts.filter(date__gte=trend_start, date__lte=trend_end)
+        # Build a dict of date -> count
+        trend_counts = { (trend_start + timedelta(days=i)): 0 for i in range((trend_end - trend_start).days + 1) }
+        for row in trend_qs.values('date').annotate(count=Count('id')):
+            d = row['date']
+            if d in trend_counts:
+                trend_counts[d] = row['count']
+        appointments_trend = [
+            { 'date': d.isoformat(), 'count': trend_counts[d] } for d in sorted(trend_counts.keys())
+        ]
+        # Build users trend over the same window
+        # Note: using date_joined__date for date-only comparisons
+        def daterange(start_date, end_date):
+            for n in range(int((end_date - start_date).days) + 1):
+                yield start_date + timedelta(n)
+        users_trend_map = { d: 0 for d in daterange(trend_start, trend_end) }
+        # Aggregate registrations by date
+        registrations = (
+            User.objects
+            .filter(date_joined__date__gte=trend_start, date_joined__date__lte=trend_end)
+            .extra(select={"d":"date(date_joined)"})
+            .values('d')
+            .annotate(count=Count('id'))
+        )
+        from django.utils.dateparse import parse_date as _parse_date
+        for row in registrations:
+            d = row['d']
+            d_parsed = _parse_date(d) if isinstance(d, str) else d
+            if d_parsed in users_trend_map:
+                users_trend_map[d_parsed] = row['count']
+        users_trend = [ { 'date': d.isoformat(), 'count': users_trend_map[d] } for d in sorted(users_trend_map.keys()) ]
+
+        # Month-to-date vs previous month-to-date deltas
+        def month_ranges(ref_date):
+            cur_start = ref_date.replace(day=1)
+            cur_end = ref_date
+            prev_last = cur_start - timedelta(days=1)
+            prev_start = prev_last.replace(day=1)
+            # prior month same day (or last day if shorter)
+            try:
+                prev_end = prev_start.replace(day=ref_date.day)
+                if prev_end > prev_last:
+                    prev_end = prev_last
+            except Exception:
+                prev_end = prev_last
+            return cur_start, cur_end, prev_start, prev_end
+
+        cur_start, cur_end, prev_start, prev_end = month_ranges(today)
+
+        users_current_mtd = User.objects.filter(date_joined__date__gte=cur_start, date_joined__date__lte=cur_end).count()
+        users_prev_mtd = User.objects.filter(date_joined__date__gte=prev_start, date_joined__date__lte=prev_end).count()
+        users_mtd_delta = users_current_mtd - users_prev_mtd
+
+        apts_current_qs = base_apts.filter(date__gte=cur_start, date__lte=cur_end)
+        apts_prev_qs = base_apts.filter(date__gte=prev_start, date__lte=prev_end)
+        apts_current_mtd = apts_current_qs.count()
+        apts_prev_mtd = apts_prev_qs.count()
+        apts_mtd_delta = apts_current_mtd - apts_prev_mtd
+
+        meds_current_mtd = Medication.objects.filter(created_at__date__gte=cur_start, created_at__date__lte=cur_end).count()
+        meds_prev_mtd = Medication.objects.filter(created_at__date__gte=prev_start, created_at__date__lte=prev_end).count()
+        meds_mtd_delta = meds_current_mtd - meds_prev_mtd
         
         # Health metrics
         total_vitals = VitalReading.objects.count()
@@ -221,7 +312,7 @@ class AdminAnalyticsView(APIView):
         
         # Recent activity (last 7 days)
         seven_days_ago = timezone.now() - timedelta(days=7)
-        recent_appointments = Appointment.objects.filter(
+        recent_appointments = base_apts.filter(
             created_at__gte=seven_days_ago
         ).count()
         recent_vitals = VitalReading.objects.filter(
@@ -253,6 +344,12 @@ class AdminAnalyticsView(APIView):
                 'caregivers': caregiver_count,
                 'admins': admin_count,
                 'recent_registrations': recent_registrations,
+                'trend': users_trend,
+                'month': {
+                    'current': users_current_mtd,
+                    'previous': users_prev_mtd,
+                    'delta': users_mtd_delta,
+                }
             },
             'appointments': {
                 'total': total_appointments,
@@ -262,7 +359,13 @@ class AdminAnalyticsView(APIView):
                 'today': today_appointments,
                 'this_week': this_week_appointments,
                 'by_status': appointments_by_status,
+                'trend': appointments_trend,
                 'recent': recent_appointments,
+                'month': {
+                    'current': apts_current_mtd,
+                    'previous': apts_prev_mtd,
+                    'delta': apts_mtd_delta,
+                }
             },
             'health': {
                 'total_vitals': total_vitals,
@@ -274,6 +377,11 @@ class AdminAnalyticsView(APIView):
                 'total': total_medications,
                 'active': active_medications,
                 'avg_compliance': round(avg_compliance, 1),
+                'month': {
+                    'current': meds_current_mtd,
+                    'previous': meds_prev_mtd,
+                    'delta': meds_mtd_delta,
+                }
             },
             'insights': {
                 'top_conditions': top_conditions,

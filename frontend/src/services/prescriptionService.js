@@ -52,7 +52,10 @@ export async function createPrescription({ patient_id, name, dosage, frequency, 
 export async function fetchPrescriptions(patientId) {
     // If patientId is provided, filter by patient
     const qs = patientId ? `?patient=${patientId}` : '';
-    return api.get(`/medications/prescriptions/${qs}`);
+    const data = await api.get(`/medications/prescriptions/${qs}`);
+    if (Array.isArray(data)) return data;
+    if (data && Array.isArray(data.results)) return data.results;
+    return [];
 }
 
 export async function logMedicationIntake(medicationId, data) {
@@ -68,5 +71,48 @@ export async function getMedicationLogs(medicationId) {
 export async function refillMedication(medicationId, quantity) {
     // POST /medications/{id}/refill/
     return api.post(`/medications/${medicationId}/refill/`, { quantity });
+}
+
+// ===== Compliance & Risk =====
+export async function getMedicationRisk(medicationId) {
+    // GET /medications/{id}/risk/
+    return api.get(`/medications/${medicationId}/risk/`);
+}
+
+export async function listAtRiskMedications() {
+    // GET /medications/at-risk/
+    const data = await api.get(`/medications/at-risk/`);
+    if (Array.isArray(data)) return data;
+    if (data && Array.isArray(data.results)) return data.results;
+    return [];
+}
+
+export async function createMedicationFollowUp(medicationId, { reason = 'high_risk', notes = '' } = {}) {
+    // POST /medications/{id}/create-followup/
+    return api.post(`/medications/${medicationId}/create-followup/`, { reason, notes });
+}
+
+export async function scanAndCreateFollowUps() {
+    // POST /medications/scan-and-followups/
+    return api.post(`/medications/scan-and-followups/`, {});
+}
+
+// Follow-up resources
+export async function listFollowUps() {
+    // GET /medications/followups/
+    const data = await api.get(`/medications/followups/`);
+    if (Array.isArray(data)) return data;
+    if (data && Array.isArray(data.results)) return data.results;
+    return [];
+}
+
+export async function completeFollowUp(followupId) {
+    // POST /medications/followups/{id}/complete/
+    return api.post(`/medications/followups/${followupId}/complete/`);
+}
+
+export async function cancelFollowUp(followupId) {
+    // POST /medications/followups/{id}/cancel/
+    return api.post(`/medications/followups/${followupId}/cancel/`);
 }
 
