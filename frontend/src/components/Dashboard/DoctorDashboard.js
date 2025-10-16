@@ -147,11 +147,9 @@ const DoctorDashboard = () => {
         fetchSchedule();
     }, [fetchSchedule]);
 
-    const [pendingTasks] = useState([
-        { id: 1, task: 'Review test results for John Baraza', priority: 'high', type: 'review' },
-        { id: 2, task: 'Prescribe medication for Sarah Wangeci', priority: 'medium', type: 'prescription' },
-        { id: 3, task: 'Update treatment plan for Mike Otieno', priority: 'low', type: 'update' }
-    ]);
+    // Recent Activity (replaces static Pending Tasks)
+    const [recentActivity, setRecentActivity] = useState([]);
+    const [activityLoading, setActivityLoading] = useState(true);
 
     const [recentPatients, setRecentPatients] = useState([]);
     const [patientsLoading, setPatientsLoading] = useState(true);
@@ -176,14 +174,22 @@ const DoctorDashboard = () => {
 
     // Follow-ups pending count
     const [pendingFollowUps, setPendingFollowUps] = useState(0);
-    const loadFollowUpsCount = useCallback(async () => {
+    const [followUps, setFollowUps] = useState([]);
+    const loadFollowUps = useCallback(async () => {
         try {
             const fu = await listFollowUps();
-            const count = (Array.isArray(fu) ? fu : []).filter(x => x.status === 'pending').length;
+            const list = Array.isArray(fu) ? fu : [];
+            setFollowUps(list);
+            const count = list.filter(x => x.status === 'pending').length;
             setPendingFollowUps(count);
-        } catch { }
+        } catch {
+            setFollowUps([]);
+        }
     }, []);
-    useEffect(() => { loadFollowUpsCount(); }, [loadFollowUpsCount]);
+    useEffect(() => { loadFollowUps(); }, [loadFollowUps]);
+
+    // Build recent activity from schedule, doctor requests, and follow-ups
+    // Moved below doctor requests state to avoid temporal dead zone when referencing requestsLoading
 
     // Doctor assignment requests state
     const [doctorRequests, setDoctorRequests] = useState([]);
@@ -208,6 +214,75 @@ const DoctorDashboard = () => {
     useEffect(() => {
         fetchDoctorRequests();
     }, [fetchDoctorRequests]);
+
+    // Build recent activity from schedule, doctor requests, and follow-ups
+    useEffect(() => {
+        // Wait until schedule and doctor requests attempted
+        if (scheduleLoading || requestsLoading) return;
+        setActivityLoading(true);
+        try {
+            const items = [];
+
+            // Appointments (today's schedule): show next 3 upcoming
+            const now = new Date();
+            const appts = (Array.isArray(todaySchedule) ? todaySchedule : [])
+                .slice(0, 3)
+                .map(a => ({
+                    id: `appt-${a.id}`,
+                    type: 'appointment',
+                    icon: 'calendar',
+                    message: `Appointment with ${(typeof a.patient === 'object' && a.patient)
+                        ? `${a.patient.first_name || ''} ${a.patient.last_name || ''}`.trim() || (a.patient.email || 'patient')
+                        : (a.patient || 'patient')
+                        }${a.type ? ` - ${a.type}` : ''}`,
+                    time: a.time || 'Today',
+                }));
+            items.push(...appts);
+
+            // Doctor assignment requests: latest 2
+            const reqs = (Array.isArray(doctorRequests) ? doctorRequests : [])
+                .slice(0, 2)
+                .map(r => ({
+                    id: `req-${r.id}`,
+                    type: 'request',
+                    icon: 'user-plus',
+                    message: `New patient request: ${r.patientName || r.patientEmail || 'Patient'}`,
+                    time: r.createdAt ? new Date(r.createdAt).toLocaleDateString() : 'New',
+                }));
+            items.push(...reqs);
+
+            // Pending follow-ups: by nearest due date (limit 3)
+            const reasonLabel = { high_risk: 'High risk', refill_needed: 'Refill needed', no_logs: 'No recent logs', low_compliance: 'Low compliance' };
+            const fus = (Array.isArray(followUps) ? followUps : [])
+                .filter(f => f.status === 'pending')
+                .sort((a, b) => new Date(a.due_at || 0) - new Date(b.due_at || 0))
+                .slice(0, 3)
+                .map(f => {
+                    const due = f.due_at ? new Date(f.due_at) : null;
+                    let timeText = 'Due soon';
+                    if (due) {
+                        const diff = due - now;
+                        const abs = Math.abs(diff);
+                        const hours = Math.floor(abs / (1000 * 60 * 60));
+                        const days = Math.floor(abs / (1000 * 60 * 60 * 24));
+                        timeText = diff > 0 ? (days >= 1 ? `Due in ${days}d` : `Due in ${hours}h`) : (days >= 1 ? `Overdue by ${days}d` : `Overdue by ${hours}h`);
+                    }
+                    const medPart = f.medication_name ? ` for ${f.medication_name}` : '';
+                    return {
+                        id: `fu-${f.id}`,
+                        type: 'followup',
+                        icon: 'bell',
+                        message: `Follow-up: ${reasonLabel[f.reason] || (f.reason || '').replace(/_/g, ' ')}${medPart}`,
+                        time: timeText,
+                    };
+                });
+            items.push(...fus);
+
+            setRecentActivity(items.slice(0, 6));
+        } finally {
+            setActivityLoading(false);
+        }
+    }, [scheduleLoading, requestsLoading, todaySchedule, doctorRequests, followUps]);
 
     // Handle accepting a doctor request
     const handleAcceptRequest = async (requestId) => {
@@ -429,9 +504,6 @@ const DoctorDashboard = () => {
                 setPrescriptionError(null);
                 setPrescriptionSuccess(null);
                 break;
-            case 'Reports':
-                alert('View reports');
-                break;
             default:
                 alert(`Action: ${action}`);
         }
@@ -585,41 +657,71 @@ const DoctorDashboard = () => {
                             </Table>
                         </Card.Body>
                     </Card>
+
+                    {/* Quick Actions moved under Today's Schedule */}
+                    <Card className="medical-card border-0 shadow-sm mt-4">
+                        <Card.Header>
+                            <FontAwesomeIcon icon="bolt" className="me-2" />
+                            Quick Actions
+                        </Card.Header>
+                        <Card.Body>
+                            <Row>
+                                <Col md={6} className="mb-3"><QuickActionTile icon="plus" label="New Patient" accent="blue-theme" onClick={() => handleQuickAction('New Patient')} /></Col>
+                                <Col md={6} className="mb-3"><QuickActionTile icon="video" label="Consult" accent="blue-theme" onClick={() => handleQuickAction('Consult')} /></Col>
+                                <Col md={6} className="mb-3"><QuickActionTile icon="prescription" label="Prescription" accent="blue-theme" onClick={() => handleQuickAction('Prescription')} /></Col>
+                                <Col md={6} className="mb-3"><QuickActionTile icon="flag" label="Follow-Ups" count={pendingFollowUps} accent="blue-theme" onClick={() => window.location.assign('/follow-ups')} /></Col>
+                            </Row>
+                        </Card.Body>
+                    </Card>
                 </Col>
 
-                {/* Pending Tasks */}
+                {/* Recent Activity */}
                 <Col lg={4} className="mb-4">
                     <Card className="medical-card h-100 border-0 shadow-sm">
                         <Card.Header>
-                            <FontAwesomeIcon icon="tasks" className="me-2" />
-                            Pending Tasks
+                            <FontAwesomeIcon icon="history" className="me-2" />
+                            Recent Activity
                         </Card.Header>
                         <Card.Body>
-                            {pendingTasks.map(task => {
-                                const pm = priorityMeta[task.priority] || { label: task.priority, badgeClass: 'badge-soft-secondary' };
-                                const icon = task.type === 'review' ? 'clipboard-check' : task.type === 'prescription' ? 'pills' : 'file-medical';
-                                return (
-                                    <div key={task.id} className="d-flex align-items-center justify-content-between mb-3 p-3 rounded border-0 shadow-sm bg-white position-relative task-tile">
-                                        <div className="d-flex align-items-center flex-grow-1">
+                            {activityLoading ? (
+                                <div className="text-center py-4">
+                                    <Spinner animation="border" role="status">
+                                        <span className="visually-hidden">Loading...</span>
+                                    </Spinner>
+                                </div>
+                            ) : recentActivity.length === 0 ? (
+                                <div className="text-center py-4 text-muted">
+                                    <FontAwesomeIcon icon="history" size="2x" className="mb-3 opacity-50" />
+                                    <p>No recent activity</p>
+                                    <small>Updates to your schedule, requests, and follow-ups will appear here</small>
+                                </div>
+                            ) : (
+                                <>
+                                    {recentActivity.map(item => (
+                                        <div key={item.id} className="d-flex align-items-start mb-3 p-3 rounded bg-white shadow-sm">
                                             <div className="me-3">
-                                                <FontAwesomeIcon icon={icon} className="text-primary" />
+                                                <FontAwesomeIcon icon={item.icon} className={`text-primary`} />
                                             </div>
                                             <div className="flex-grow-1">
-                                                <p className="mb-1 small fw-semibold">{task.task}</p>
-                                                <span className={`badge ${pm.badgeClass}`}>{pm.label}</span>
+                                                <p className="mb-1 small fw-medium">{item.message}</p>
+                                                <small className="text-muted">{item.time}</small>
                                             </div>
+                                            {item.type === 'followup' && (
+                                                <span className="badge bg-info ms-2">Follow-up</span>
+                                            )}
+                                            {item.type === 'request' && (
+                                                <span className="badge bg-secondary ms-2">Request</span>
+                                            )}
+                                            {item.type === 'appointment' && (
+                                                <span className="badge bg-primary ms-2">Appt</span>
+                                            )}
                                         </div>
-                                        <div className="ms-2">
-                                            <button type="button" className="btn-icon" title="Complete" onClick={() => handleCompleteTask(task)}>
-                                                <FontAwesomeIcon icon="circle-check" />
-                                            </button>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                            <Button variant="link" className="p-0 text-primary fw-semibold" onClick={handleViewAllTasks}>
-                                View all tasks <FontAwesomeIcon icon="arrow-right" className="ms-1" />
-                            </Button>
+                                    ))}
+                                    <Button variant="link" className="p-0 text-primary fw-semibold" onClick={() => window.location.assign('/health-dashboard')}>
+                                        View more <FontAwesomeIcon icon="arrow-right" className="ms-1" />
+                                    </Button>
+                                </>
+                            )}
                         </Card.Body>
                     </Card>
                 </Col>
@@ -627,7 +729,7 @@ const DoctorDashboard = () => {
 
             <Row>
                 {/* Recent Patients */}
-                <Col lg={6} className="mb-4">
+                <Col lg={12} className="mb-4">
                     <Card className="medical-card border-0 shadow-sm">
                         <Card.Header>
                             <FontAwesomeIcon icon="user-friends" className="me-2" />
@@ -667,235 +769,220 @@ const DoctorDashboard = () => {
                     </Card>
                 </Col>
 
-                {/* Quick Actions */}
-                <Col lg={6} className="mb-4">
-                    <Card className="medical-card border-0 shadow-sm">
-                        <Card.Header>
-                            <FontAwesomeIcon icon="bolt" className="me-2" />
-                            Quick Actions
-                        </Card.Header>
-                        <Card.Body>
-                            <Row>
-                                <Col md={6} className="mb-3"><QuickActionTile icon="plus" label="New Patient" accent="blue-theme" onClick={() => handleQuickAction('New Patient')} /></Col>
-                                <Col md={6} className="mb-3"><QuickActionTile icon="video" label="Consult" accent="blue-theme" onClick={() => handleQuickAction('Consult')} /></Col>
-                                <Col md={6} className="mb-3"><QuickActionTile icon="prescription" label="Prescription" accent="blue-theme" onClick={() => handleQuickAction('Prescription')} /></Col>
-                                <Col md={6} className="mb-3"><QuickActionTile icon="flag" label="Follow-Ups" count={pendingFollowUps} accent="blue-theme" onClick={() => window.location.assign('/follow-ups')} /></Col>
-                                <Col md={6} className="mb-3"><QuickActionTile icon="chart-bar" label="Reports" accent="blue-theme" onClick={() => handleQuickAction('Reports')} /></Col>
-                            </Row>
-                        </Card.Body>
-                    </Card>
-                    {/* Prescription Modal */}
-                    <Modal show={showPrescription} onHide={() => { setShowPrescription(false); setPrescriptionError(null); setPrescriptionSuccess(null); }} size="lg">
-                        <Modal.Header closeButton>
-                            <Modal.Title>
-                                <FontAwesomeIcon icon="pills" className="me-2" />
-                                Prescribe Medication
-                            </Modal.Title>
-                        </Modal.Header>
-                        <Form onSubmit={handlePrescriptionSubmit}>
-                            <Modal.Body>
-                                {prescriptionError && <Alert variant="danger">{prescriptionError}</Alert>}
-                                {prescriptionSuccess && <Alert variant="success">{prescriptionSuccess}</Alert>}
 
-                                <Form.Group className="mb-3" controlId="prescriptionPatient">
-                                    <Form.Label>
-                                        <FontAwesomeIcon icon="user" className="me-2" />
-                                        Patient ID or Email <span className="text-danger">*</span>
-                                    </Form.Label>
-                                    <Form.Control
-                                        type="text"
-                                        required
-                                        value={prescription.patient}
-                                        onChange={e => setPrescription(p => ({ ...p, patient: e.target.value }))}
-                                        placeholder="Enter patient ID or email"
-                                    />
-                                    <Form.Text className="text-muted">
-                                        Enter the patient's ID number or email address
-                                    </Form.Text>
-                                </Form.Group>
-
-                                <Form.Group className="mb-3" controlId="prescriptionName">
-                                    <Form.Label>
-                                        <FontAwesomeIcon icon="pills" className="me-2" />
-                                        Medication Name <span className="text-danger">*</span>
-                                    </Form.Label>
-                                    <Form.Control
-                                        type="text"
-                                        required
-                                        value={prescription.name}
-                                        onChange={e => setPrescription(p => ({ ...p, name: e.target.value }))}
-                                        placeholder="e.g., Lisinopril, Metformin, Aspirin"
-                                    />
-                                </Form.Group>
-
-                                <Row>
-                                    <Col md={6}>
-                                        <Form.Group className="mb-3" controlId="prescriptionDosage">
-                                            <Form.Label>
-                                                <FontAwesomeIcon icon="prescription" className="me-2" />
-                                                Dosage <span className="text-danger">*</span>
-                                            </Form.Label>
-                                            <Form.Control
-                                                type="text"
-                                                required
-                                                value={prescription.dosage}
-                                                onChange={e => setPrescription(p => ({ ...p, dosage: e.target.value }))}
-                                                placeholder="e.g., 10mg, 500mg, 1 tablet"
-                                            />
-                                            <Form.Text className="text-muted">
-                                                Specify the amount per dose
-                                            </Form.Text>
-                                        </Form.Group>
-                                    </Col>
-                                    <Col md={6}>
-                                        <Form.Group className="mb-3" controlId="prescriptionFrequency">
-                                            <Form.Label>
-                                                <FontAwesomeIcon icon="clock" className="me-2" />
-                                                Frequency <span className="text-danger">*</span>
-                                            </Form.Label>
-                                            <Form.Control
-                                                type="text"
-                                                required
-                                                value={prescription.frequency}
-                                                onChange={e => setPrescription(p => ({ ...p, frequency: e.target.value }))}
-                                                placeholder="e.g., Once daily, Twice daily"
-                                            />
-                                            <Form.Text className="text-muted">
-                                                How often to take the medication
-                                            </Form.Text>
-                                        </Form.Group>
-                                    </Col>
-                                </Row>
-
-                                <Form.Group className="mb-3" controlId="prescriptionNextDue">
-                                    <Form.Label>
-                                        <FontAwesomeIcon icon="calendar" className="me-2" />
-                                        Next Due Date
-                                    </Form.Label>
-                                    <Form.Control
-                                        type="date"
-                                        value={prescription.next_due}
-                                        onChange={e => setPrescription(p => ({ ...p, next_due: e.target.value }))}
-                                    />
-                                    <Form.Text className="text-muted">
-                                        When should the patient take the next dose
-                                    </Form.Text>
-                                </Form.Group>
-
-                                <Alert variant="info" className="mb-0">
-                                    <FontAwesomeIcon icon="info-circle" className="me-2" />
-                                    <small>
-                                        This prescription will be added to the patient's medication list and visible in their health dashboard.
-                                    </small>
-                                </Alert>
-                            </Modal.Body>
-                            <Modal.Footer>
-                                <Button variant="secondary" onClick={() => setShowPrescription(false)} disabled={prescriptionLoading}>
-                                    Cancel
-                                </Button>
-                                <Button type="submit" className="btn-gradient-primary" disabled={prescriptionLoading}>
-                                    {prescriptionLoading ? (
-                                        <>
-                                            <Spinner size="sm" animation="border" className="me-2" />
-                                            Prescribing...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <FontAwesomeIcon icon="check" className="me-2" />
-                                            Prescribe Medication
-                                        </>
-                                    )}
-                                </Button>
-                            </Modal.Footer>
-                        </Form>
-                    </Modal>
-
-                    {/* Update Patient Modal */}
-                    <Modal show={showUpdatePatient} onHide={() => { setShowUpdatePatient(false); setUpdatePatientError(null); setUpdatePatientSuccess(null); setSelectedPatient(null); }}>
-                        <Modal.Header closeButton>
-                            <Modal.Title>Update Patient Information</Modal.Title>
-                        </Modal.Header>
-                        <Form onSubmit={handleUpdatePatientSubmit}>
-                            <Modal.Body>
-                                {updatePatientError && <Alert variant="danger">{updatePatientError}</Alert>}
-                                {updatePatientSuccess && <Alert variant="success">{updatePatientSuccess}</Alert>}
-                                <Form.Group className="mb-3" controlId="updateFirstName">
-                                    <Form.Label>First Name</Form.Label>
-                                    <Form.Control
-                                        type="text"
-                                        required
-                                        value={updatedPatientData.first_name}
-                                        onChange={e => setUpdatedPatientData(d => ({ ...d, first_name: e.target.value }))}
-                                        placeholder="Enter first name"
-                                    />
-                                </Form.Group>
-                                <Form.Group className="mb-3" controlId="updateLastName">
-                                    <Form.Label>Last Name</Form.Label>
-                                    <Form.Control
-                                        type="text"
-                                        required
-                                        value={updatedPatientData.last_name}
-                                        onChange={e => setUpdatedPatientData(d => ({ ...d, last_name: e.target.value }))}
-                                        placeholder="Enter last name"
-                                    />
-                                </Form.Group>
-                                <Form.Group className="mb-3" controlId="updateCondition">
-                                    <Form.Label>Primary Condition</Form.Label>
-                                    <Form.Control
-                                        type="text"
-                                        value={updatedPatientData.primary_condition}
-                                        onChange={e => setUpdatedPatientData(d => ({ ...d, primary_condition: e.target.value }))}
-                                        placeholder="Enter primary condition"
-                                    />
-                                </Form.Group>
-                            </Modal.Body>
-                            <Modal.Footer>
-                                <Button
-                                    variant="secondary"
-                                    onClick={() => { setShowUpdatePatient(false); setSelectedPatient(null); }}
-                                    disabled={updatePatientLoading}
-                                >
-                                    Cancel
-                                </Button>
-                                <Button type="submit" className="btn-gradient-primary" disabled={updatePatientLoading}>
-                                    {updatePatientLoading ? <Spinner size="sm" animation="border" /> : 'Update Patient'}
-                                </Button>
-                            </Modal.Footer>
-                        </Form>
-                    </Modal>
-
-                    {/* Add Patient Modal */}
-                    <Modal show={showAddPatient} onHide={() => { setShowAddPatient(false); setAddPatientError(null); setAddPatientSuccess(null); }}>
-                        <Modal.Header closeButton>
-                            <Modal.Title>Add New Patient</Modal.Title>
-                        </Modal.Header>
-                        <Form onSubmit={handleAddPatientSubmit}>
-                            <Modal.Body>
-                                {addPatientError && <Alert variant="danger">{addPatientError}</Alert>}
-                                {addPatientSuccess && <Alert variant="success">{addPatientSuccess}</Alert>}
-                                <Form.Group className="mb-3" controlId="addPatientEmail">
-                                    <Form.Label>Email</Form.Label>
-                                    <Form.Control type="email" required value={newPatient.email} onChange={e => setNewPatient(p => ({ ...p, email: e.target.value }))} />
-                                </Form.Group>
-                                <Form.Group className="mb-3" controlId="addPatientFirstName">
-                                    <Form.Label>First Name</Form.Label>
-                                    <Form.Control type="text" required value={newPatient.first_name} onChange={e => setNewPatient(p => ({ ...p, first_name: e.target.value }))} />
-                                </Form.Group>
-                                <Form.Group className="mb-3" controlId="addPatientLastName">
-                                    <Form.Label>Last Name</Form.Label>
-                                    <Form.Control type="text" required value={newPatient.last_name} onChange={e => setNewPatient(p => ({ ...p, last_name: e.target.value }))} />
-                                </Form.Group>
-                            </Modal.Body>
-                            <Modal.Footer>
-                                <Button variant="secondary" onClick={() => setShowAddPatient(false)} disabled={addPatientLoading}>Cancel</Button>
-                                <Button type="submit" variant="primary" disabled={addPatientLoading}>
-                                    {addPatientLoading ? <Spinner size="sm" animation="border" /> : 'Add Patient'}
-                                </Button>
-                            </Modal.Footer>
-                        </Form>
-                    </Modal>
-                </Col>
             </Row>
+
+            {/* Modals moved to component root for global access */}
+            {/* Prescription Modal */}
+            <Modal show={showPrescription} onHide={() => { setShowPrescription(false); setPrescriptionError(null); setPrescriptionSuccess(null); }} size="lg">
+                <Modal.Header closeButton>
+                    <Modal.Title>
+                        <FontAwesomeIcon icon="pills" className="me-2" />
+                        Prescribe Medication
+                    </Modal.Title>
+                </Modal.Header>
+                <Form onSubmit={handlePrescriptionSubmit}>
+                    <Modal.Body>
+                        {prescriptionError && <Alert variant="danger">{prescriptionError}</Alert>}
+                        {prescriptionSuccess && <Alert variant="success">{prescriptionSuccess}</Alert>}
+
+                        <Form.Group className="mb-3" controlId="prescriptionPatient">
+                            <Form.Label>
+                                <FontAwesomeIcon icon="user" className="me-2" />
+                                Patient ID or Email <span className="text-danger">*</span>
+                            </Form.Label>
+                            <Form.Control
+                                type="text"
+                                required
+                                value={prescription.patient}
+                                onChange={e => setPrescription(p => ({ ...p, patient: e.target.value }))}
+                                placeholder="Enter patient ID or email"
+                            />
+                            <Form.Text className="text-muted">
+                                Enter the patient's ID number or email address
+                            </Form.Text>
+                        </Form.Group>
+
+                        <Form.Group className="mb-3" controlId="prescriptionName">
+                            <Form.Label>
+                                <FontAwesomeIcon icon="pills" className="me-2" />
+                                Medication Name <span className="text-danger">*</span>
+                            </Form.Label>
+                            <Form.Control
+                                type="text"
+                                required
+                                value={prescription.name}
+                                onChange={e => setPrescription(p => ({ ...p, name: e.target.value }))}
+                                placeholder="e.g., Lisinopril, Metformin, Aspirin"
+                            />
+                        </Form.Group>
+
+                        <Row>
+                            <Col md={6}>
+                                <Form.Group className="mb-3" controlId="prescriptionDosage">
+                                    <Form.Label>
+                                        <FontAwesomeIcon icon="prescription" className="me-2" />
+                                        Dosage <span className="text-danger">*</span>
+                                    </Form.Label>
+                                    <Form.Control
+                                        type="text"
+                                        required
+                                        value={prescription.dosage}
+                                        onChange={e => setPrescription(p => ({ ...p, dosage: e.target.value }))}
+                                        placeholder="e.g., 10mg, 500mg, 1 tablet"
+                                    />
+                                    <Form.Text className="text-muted">
+                                        Specify the amount per dose
+                                    </Form.Text>
+                                </Form.Group>
+                            </Col>
+                            <Col md={6}>
+                                <Form.Group className="mb-3" controlId="prescriptionFrequency">
+                                    <Form.Label>
+                                        <FontAwesomeIcon icon="clock" className="me-2" />
+                                        Frequency <span className="text-danger">*</span>
+                                    </Form.Label>
+                                    <Form.Control
+                                        type="text"
+                                        required
+                                        value={prescription.frequency}
+                                        onChange={e => setPrescription(p => ({ ...p, frequency: e.target.value }))}
+                                        placeholder="e.g., Once daily, Twice daily"
+                                    />
+                                    <Form.Text className="text-muted">
+                                        How often to take the medication
+                                    </Form.Text>
+                                </Form.Group>
+                            </Col>
+                        </Row>
+
+                        <Form.Group className="mb-3" controlId="prescriptionNextDue">
+                            <Form.Label>
+                                <FontAwesomeIcon icon="calendar" className="me-2" />
+                                Next Due Date
+                            </Form.Label>
+                            <Form.Control
+                                type="date"
+                                value={prescription.next_due}
+                                onChange={e => setPrescription(p => ({ ...p, next_due: e.target.value }))}
+                            />
+                            <Form.Text className="text-muted">
+                                When should the patient take the next dose
+                            </Form.Text>
+                        </Form.Group>
+
+                        <Alert variant="info" className="mb-0">
+                            <FontAwesomeIcon icon="info-circle" className="me-2" />
+                            <small>
+                                This prescription will be added to the patient's medication list and visible in their health dashboard.
+                            </small>
+                        </Alert>
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button variant="secondary" onClick={() => setShowPrescription(false)} disabled={prescriptionLoading}>
+                            Cancel
+                        </Button>
+                        <Button type="submit" className="btn-gradient-primary" disabled={prescriptionLoading}>
+                            {prescriptionLoading ? (
+                                <>
+                                    <Spinner size="sm" animation="border" className="me-2" />
+                                    Prescribing...
+                                </>
+                            ) : (
+                                <>
+                                    <FontAwesomeIcon icon="check" className="me-2" />
+                                    Prescribe Medication
+                                </>
+                            )}
+                        </Button>
+                    </Modal.Footer>
+                </Form>
+            </Modal>
+
+            {/* Update Patient Modal */}
+            <Modal show={showUpdatePatient} onHide={() => { setShowUpdatePatient(false); setUpdatePatientError(null); setUpdatePatientSuccess(null); setSelectedPatient(null); }}>
+                <Modal.Header closeButton>
+                    <Modal.Title>Update Patient Information</Modal.Title>
+                </Modal.Header>
+                <Form onSubmit={handleUpdatePatientSubmit}>
+                    <Modal.Body>
+                        {updatePatientError && <Alert variant="danger">{updatePatientError}</Alert>}
+                        {updatePatientSuccess && <Alert variant="success">{updatePatientSuccess}</Alert>}
+                        <Form.Group className="mb-3" controlId="updateFirstName">
+                            <Form.Label>First Name</Form.Label>
+                            <Form.Control
+                                type="text"
+                                required
+                                value={updatedPatientData.first_name}
+                                onChange={e => setUpdatedPatientData(d => ({ ...d, first_name: e.target.value }))}
+                                placeholder="Enter first name"
+                            />
+                        </Form.Group>
+                        <Form.Group className="mb-3" controlId="updateLastName">
+                            <Form.Label>Last Name</Form.Label>
+                            <Form.Control
+                                type="text"
+                                required
+                                value={updatedPatientData.last_name}
+                                onChange={e => setUpdatedPatientData(d => ({ ...d, last_name: e.target.value }))}
+                                placeholder="Enter last name"
+                            />
+                        </Form.Group>
+                        <Form.Group className="mb-3" controlId="updateCondition">
+                            <Form.Label>Primary Condition</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={updatedPatientData.primary_condition}
+                                onChange={e => setUpdatedPatientData(d => ({ ...d, primary_condition: e.target.value }))}
+                                placeholder="Enter primary condition"
+                            />
+                        </Form.Group>
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button
+                            variant="secondary"
+                            onClick={() => { setShowUpdatePatient(false); setSelectedPatient(null); }}
+                            disabled={updatePatientLoading}
+                        >
+                            Cancel
+                        </Button>
+                        <Button type="submit" className="btn-gradient-primary" disabled={updatePatientLoading}>
+                            {updatePatientLoading ? <Spinner size="sm" animation="border" /> : 'Update Patient'}
+                        </Button>
+                    </Modal.Footer>
+                </Form>
+            </Modal>
+
+            {/* Add Patient Modal */}
+            <Modal show={showAddPatient} onHide={() => { setShowAddPatient(false); setAddPatientError(null); setAddPatientSuccess(null); }}>
+                <Modal.Header closeButton>
+                    <Modal.Title>Add New Patient</Modal.Title>
+                </Modal.Header>
+                <Form onSubmit={handleAddPatientSubmit}>
+                    <Modal.Body>
+                        {addPatientError && <Alert variant="danger">{addPatientError}</Alert>}
+                        {addPatientSuccess && <Alert variant="success">{addPatientSuccess}</Alert>}
+                        <Form.Group className="mb-3" controlId="addPatientEmail">
+                            <Form.Label>Email</Form.Label>
+                            <Form.Control type="email" required value={newPatient.email} onChange={e => setNewPatient(p => ({ ...p, email: e.target.value }))} />
+                        </Form.Group>
+                        <Form.Group className="mb-3" controlId="addPatientFirstName">
+                            <Form.Label>First Name</Form.Label>
+                            <Form.Control type="text" required value={newPatient.first_name} onChange={e => setNewPatient(p => ({ ...p, first_name: e.target.value }))} />
+                        </Form.Group>
+                        <Form.Group className="mb-3" controlId="addPatientLastName">
+                            <Form.Label>Last Name</Form.Label>
+                            <Form.Control type="text" required value={newPatient.last_name} onChange={e => setNewPatient(p => ({ ...p, last_name: e.target.value }))} />
+                        </Form.Group>
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button variant="secondary" onClick={() => setShowAddPatient(false)} disabled={addPatientLoading}>Cancel</Button>
+                        <Button type="submit" variant="primary" disabled={addPatientLoading}>
+                            {addPatientLoading ? <Spinner size="sm" animation="border" /> : 'Add Patient'}
+                        </Button>
+                    </Modal.Footer>
+                </Form>
+            </Modal>
 
             {/* Patient Assignment Requests Row */}
             <Row id="assignment-requests">

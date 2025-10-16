@@ -148,9 +148,7 @@ const AdminDashboard = () => {
         const trendCtx = document.getElementById('aptTrend');
         const statusCtx = document.getElementById('aptByStatus');
         const userDistCtx = document.getElementById('userDistribution');
-        const apptStatusBarCtx = document.getElementById('apptStatusBar');
         const conditionsBarCtx = document.getElementById('conditionsBar');
-        const workloadBarCtx = document.getElementById('workloadBar');
         const healthSummaryBarCtx = document.getElementById('healthSummaryBar');
         const sparkUsersCtx = document.getElementById('sparkUsers');
         const sparkAptsCtx = document.getElementById('sparkApts');
@@ -164,9 +162,7 @@ const AdminDashboard = () => {
             window.__aptStatusChart.destroy();
         }
         if (window.__userDistChart) { window.__userDistChart.destroy(); }
-        if (window.__apptStatusBarChart) { window.__apptStatusBarChart.destroy(); }
         if (window.__conditionsBarChart) { window.__conditionsBarChart.destroy(); }
-        if (window.__workloadBarChart) { window.__workloadBarChart.destroy(); }
         if (window.__healthBarChart) { window.__healthBarChart.destroy(); }
         if (window.__sparkUsers) {
             window.__sparkUsers.destroy();
@@ -236,17 +232,6 @@ const AdminDashboard = () => {
             });
         }
 
-        // Appointment Status (Bar)
-        if (apptStatusBarCtx) {
-            const aLabels = ['Scheduled', 'Completed', 'Cancelled'];
-            const aVals = [analytics.appointments.scheduled, analytics.appointments.completed, analytics.appointments.cancelled];
-            window.__apptStatusBarChart = new Chart(apptStatusBarCtx, {
-                type: 'bar',
-                data: { labels: aLabels, datasets: [{ label: 'Count', data: aVals, backgroundColor: ['#0d6efd', '#198754', '#dc3545'] }] },
-                options: { scales: { y: { beginAtZero: true } }, plugins: { legend: { display: false } } }
-            });
-        }
-
         // Top Patient Conditions (Horizontal Bar)
         if (conditionsBarCtx && (analytics.insights.top_conditions || []).length > 0) {
             const cLabels = analytics.insights.top_conditions.map(c => c.primary_condition);
@@ -254,17 +239,6 @@ const AdminDashboard = () => {
             window.__conditionsBarChart = new Chart(conditionsBarCtx, {
                 type: 'bar',
                 data: { labels: cLabels, datasets: [{ label: 'Patients', data: cVals, backgroundColor: '#6f42c1' }] },
-                options: { indexAxis: 'y', scales: { x: { beginAtZero: true } }, plugins: { legend: { display: false } } }
-            });
-        }
-
-        // Doctor Workload (Horizontal Bar)
-        if (workloadBarCtx && (analytics.insights.doctor_workload || []).length > 0) {
-            const wLabels = analytics.insights.doctor_workload.map(d => `${d.doctor__first_name || ''} ${d.doctor__last_name || ''}`.trim() || `Doctor #${d.doctor_id}`);
-            const wVals = analytics.insights.doctor_workload.map(d => d.appointment_count);
-            window.__workloadBarChart = new Chart(workloadBarCtx, {
-                type: 'bar',
-                data: { labels: wLabels, datasets: [{ label: 'Scheduled', data: wVals, backgroundColor: '#20c997' }] },
                 options: { indexAxis: 'y', scales: { x: { beginAtZero: true } }, plugins: { legend: { display: false } } }
             });
         }
@@ -306,9 +280,7 @@ const AdminDashboard = () => {
             if (window.__sparkUsers) window.__sparkUsers.destroy();
             if (window.__sparkApts) window.__sparkApts.destroy();
             if (window.__userDistChart) window.__userDistChart.destroy();
-            if (window.__apptStatusBarChart) window.__apptStatusBarChart.destroy();
             if (window.__conditionsBarChart) window.__conditionsBarChart.destroy();
-            if (window.__workloadBarChart) window.__workloadBarChart.destroy();
             if (window.__healthBarChart) window.__healthBarChart.destroy();
         };
     }, [analytics, activeTab]);
@@ -564,6 +536,30 @@ const AdminDashboard = () => {
                                         </Col>
                                     </Row>
 
+                                    {/* User Distribution and Top Conditions */}
+                                    <Row className="mb-4">
+                                        <Col md={6}>
+                                            <Card className="h-100">
+                                                <Card.Header><strong>User Distribution</strong></Card.Header>
+                                                <Card.Body>
+                                                    <canvas id="userDistribution" height="160"></canvas>
+                                                </Card.Body>
+                                            </Card>
+                                        </Col>
+                                        <Col md={6}>
+                                            <Card className="h-100">
+                                                <Card.Header><strong>Top Patient Conditions</strong></Card.Header>
+                                                <Card.Body>
+                                                    {analytics.insights.top_conditions.length > 0 ? (
+                                                        <canvas id="conditionsBar" height="200"></canvas>
+                                                    ) : (
+                                                        <p className="text-muted">No condition data available</p>
+                                                    )}
+                                                </Card.Body>
+                                            </Card>
+                                        </Col>
+                                    </Row>
+
                                     {/* Charts Row */}
                                     <Row className="mb-4">
                                         <Col md={6}>
@@ -579,55 +575,6 @@ const AdminDashboard = () => {
                                                 <Card.Header><strong>Appointments by Status</strong></Card.Header>
                                                 <Card.Body>
                                                     <canvas id="aptByStatus" height="140"></canvas>
-                                                </Card.Body>
-                                            </Card>
-                                        </Col>
-                                    </Row>
-
-                                    {/* User Breakdown */}
-                                    <Row className="mb-4">
-                                        <Col md={6}>
-                                            <Card>
-                                                <Card.Header><strong>User Distribution</strong></Card.Header>
-                                                <Card.Body>
-                                                    <canvas id="userDistribution" height="160"></canvas>
-                                                </Card.Body>
-                                            </Card>
-                                        </Col>
-                                        <Col md={6}>
-                                            <Card>
-                                                <Card.Header><strong>Appointment Status</strong></Card.Header>
-                                                <Card.Body>
-                                                    <canvas id="apptStatusBar" height="160"></canvas>
-                                                    <small className="text-muted">This week: {analytics.appointments.this_week}</small>
-                                                </Card.Body>
-                                            </Card>
-                                        </Col>
-                                    </Row>
-
-                                    {/* Insights */}
-                                    <Row className="mb-4">
-                                        <Col md={6}>
-                                            <Card>
-                                                <Card.Header><strong>Top Patient Conditions</strong></Card.Header>
-                                                <Card.Body>
-                                                    {analytics.insights.top_conditions.length > 0 ? (
-                                                        <canvas id="conditionsBar" height="200"></canvas>
-                                                    ) : (
-                                                        <p className="text-muted">No condition data available</p>
-                                                    )}
-                                                </Card.Body>
-                                            </Card>
-                                        </Col>
-                                        <Col md={6}>
-                                            <Card>
-                                                <Card.Header><strong>Doctor Workload (Scheduled)</strong></Card.Header>
-                                                <Card.Body>
-                                                    {analytics.insights.doctor_workload.length > 0 ? (
-                                                        <canvas id="workloadBar" height="200"></canvas>
-                                                    ) : (
-                                                        <p className="text-muted">No scheduled appointments</p>
-                                                    )}
                                                 </Card.Body>
                                             </Card>
                                         </Col>

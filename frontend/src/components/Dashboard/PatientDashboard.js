@@ -6,6 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import { fetchPatientMetrics } from '../../services/healthService';
 import { useNavigate } from 'react-router-dom';
 import { listDoctorRequests } from '../../services/doctorService';
+import { listFollowUps } from '../../services/prescriptionService';
 
 const PatientDashboard = () => {
     // Get time-based greeting
@@ -127,7 +128,53 @@ const PatientDashboard = () => {
                     });
                 }
 
-                // Sort by most recent and limit to 5
+                // Add pending compliance follow-ups as notifications
+                try {
+                    const followups = await listFollowUps();
+                    const pending = (Array.isArray(followups) ? followups : []).filter(f => f.status === 'pending');
+                    const reasonLabel = {
+                        high_risk: 'High risk',
+                        refill_needed: 'Refill needed',
+                        no_logs: 'No recent logs',
+                        low_compliance: 'Low compliance',
+                    };
+                    const now = new Date();
+                    const followupActivities = pending
+                        .sort((a, b) => new Date(a.due_at) - new Date(b.due_at))
+                        .slice(0, 3)
+                        .map(f => {
+                            const due = f.due_at ? new Date(f.due_at) : null;
+                            let timeText = 'Due soon';
+                            if (due) {
+                                const diffMs = due - now;
+                                const absMs = Math.abs(diffMs);
+                                const hours = Math.floor(absMs / (1000 * 60 * 60));
+                                const days = Math.floor(absMs / (1000 * 60 * 60 * 24));
+                                if (diffMs > 0) {
+                                    timeText = days >= 1 ? `Due in ${days}d` : `Due in ${hours}h`;
+                                } else {
+                                    timeText = days >= 1 ? `Overdue by ${days}d` : `Overdue by ${hours}h`;
+                                }
+                            }
+                            const reason = reasonLabel[f.reason] || (f.reason || '').replace(/_/g, ' ');
+                            const medPart = f.medication_name ? ` for ${f.medication_name}` : '';
+                            return {
+                                id: `followup-${f.id}`,
+                                type: 'followup',
+                                message: `Follow-up: ${reason}${medPart}`,
+                                time: timeText,
+                                icon: 'bell',
+                            };
+                        });
+                    // Prepend follow-ups to recent activities
+                    activities.unshift(...followupActivities);
+                } catch (e) {
+                    // Non-fatal: if follow-ups fail, just skip notifications
+                    console.warn('Failed to load follow-up notifications', e);
+                }
+
+                // Sort by most recent-looking time hints is non-trivial without timestamps across sources.
+                // Keep as gathered but limit to 5 for compactness.
                 setRecentActivity(activities.slice(0, 5));
             } catch (error) {
                 console.error('Error loading dashboard data:', error);
@@ -334,6 +381,9 @@ const PatientDashboard = () => {
                                             </div>
                                             {activity.type === 'alert' && (
                                                 <Badge bg="danger" className="soft-badge ms-2">Alert</Badge>
+                                            )}
+                                            {activity.type === 'followup' && (
+                                                <Badge bg="info" className="soft-badge ms-2">Follow-up</Badge>
                                             )}
                                         </div>
                                     ))}

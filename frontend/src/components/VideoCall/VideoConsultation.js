@@ -1,51 +1,75 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Container, Row, Col, Card, Button, Alert, Badge, OverlayTrigger, Tooltip } from 'react-bootstrap';
+import { Container, Row, Col, Card, Button, Alert, Badge, OverlayTrigger, Tooltip, Form, InputGroup, Spinner } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { ZegoUIKitPrebuilt } from '@zegocloud/zego-uikit-prebuilt';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 
 const VideoConsultation = ({ appointmentId, userRole = 'patient' }) => {
+    const navigate = useNavigate();
+    const location = useLocation();
+    const { user } = useAuth();
+    // UI phase/state
     const [isCallActive, setIsCallActive] = useState(false);
-    const [isMuted, setIsMuted] = useState(false);
-    const [isVideoOff, setIsVideoOff] = useState(false);
-    const [isScreenSharing, setIsScreenSharing] = useState(false);
-    const [callStatus, setCallStatus] = useState('waiting'); // 'waiting', 'connecting', 'connected', 'ended'
+    const [callStatus, setCallStatus] = useState('waiting'); // 'waiting', 'connected', 'ended'
     const [callDuration, setCallDuration] = useState(0);
-
-    const localVideoRef = useRef(null);
-    const remoteVideoRef = useRef(null);
+    const [isLeaving, setIsLeaving] = useState(false);
     const callTimerRef = useRef(null);
 
-    // Mock appointment data
-    const [appointmentData] = useState({
-        id: appointmentId || 1,
-        patient: { name: 'John Baraza', age: 45, id: 'P001' },
-        doctor: { name: 'Dr. Sarah Adhiambo', specialization: 'Cardiology', id: 'D001' },
-        scheduledTime: '2:00 PM',
-        date: new Date().toLocaleDateString(),
-        type: 'Follow-up Consultation'
-    });
+    // Zego container
+    const zegoContainerRef = useRef(null);
+    const zegoResizeObserverRef = useRef(null);
+    const zegoInstanceRef = useRef(null);
+    const joinRafRef = useRef(0);
+    const leavingRef = useRef(false);
+    const mountedRef = useRef(true);
+    // Sidebar overlap handling
+    const pageContainerRef = useRef(null);
+    const sidebarResizeObserverRef = useRef(null);
+    const sidebarElRef = useRef(null);
+    const [sidebarPadding, setSidebarPadding] = useState(0);
 
-    const [chatMessages, setChatMessages] = useState([
-        { id: 1, sender: 'Dr. Sarah Adhiambo', message: 'Hello! I\'ll be with you shortly.', timestamp: '2:00 PM', type: 'system' }
-    ]);
+    // Welcome form state
+    const defaultRoomId = `telemed-${appointmentId || 'demo'}`;
+    const [roomId, setRoomId] = useState(defaultRoomId);
+    const [displayName, setDisplayName] = useState('');
+    const [role, setRole] = useState(userRole || 'patient');
+    const [welcomeError, setWelcomeError] = useState(null);
 
-    const [newMessage, setNewMessage] = useState('');
+    // Dark mode
+    const [darkMode, setDarkMode] = useState(false);
+    useEffect(() => {
+        // Load preference or system setting
+        const stored = localStorage.getItem('telemed.video.dark');
+        if (stored === 'true' || stored === 'false') {
+            setDarkMode(stored === 'true');
+        } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            setDarkMode(true);
+        }
+    }, []);
+    const toggleDarkMode = () => {
+        setDarkMode((v) => {
+            const next = !v;
+            localStorage.setItem('telemed.video.dark', String(next));
+            return next;
+        });
+    };
+    // Pre-fill from URL if present
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const qRoom = params.get('roomId');
+        const qName = params.get('name');
+        if (qRoom) setRoomId(qRoom);
+        if (qName) setDisplayName(qName);
+    }, []);
 
     useEffect(() => {
         if (isCallActive && callStatus === 'connected') {
-            callTimerRef.current = setInterval(() => {
-                setCallDuration(prev => prev + 1);
-            }, 1000);
-        } else {
-            if (callTimerRef.current) {
-                clearInterval(callTimerRef.current);
-            }
+            callTimerRef.current = setInterval(() => setCallDuration(prev => prev + 1), 1000);
+        } else if (callTimerRef.current) {
+            clearInterval(callTimerRef.current);
         }
-
-        return () => {
-            if (callTimerRef.current) {
-                clearInterval(callTimerRef.current);
-            }
-        };
+        return () => { if (callTimerRef.current) clearInterval(callTimerRef.current); };
     }, [isCallActive, callStatus]);
 
     const formatDuration = (seconds) => {
@@ -54,309 +78,380 @@ const VideoConsultation = ({ appointmentId, userRole = 'patient' }) => {
         return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     };
 
-    const handleStartCall = async () => {
-        setCallStatus('connecting');
-        setIsCallActive(true);
+    const startZegoCall = async () => {
+        setWelcomeError(null);
+        if (!roomId) {
+            setWelcomeError('Please enter a Room ID.');
+            return;
+        }
 
-        // Simulate connection process
-        setTimeout(() => {
-            setCallStatus('connected');
-        }, 2000);
+        const effectiveName = displayName && displayName.trim() ? displayName.trim() : 'Guest';
 
-        // Mock camera access
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            if (localVideoRef.current) {
-                localVideoRef.current.srcObject = stream;
+            // Prefer using a pre-issued Kit Token if provided in env (safer for production)
+            let kitToken = (process.env.REACT_APP_ZEGO_KIT_TOKEN || '').trim();
+            if (!kitToken) {
+                const rawAppId = (process.env.REACT_APP_ZEGO_APP_ID || '').trim();
+                const appID = Number(rawAppId);
+                const serverSecret = (process.env.REACT_APP_ZEGO_SERVER_SECRET || '').trim();
+                if (!rawAppId || Number.isNaN(appID) || appID <= 0 || !serverSecret || serverSecret.length < 8) {
+                    setWelcomeError('Zego config invalid. Provide REACT_APP_ZEGO_KIT_TOKEN (recommended) or a valid REACT_APP_ZEGO_APP_ID and REACT_APP_ZEGO_SERVER_SECRET.');
+                    return;
+                }
+                // For testing only. Do NOT expose serverSecret in production.
+                kitToken = ZegoUIKitPrebuilt.generateKitTokenForTest(
+                    appID,
+                    serverSecret,
+                    roomId,
+                    Date.now().toString(),
+                    effectiveName
+                );
             }
-        } catch (error) {
-            console.log('Camera access denied or not available');
+
+            setIsCallActive(true);
+            setCallStatus('connecting');
+
+            // Update URL with chosen params for shareability
+            const newUrl = `${window.location.pathname}?roomId=${encodeURIComponent(roomId)}&name=${encodeURIComponent(effectiveName)}`;
+            window.history.replaceState(null, '', newUrl);
+
+            // Reset leave flag on a new attempt
+            leavingRef.current = false;
+            setIsLeaving(false);
+            // Defer join until the container is in the DOM and connected
+            let attempts = 0;
+            const maxAttempts = 60; // ~1s at 60fps
+            const joinWhenReady = () => {
+                if (leavingRef.current || !mountedRef.current) return; // abort if already leaving/unmounted
+                const containerEl = zegoContainerRef.current;
+                if (!containerEl || !containerEl.isConnected) {
+                    attempts += 1;
+                    if (attempts > maxAttempts) {
+                        setWelcomeError('Video area failed to initialize. Please try again.');
+                        setIsCallActive(false);
+                        setCallStatus('waiting');
+                        return;
+                    }
+                    joinRafRef.current = requestAnimationFrame(joinWhenReady);
+                    return;
+                }
+                // Final check before SDK creation: if we started leaving during the defer loop, abort
+                if (leavingRef.current || !mountedRef.current) return;
+                try {
+                    // Avoid duplicate instances
+                    try { zegoInstanceRef.current?.destroy?.(); } catch (_) { }
+                    // Triple-check we're not leaving before creating SDK instance
+                    if (leavingRef.current) return;
+                    const zp = ZegoUIKitPrebuilt.create(kitToken);
+                    if (!zp) throw new Error('Failed to initialize video SDK');
+                    // Final check after creation
+                    if (leavingRef.current) {
+                        try { zp.destroy?.(); } catch (_) { }
+                        return;
+                    }
+                    zegoInstanceRef.current = zp;
+                    setCallStatus('connected');
+                    zp.joinRoom({
+                        container: containerEl,
+                        sharedLinks: [
+                            {
+                                name: 'Copy link',
+                                url: `${window.location.origin}${window.location.pathname}?roomId=${encodeURIComponent(roomId)}&name=${encodeURIComponent(effectiveName)}`
+                            }
+                        ],
+                        scenario: {
+                            mode: ZegoUIKitPrebuilt.OneONoneCall
+                        },
+                        showPreJoinView: false,
+                        showScreenSharingButton: true,
+                        onLeaveRoom: () => {
+                            handleLeaveCall();
+                        }
+                    });
+                } catch (e) {
+                    console.error('Video join failed:', e);
+                    setWelcomeError('Failed to start the call. Please refresh and try again.');
+                    setIsCallActive(false);
+                    setCallStatus('waiting');
+                }
+            };
+            joinRafRef.current = requestAnimationFrame(joinWhenReady);
+        } catch (err) {
+            console.error('Failed to start Zego call:', err);
+            setWelcomeError('Failed to start the call. Please check your configuration.');
         }
     };
 
-    const handleEndCall = () => {
+    const handleLeaveCall = () => {
+        if (leavingRef.current) return;
+        leavingRef.current = true;
+        setIsLeaving(true);
+        const endDuration = callDuration;
+
+        // Cancel any pending join attempts
+        if (joinRafRef.current) {
+            try { cancelAnimationFrame(joinRafRef.current); } catch (_) { }
+            joinRafRef.current = 0;
+        }
+
+        // Hide the container immediately to prevent visual artifacts
+        if (zegoContainerRef.current) {
+            zegoContainerRef.current.style.display = 'none';
+        }
+
+        // Immediately null out ref before destroying to prevent SDK from using it
+        const instance = zegoInstanceRef.current;
+        zegoInstanceRef.current = null;
+
+        // Navigate immediately to force unmount and prevent SDK async operations
+        const params = new URLSearchParams();
+        if (roomId) params.set('roomId', roomId);
+        if (displayName) params.set('name', displayName);
+        params.set('ended', '1');
+        params.set('ts', String(Date.now()));
+        const suffix = `?${params.toString()}`;
+
+        // Navigate first, then destroy in background
+        navigate(`/video-call${suffix}`, { replace: true, state: { from: location.pathname, ended: true, duration: endDuration } });
+
+        // Destroy after navigation initiated
+        setTimeout(() => {
+            try { instance?.destroy?.(); } catch (e) {
+                console.warn('SDK cleanup after navigation:', e);
+            }
+        }, 0);
+
         setIsCallActive(false);
         setCallStatus('ended');
         setCallDuration(0);
-
-        // Stop media streams
-        if (localVideoRef.current && localVideoRef.current.srcObject) {
-            const tracks = localVideoRef.current.srcObject.getTracks();
-            tracks.forEach(track => track.stop());
-        }
     };
 
-    const toggleMute = () => {
-        setIsMuted(!isMuted);
-    };
-
-    const toggleVideo = () => {
-        setIsVideoOff(!isVideoOff);
-    };
-
-    const toggleScreenShare = () => {
-        setIsScreenSharing(!isScreenSharing);
-    };
-
-    const sendMessage = (e) => {
-        e.preventDefault();
-        if (newMessage.trim()) {
-            const message = {
-                id: chatMessages.length + 1,
-                sender: userRole === 'doctor' ? appointmentData.doctor.name : appointmentData.patient.name,
-                message: newMessage,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                type: 'user'
+    // Ensure Zego UI reflows when the layout width changes (e.g., sidebar toggle)
+    useEffect(() => {
+        if (!isCallActive || !zegoContainerRef.current) return;
+        if (typeof ResizeObserver !== 'undefined') {
+            const ro = new ResizeObserver(() => {
+                // Zego UI often listens on window resize events to recompute layout
+                window.dispatchEvent(new Event('resize'));
+            });
+            ro.observe(zegoContainerRef.current);
+            zegoResizeObserverRef.current = ro;
+            return () => {
+                try { ro.disconnect(); } catch (_) { }
+                zegoResizeObserverRef.current = null;
             };
-            setChatMessages([...chatMessages, message]);
-            setNewMessage('');
         }
-    };
+    }, [isCallActive]);
+
+    // Detect overlaying sidebar and pad content to avoid overlap while in a call
+    useEffect(() => {
+        const selectors = ['#sidebar', '.sidebar', '.app-sidebar', '[data-sidebar]'];
+        const getSidebarEl = () => {
+            if (sidebarElRef.current && document.body.contains(sidebarElRef.current)) return sidebarElRef.current;
+            for (const sel of selectors) {
+                const el = document.querySelector(sel);
+                if (el) return el;
+            }
+            return null;
+        };
+
+        const measure = () => {
+            if (!isCallActive) { setSidebarPadding(0); return; }
+            const el = getSidebarEl();
+            sidebarElRef.current = el;
+            if (!el) { setSidebarPadding(0); return; }
+            const style = window.getComputedStyle(el);
+            const rect = el.getBoundingClientRect();
+            const isVisible = style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+            const isOverlaying = (style.position === 'fixed' || style.position === 'sticky' || style.position === 'absolute') && rect.left <= 8;
+            if (isVisible && isOverlaying) {
+                // Check if main already offsets for sidebar (desktop layout)
+                const main = document.querySelector('main.with-sidebar');
+                let existingOffset = 0;
+                if (main) {
+                    const mainStyle = window.getComputedStyle(main);
+                    const ml = parseFloat(mainStyle.marginLeft || '0');
+                    if (!Number.isNaN(ml)) existingOffset = ml;
+                }
+                const needed = Math.max(Math.round(rect.width - existingOffset), 0);
+                setSidebarPadding(needed);
+            } else {
+                setSidebarPadding(0);
+            }
+        };
+
+        measure();
+        window.addEventListener('resize', measure);
+        // Observe sidebar width changes if present
+        const el = getSidebarEl();
+        if (el && typeof ResizeObserver !== 'undefined') {
+            const ro = new ResizeObserver(measure);
+            ro.observe(el);
+            sidebarResizeObserverRef.current = ro;
+        }
+        // Watch mutations that might toggle the sidebar
+        const mo = new MutationObserver(measure);
+        mo.observe(document.body, { attributes: true, childList: true, subtree: true });
+
+        return () => {
+            window.removeEventListener('resize', measure);
+            try { sidebarResizeObserverRef.current?.disconnect(); } catch (_) { }
+            sidebarResizeObserverRef.current = null;
+            try { mo.disconnect(); } catch (_) { }
+        };
+    }, [isCallActive]);
+
+    // Cleanup Zego instance on unmount just in case
+    useEffect(() => {
+        mountedRef.current = true;
+
+        // Global error handler to catch SDK errors after leave
+        const errorHandler = (event) => {
+            if (event.message?.includes('createSpan') || event.error?.message?.includes('createSpan')) {
+                event.preventDefault();
+                event.stopPropagation();
+                console.warn('Suppressed SDK error after leave:', event.error || event.message);
+                return true;
+            }
+        };
+        window.addEventListener('error', errorHandler, true);
+
+        return () => {
+            mountedRef.current = false;
+            window.removeEventListener('error', errorHandler, true);
+            if (joinRafRef.current) {
+                try { cancelAnimationFrame(joinRafRef.current); } catch (_) { }
+                joinRafRef.current = 0;
+            }
+            try { zegoInstanceRef.current?.destroy?.(); } catch (_) { }
+            zegoInstanceRef.current = null;
+        };
+    }, []);
 
     return (
-        <Container fluid className="video-consultation-container">
-            <Row className="mb-3">
-                <Col>
-                    <div className="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h4 className="mb-1">
-                                <FontAwesomeIcon icon="video" className="text-primary me-2" />
-                                Video Consultation
-                            </h4>
-                            <p className="text-muted mb-0">
-                                {appointmentData.type} - {appointmentData.date} at {appointmentData.scheduledTime}
-                            </p>
-                        </div>
-                        {isCallActive && (
-                            <div className="d-flex align-items-center">
-                                <Badge bg="success" className="me-2">
-                                    <FontAwesomeIcon icon="circle" className="me-1" />
-                                    {callStatus === 'connected' ? 'Live' : 'Connecting...'}
-                                </Badge>
-                                {callStatus === 'connected' && (
-                                    <span className="text-muted">{formatDuration(callDuration)}</span>
-                                )}
-                            </div>
-                        )}
-                    </div>
-                </Col>
-            </Row>
+        <Container
+            fluid
+            ref={pageContainerRef}
+            className={`video-consultation-container ${darkMode ? 'dark' : ''} p-0`}
+        >
 
-            {!isCallActive && callStatus !== 'ended' && (
+            {/* Welcome / Pre-Join */}
+            {!isCallActive && (
                 <Row className="mb-4">
-                    <Col>
-                        <Alert variant="info" className="text-center">
-                            <FontAwesomeIcon icon="info-circle" className="me-2" />
-                            {userRole === 'doctor'
-                                ? `Ready to start consultation with ${appointmentData.patient.name}`
-                                : `Waiting for ${appointmentData.doctor.name} to join the call`}
-                        </Alert>
+                    <Col lg={12} className="mb-4">
+                        <div className="welcome-hero p-4 p-md-5 rounded shadow-sm">
+                            <h2 className="mb-3">
+                                <FontAwesomeIcon icon="handshake" className="me-2" />
+                                Welcome to your secure video consultation
+                            </h2>
+                            {callStatus === 'ended' && (
+                                <Alert variant="success" className="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <FontAwesomeIcon icon="check-circle" className="me-2" />
+                                        Consultation completed successfully.
+                                        {typeof location?.state?.duration === 'number' && (
+                                            <>
+                                                {' '}Duration: {formatDuration(location.state.duration)}
+                                            </>
+                                        )}
+                                    </div>
+                                    <Button
+                                        variant="primary"
+                                        onClick={() => {
+                                            const routeRole = user?.role || role; // prefer auth role, fallback to selected role
+                                            const map = { patient: '/patient-dashboard', doctor: '/doctor-dashboard', caregiver: '/caregiver-dashboard', admin: '/admin-dashboard' };
+                                            navigate(map[routeRole] || '/');
+                                        }}
+                                    >
+                                        <FontAwesomeIcon icon="home" className="me-2" /> Return to dashboard
+                                    </Button>
+                                </Alert>
+                            )}
+                            {welcomeError && (
+                                <Alert variant="danger" className="mb-3">{welcomeError}</Alert>
+                            )}
+                            <p className="text-muted">Enter your name and confirm the room to join the call. You can share the link with the other participant.</p>
+                            <Form>
+                                <Row>
+                                    <Col md={6} className="mb-3">
+                                        <Form.Label>Display name</Form.Label>
+                                        <Form.Control
+                                            type="text"
+                                            placeholder="e.g., Dr. Nambwa or Nambwa Beryl"
+                                            value={displayName}
+                                            onChange={(e) => setDisplayName(e.target.value)}
+                                        />
+                                    </Col>
+                                    <Col md={6} className="mb-3">
+                                        <Form.Label>Role</Form.Label>
+                                        <Form.Select value={role} onChange={(e) => setRole(e.target.value)}>
+                                            <option value="doctor">Doctor</option>
+                                            <option value="patient">Patient</option>
+                                        </Form.Select>
+                                    </Col>
+                                </Row>
+                                <Form.Label>Room ID</Form.Label>
+                                <InputGroup className="mb-3">
+                                    <Form.Control
+                                        type="text"
+                                        value={roomId}
+                                        onChange={(e) => setRoomId(e.target.value)}
+                                    />
+                                    <Button variant={darkMode ? 'outline-light' : 'outline-secondary'} onClick={() => navigator.clipboard.writeText(`${window.location.origin}${window.location.pathname}?roomId=${encodeURIComponent(roomId)}`)}>
+                                        <FontAwesomeIcon icon="link" className="me-1" /> Copy link
+                                    </Button>
+                                </InputGroup>
+
+                                <div className="d-flex gap-2">
+                                    <Button variant="success" onClick={startZegoCall}>
+                                        <FontAwesomeIcon icon="video" className="me-2" /> Start/Join Call
+                                    </Button>
+                                    <OverlayTrigger placement="top" overlay={<Tooltip>Requires ZegoCloud setup</Tooltip>}>
+                                        <Button variant={darkMode ? 'outline-light' : 'outline-primary'} onClick={() => window.open('https://www.zegocloud.com/', '_blank')}>
+                                            <FontAwesomeIcon icon="circle-info" className="me-2" /> Learn more
+                                        </Button>
+                                    </OverlayTrigger>
+                                </div>
+                            </Form>
+                        </div>
                     </Col>
                 </Row>
             )}
 
             <Row>
-                {/* Video Area */}
-                <Col lg={8} className="mb-4">
-                    <Card className="medical-card video-card" style={{ height: '500px' }}>
-                        <Card.Body className="p-0 position-relative">
-                            {!isCallActive ? (
-                                // Pre-call screen
-                                <div className="d-flex flex-column align-items-center justify-content-center h-100 text-center p-4">
-                                    <FontAwesomeIcon icon="video-slash" size="3x" className="text-muted mb-3" />
-                                    <h5 className="text-muted mb-3">Video call not started</h5>
-                                    <div className="mb-4">
-                                        <h6>Appointment Details:</h6>
-                                        <p className="mb-1"><strong>Patient:</strong> {appointmentData.patient.name}</p>
-                                        <p className="mb-1"><strong>Doctor:</strong> {appointmentData.doctor.name}</p>
-                                        <p className="mb-1"><strong>Specialization:</strong> {appointmentData.doctor.specialization}</p>
+                {/* Video Area / Zego Container */}
+                {isCallActive && !isLeaving && (
+                    <Col lg={12} className="mb-0">
+                        <Card className="medical-card video-card" style={{ height: '100vh', borderRadius: 0, overflow: 'visible' }}>
+                            <Card.Body className="p-0 position-relative" style={{ height: '100%' }}>
+                                {callStatus === 'connecting' && (
+                                    <div className="position-absolute top-50 start-50 translate-middle text-center" style={{ zIndex: 5 }}>
+                                        <Spinner animation="border" role="status" variant="light" />
+                                        <div className="mt-2 text-light">Connecting…</div>
                                     </div>
-                                    <Button
-                                        variant="success"
-                                        size="lg"
-                                        onClick={handleStartCall}
-                                        className="px-4"
-                                    >
-                                        <FontAwesomeIcon icon="video" className="me-2" />
-                                        {userRole === 'doctor' ? 'Start Consultation' : 'Join Call'}
-                                    </Button>
-                                </div>
-                            ) : (
-                                // Active call screen
-                                <div className="video-container h-100">
-                                    {callStatus === 'connecting' ? (
-                                        <div className="d-flex flex-column align-items-center justify-content-center h-100">
-                                            <div className="spinner-border text-primary mb-3" role="status">
-                                                <span className="visually-hidden">Connecting...</span>
-                                            </div>
-                                            <h5>Connecting to call...</h5>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            {/* Remote Video (Main) */}
-                                            <div className="remote-video position-relative w-100 h-100">
-                                                {isVideoOff ? (
-                                                    <div className="d-flex flex-column align-items-center justify-content-center h-100 bg-dark text-white">
-                                                        <FontAwesomeIcon icon="user-circle" size="4x" className="mb-2" />
-                                                        <h5>{userRole === 'patient' ? appointmentData.doctor.name : appointmentData.patient.name}</h5>
-                                                    </div>
-                                                ) : (
-                                                    <video
-                                                        ref={remoteVideoRef}
-                                                        autoPlay
-                                                        className="w-100 h-100"
-                                                        style={{ objectFit: 'cover' }}
-                                                        poster="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300'%3E%3Crect width='400' height='300' fill='%23dee2e6'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%236c757d'%3ERemote Video%3C/text%3E%3C/svg%3E"
-                                                    />
-                                                )}
-
-                                                {/* Local Video (Picture-in-Picture) */}
-                                                <div className="local-video position-absolute" style={{ top: '20px', right: '20px', width: '200px', height: '150px' }}>
-                                                    <video
-                                                        ref={localVideoRef}
-                                                        autoPlay
-                                                        muted
-                                                        className="w-100 h-100 rounded border border-white"
-                                                        style={{ objectFit: 'cover' }}
-                                                    />
-                                                    <div className="position-absolute bottom-0 start-0 end-0 bg-dark bg-opacity-50 text-white text-center py-1">
-                                                        <small>You</small>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {/* Video Controls */}
-                                            <div className="video-controls position-absolute bottom-0 start-0 end-0 p-3">
-                                                <div className="d-flex justify-content-center gap-3">
-                                                    <OverlayTrigger placement="top" overlay={<Tooltip>{isMuted ? 'Unmute' : 'Mute'}</Tooltip>}>
-                                                        <Button
-                                                            variant={isMuted ? 'danger' : 'secondary'}
-                                                            className="rounded-circle"
-                                                            style={{ width: '50px', height: '50px' }}
-                                                            onClick={toggleMute}
-                                                        >
-                                                            <FontAwesomeIcon icon={isMuted ? 'microphone-slash' : 'microphone'} />
-                                                        </Button>
-                                                    </OverlayTrigger>
-
-                                                    <OverlayTrigger placement="top" overlay={<Tooltip>{isVideoOff ? 'Turn on camera' : 'Turn off camera'}</Tooltip>}>
-                                                        <Button
-                                                            variant={isVideoOff ? 'danger' : 'secondary'}
-                                                            className="rounded-circle"
-                                                            style={{ width: '50px', height: '50px' }}
-                                                            onClick={toggleVideo}
-                                                        >
-                                                            <FontAwesomeIcon icon={isVideoOff ? 'video-slash' : 'video'} />
-                                                        </Button>
-                                                    </OverlayTrigger>
-
-                                                    <OverlayTrigger placement="top" overlay={<Tooltip>Share screen</Tooltip>}>
-                                                        <Button
-                                                            variant={isScreenSharing ? 'primary' : 'secondary'}
-                                                            className="rounded-circle"
-                                                            style={{ width: '50px', height: '50px' }}
-                                                            onClick={toggleScreenShare}
-                                                        >
-                                                            <FontAwesomeIcon icon="desktop" />
-                                                        </Button>
-                                                    </OverlayTrigger>
-
-                                                    <OverlayTrigger placement="top" overlay={<Tooltip>End call</Tooltip>}>
-                                                        <Button
-                                                            variant="danger"
-                                                            className="rounded-circle"
-                                                            style={{ width: '50px', height: '50px' }}
-                                                            onClick={handleEndCall}
-                                                        >
-                                                            <FontAwesomeIcon icon="phone-slash" />
-                                                        </Button>
-                                                    </OverlayTrigger>
-                                                </div>
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
-                            )}
-                        </Card.Body>
-                    </Card>
-                </Col>
-
-                {/* Chat and Info Sidebar */}
-                <Col lg={4}>
-                    {/* Patient/Doctor Info */}
-                    <Card className="medical-card mb-3">
-                        <Card.Header>
-                            <FontAwesomeIcon icon="user-md" className="me-2" />
-                            {userRole === 'doctor' ? 'Patient Information' : 'Doctor Information'}
-                        </Card.Header>
-                        <Card.Body>
-                            {userRole === 'doctor' ? (
-                                <div>
-                                    <h6>{appointmentData.patient.name}</h6>
-                                    <p className="mb-1"><strong>Age:</strong> {appointmentData.patient.age}</p>
-                                    <p className="mb-1"><strong>Patient ID:</strong> {appointmentData.patient.id}</p>
-                                    <p className="mb-0"><strong>Visit Type:</strong> {appointmentData.type}</p>
-                                </div>
-                            ) : (
-                                <div>
-                                    <h6>{appointmentData.doctor.name}</h6>
-                                    <p className="mb-1"><strong>Specialization:</strong> {appointmentData.doctor.specialization}</p>
-                                    <p className="mb-1"><strong>Doctor ID:</strong> {appointmentData.doctor.id}</p>
-                                    <p className="mb-0"><strong>Consultation Type:</strong> {appointmentData.type}</p>
-                                </div>
-                            )}
-                        </Card.Body>
-                    </Card>
-
-                    {/* Chat */}
-                    <Card className="medical-card" style={{ height: '300px' }}>
-                        <Card.Header>
-                            <FontAwesomeIcon icon="comments" className="me-2" />
-                            Chat
-                        </Card.Header>
-                        <Card.Body className="d-flex flex-column p-0">
-                            <div className="flex-grow-1 overflow-auto p-3">
-                                {chatMessages.map((msg) => (
-                                    <div key={msg.id} className={`mb-2 ${msg.type === 'system' ? 'text-muted' : ''}`}>
-                                        <div className="d-flex justify-content-between">
-                                            <small className="fw-bold">{msg.sender}</small>
-                                            <small className="text-muted">{msg.timestamp}</small>
-                                        </div>
-                                        <div className="bg-light p-2 rounded mt-1">
-                                            {msg.message}
-                                        </div>
+                                )}
+                                {callStatus === 'connected' && (
+                                    <div className="position-absolute top-0 end-0 m-3" style={{ zIndex: 1000 }}>
+                                        <Button
+                                            variant="danger"
+                                            size="sm"
+                                            onClick={handleLeaveCall}
+                                            title="Leave Call"
+                                        >
+                                            <FontAwesomeIcon icon="phone-slash" className="me-2" />
+                                            Leave Call
+                                        </Button>
                                     </div>
-                                ))}
-                            </div>
-                            <div className="border-top p-3">
-                                <form onSubmit={sendMessage} className="d-flex">
-                                    <input
-                                        type="text"
-                                        className="form-control me-2"
-                                        placeholder="Type a message..."
-                                        value={newMessage}
-                                        onChange={(e) => setNewMessage(e.target.value)}
-                                    />
-                                    <Button type="submit" variant="primary" size="sm">
-                                        <FontAwesomeIcon icon="paper-plane" />
-                                    </Button>
-                                </form>
-                            </div>
-                        </Card.Body>
-                    </Card>
-                </Col>
+                                )}
+                                <div ref={zegoContainerRef} className="w-100 h-100" />
+                            </Card.Body>
+                        </Card>
+                    </Col>
+                )}
+
             </Row>
 
-            {callStatus === 'ended' && (
-                <Row className="mt-4">
-                    <Col>
-                        <Alert variant="success" className="text-center">
-                            <FontAwesomeIcon icon="check-circle" className="me-2" />
-                            Consultation completed successfully. Duration: {formatDuration(callDuration)}
-                        </Alert>
-                    </Col>
-                </Row>
-            )}
+            {/* Ended notice is now shown atop the welcome hero with a Return to dashboard button */}
 
             <style jsx>{`
         .video-consultation-container {
@@ -369,15 +464,53 @@ const VideoConsultation = ({ appointmentId, userRole = 'patient' }) => {
           border-radius: 12px;
           overflow: hidden;
         }
+          .welcome-hero {
+              background: #fff;
+          }
+          /* Dark mode (scoped to this page) */
+          .video-consultation-container.dark {
+              background-color: #0d1117;
+              color: #e6edf3;
+          }
+          .video-consultation-container.dark .welcome-hero {
+              background: #161b22;
+              color: #e6edf3;
+          }
+          .video-consultation-container.dark .text-muted {
+              color: #8b949e !important;
+          }
+          .video-consultation-container.dark .card.medical-card {
+              background: #161b22;
+              border-color: #30363d;
+              color: #e6edf3;
+          }
+          .video-consultation-container.dark .card .card-header,
+          .video-consultation-container.dark .card-header {
+              background: #0d1117;
+              border-bottom-color: #30363d;
+              color: #e6edf3;
+          }
+          .video-consultation-container.dark .form-control,
+          .video-consultation-container.dark .form-select,
+          .video-consultation-container.dark .input-group-text {
+              background-color: #0d1117;
+              color: #e6edf3;
+              border-color: #30363d;
+          }
+          .video-consultation-container.dark .btn-outline-secondary,
+          .video-consultation-container.dark .btn-outline-primary,
+          .video-consultation-container.dark .btn-outline-light {
+              border-color: #8b949e;
+              color: #e6edf3;
+          }
+          .video-consultation-container.dark .btn-outline-light:hover {
+              background-color: #21262d;
+          }
+          .video-consultation-container.dark .badge.bg-success {
+              background-color: #238636 !important;
+          }
         
-        .video-controls {
-          background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
-        }
-        
-        .video-controls .btn {
-          backdrop-filter: blur(10px);
-          border: 2px solid rgba(255,255,255,0.3);
-        }
+                /* Zego UI takes over the main video area */
       `}</style>
         </Container>
     );

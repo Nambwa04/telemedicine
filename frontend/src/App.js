@@ -56,8 +56,10 @@ function App() {
     const { user } = useAuth();
     const location = useLocation();
     const publicPaths = ['/', '/login', '/register'];
+    const noSidebarPaths = ['/video-call', '/video-calls'];
     const isPublic = publicPaths.includes(location.pathname);
-    if (user && !isPublic) {
+    const noSidebar = noSidebarPaths.includes(location.pathname);
+    if (user && !isPublic && !noSidebar) {
       // Provide minimal top bar only for mobile hamburger (could be improved later)
       return (
         <>
@@ -67,6 +69,10 @@ function App() {
           <Sidebar mobileOpen={mobileOpen} onMobileClose={() => setMobileOpen(false)} />
         </>
       );
+    }
+    // Hide Navbar entirely on video pages for a distraction-free experience
+    if (!isPublic && noSidebar) {
+      return null;
     }
     return <Navbar />;
   };
@@ -79,8 +85,10 @@ function App() {
     const { user } = useAuth();
     const location = useLocation();
     const publicPaths = ['/', '/login', '/register'];
+    const noSidebarPaths = ['/video-call', '/video-calls'];
     const isPublic = publicPaths.includes(location.pathname);
-    const hasSidebar = Boolean(user) && !isPublic;
+    const noSidebar = noSidebarPaths.includes(location.pathname);
+    const hasSidebar = Boolean(user) && !isPublic && !noSidebar;
     const cls = 'main-content' + (hasSidebar ? ' with-sidebar' : '');
     return <main className={cls}>{children}</main>;
   };
