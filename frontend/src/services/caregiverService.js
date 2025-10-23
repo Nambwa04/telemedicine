@@ -15,6 +15,9 @@ export async function listCaregivers(params = {}) {
     try {
         const queryParams = new URLSearchParams();
         if (params.search) queryParams.append('search', params.search);
+        if (typeof params.patient_lat === 'number') queryParams.append('patient_lat', String(params.patient_lat));
+        if (typeof params.patient_lng === 'number') queryParams.append('patient_lng', String(params.patient_lng));
+        if (typeof params.max_distance === 'number') queryParams.append('max_distance', String(params.max_distance));
 
         const url = `/accounts/caregivers/${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
         const raw = await api.get(url);
@@ -34,10 +37,10 @@ export async function listCaregivers(params = {}) {
             experience: caregiver.experience_years || 0,
             rating: caregiver.rating || 4.5,
             reviewCount: caregiver.review_count || 0,
-            hourlyRate: caregiver.hourly_rate || 25,
+            hourlyRate: caregiver.hourly_rate || 2500,
             location: caregiver.location || 'Not specified',
-            // Use numeric 0 for missing distance so filters treat it as very close instead of excluding
-            distance: caregiver.distance ?? 0,
+            // Backend returns distance in meters; keep numeric for sorting/filtering
+            distance: typeof caregiver.distance === 'number' ? caregiver.distance : 0,
             availability: caregiver.availability || 'Contact for availability',
             certifications: caregiver.certifications || [],
             languages: caregiver.languages || ['English'],
@@ -50,6 +53,21 @@ export async function listCaregivers(params = {}) {
         console.error('Failed to fetch caregivers:', error);
         // Return mock data as fallback
         return getMockCaregivers();
+    }
+}
+
+/**
+ * Update current caregiver's location
+ * @param {number} latitude
+ * @param {number} longitude
+ */
+export async function updateMyLocation(latitude, longitude) {
+    try {
+        await api.patch('/accounts/me/location/', { latitude, longitude });
+        return { success: true };
+    } catch (error) {
+        console.error('Failed to update location:', error);
+        return { success: false, error: error.message };
     }
 }
 
@@ -118,7 +136,7 @@ export async function createCareRequest(requestData) {
             family: requestData.family || 'Patient Family',
             service: requestData.services?.join(', ') || requestData.service || 'General Care',
             duration: requestData.duration?.toString() || '4 hours',
-            rate: parseFloat(requestData.hourlyRate) || 25,
+            rate: parseFloat(requestData.hourlyRate) || 2500,
             unit: 'hour',
             urgent: requestData.urgentCare || false,
             notes: requestData.notes || ''
@@ -254,7 +272,7 @@ function getMockCaregivers() {
             experience: 8,
             rating: 4.9,
             reviewCount: 127,
-            hourlyRate: 28,
+            hourlyRate: 2000,
             location: 'Downtown Area',
             distance: '2.3 miles',
             availability: 'Available Now',
@@ -273,7 +291,7 @@ function getMockCaregivers() {
             experience: 6,
             rating: 4.7,
             reviewCount: 89,
-            hourlyRate: 32,
+            hourlyRate: 3200,
             location: 'Northside',
             distance: '4.1 miles',
             availability: 'Available Tomorrow',
@@ -292,7 +310,7 @@ function getMockCaregivers() {
             experience: 4,
             rating: 4.8,
             reviewCount: 64,
-            hourlyRate: 25,
+            hourlyRate: 1500,
             location: 'Westside',
             distance: '3.7 miles',
             availability: 'Available Now',

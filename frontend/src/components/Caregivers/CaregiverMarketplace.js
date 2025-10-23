@@ -16,7 +16,7 @@ const CaregiverMarketplace = ({ userRole = 'patient' }) => {
     const [searchFilters, setSearchFilters] = useState({
         searchTerm: '',
         specialization: '',
-        maxRate: 50,
+        maxRate: 7000,
         availability: 'any',
         rating: 0,
         distance: 10
@@ -32,6 +32,7 @@ const CaregiverMarketplace = ({ userRole = 'patient' }) => {
     });
 
     const [filteredCaregivers, setFilteredCaregivers] = useState(caregivers);
+    const [myLocation, setMyLocation] = useState({ lat: null, lng: null });
 
     const specializations = [
         'Elder Care', 'Alzheimer Care', 'Physical Therapy', 'Companion Care',
@@ -45,7 +46,12 @@ const CaregiverMarketplace = ({ userRole = 'patient' }) => {
         setError(null);
         try {
             const [caregiversData, requestsData] = await Promise.all([
-                listCaregivers({ search: searchFilters.searchTerm }),
+                listCaregivers({
+                    search: searchFilters.searchTerm,
+                    patient_lat: typeof myLocation.lat === 'number' ? myLocation.lat : undefined,
+                    patient_lng: typeof myLocation.lng === 'number' ? myLocation.lng : undefined,
+                    max_distance: typeof searchFilters.distance === 'number' ? searchFilters.distance : undefined
+                }),
                 listCareRequests()
             ]);
             setCaregivers(caregiversData);
@@ -56,11 +62,21 @@ const CaregiverMarketplace = ({ userRole = 'patient' }) => {
         } finally {
             setLoading(false);
         }
-    }, [searchFilters.searchTerm]);
+    }, [searchFilters.searchTerm, myLocation.lat, myLocation.lng, searchFilters.distance]);
 
     useEffect(() => {
         fetchData();
     }, [fetchData]);
+
+    // Get patient location on mount
+    useEffect(() => {
+        if (!('geolocation' in navigator)) return;
+        navigator.geolocation.getCurrentPosition(
+            (pos) => setMyLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+            () => { },
+            { enableHighAccuracy: true, maximumAge: 120000, timeout: 8000 }
+        );
+    }, []);
 
     useEffect(() => {
         // Filter caregivers based on search criteria
@@ -290,7 +306,7 @@ const CaregiverMarketplace = ({ userRole = 'patient' }) => {
                                                 onClick={() => setSearchFilters({
                                                     searchTerm: '',
                                                     specialization: '',
-                                                    maxRate: 50,
+                                                    maxRate: 7000,
                                                     availability: 'any',
                                                     rating: 0,
                                                     distance: 10
@@ -349,8 +365,8 @@ const CaregiverMarketplace = ({ userRole = 'patient' }) => {
                                                                 ))}
                                                             </td>
                                                             <td>
-                                                                <strong>${request.totalCost}</strong>
-                                                                <div className="small text-muted">${request.hourlyRate}/hr</div>
+                                                                <strong>Ksh {request.totalCost}</strong>
+                                                                <div className="small text-muted">Ksh {request.hourlyRate}/hr</div>
                                                             </td>
                                                             <td>{getRequestStatusBadge(request.status)}</td>
                                                             <td>
@@ -425,7 +441,7 @@ const CaregiverMarketplace = ({ userRole = 'patient' }) => {
                                                             </div>
                                                         </div>
                                                         <div className="text-end">
-                                                            <div className="h5 text-primary mb-1">${caregiver.hourlyRate}/hr</div>
+                                                            <div className="h5 text-primary mb-1">Ksh {caregiver.hourlyRate}/hr</div>
                                                             {getAvailabilityBadge(caregiver.availability)}
                                                         </div>
                                                     </div>
@@ -433,7 +449,7 @@ const CaregiverMarketplace = ({ userRole = 'patient' }) => {
                                                     <div className="mb-3">
                                                         <div className="small text-muted mb-1">
                                                             <FontAwesomeIcon icon="map-marker-alt" className="me-1" />
-                                                            {caregiver.location} • {caregiver.distance}
+                                                            {caregiver.location} • {typeof caregiver.distance === 'number' ? `${Math.round(caregiver.distance)} m` : caregiver.distance}
                                                         </div>
                                                         <div className="small text-muted">
                                                             <FontAwesomeIcon icon="briefcase" className="me-1" />
@@ -523,7 +539,7 @@ const CaregiverMarketplace = ({ userRole = 'patient' }) => {
                                             <strong>{selectedCaregiver.rating}</strong>
                                             <span className="text-muted"> ({selectedCaregiver.reviewCount} reviews)</span>
                                         </div>
-                                        <div className="h4 text-primary">${selectedCaregiver.hourlyRate}/hr</div>
+                                        <div className="h4 text-primary">Ksh {selectedCaregiver.hourlyRate}/hr</div>
                                     </Col>
                                     <Col md={8}>
                                         <ListGroup variant="flush">
@@ -608,7 +624,7 @@ const CaregiverMarketplace = ({ userRole = 'patient' }) => {
                                                 <Form.Label>Estimated Cost</Form.Label>
                                                 <Form.Control
                                                     type="text"
-                                                    value={`$${selectedCaregiver.hourlyRate * requestForm.duration}`}
+                                                    value={`Ksh ${selectedCaregiver.hourlyRate * requestForm.duration}`}
                                                     readOnly
                                                     className="bg-light"
                                                 />

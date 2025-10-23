@@ -137,7 +137,7 @@ const CaregiverClientsPage = () => {
                                                 </td>
                                                 <td><small className="text-muted">{client.service}</small></td>
                                                 <td><small className="text-muted">{client.duration}</small></td>
-                                                <td className="fw-medium">${client.hourlyRate}/hr</td>
+                                                <td className="fw-medium">Ksh {client.hourlyRate}/hr</td>
                                                 <td>{getStatusBadge(client.status)}</td>
                                                 <td>
                                                     <small className="text-muted">

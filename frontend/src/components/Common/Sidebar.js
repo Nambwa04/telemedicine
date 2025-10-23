@@ -52,7 +52,6 @@ const Sidebar = ({ mobileOpen = false, onMobileClose }) => {
         caregiver: [
             { to: '/clients', icon: 'users', label: 'Clients' },
             { to: '/requests', icon: 'clipboard-list', label: 'Requests' },
-            { to: '/follow-ups', icon: 'bell', label: 'Follow-Ups' },
             { to: '/caregiver/timesheet', icon: 'clock', label: 'Timesheet' },
             { to: '/health-dashboard', icon: 'chart-line', label: 'Health' }
         ]

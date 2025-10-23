@@ -42,7 +42,7 @@ const TimesheetPage = () => {
             start: '09:00',
             end: '17:00',
             break: 30,
-            rate: 25,
+            rate: 2500,
             status: 'draft'
         });
         setShowModal(true);
@@ -164,8 +164,8 @@ const TimesheetPage = () => {
                                     <th>End</th>
                                     <th>Break (min)</th>
                                     <th>Hours</th>
-                                    <th>Rate</th>
-                                    <th>Subtotal</th>
+                                    <th>Rate (Ksh)</th>
+                                    <th>Subtotal (Ksh)</th>
                                     <th>Status</th>
                                     <th>Actions</th>
                                 </tr>
@@ -179,13 +179,13 @@ const TimesheetPage = () => {
                                         <td>{e.end}</td>
                                         <td>{e.break}</td>
                                         <td>{e.hours}</td>
-                                        <td>${e.rate}</td>
-                                        <td>${e.subtotal.toFixed(2)}</td>
+                                        <td>Ksh {e.rate}</td>
+                                        <td>Ksh {e.subtotal.toFixed(2)}</td>
                                         <td>
                                             <span className={`badge ${e.status === 'approved' ? 'bg-success' :
-                                                    e.status === 'submitted' ? 'bg-info' :
-                                                        e.status === 'rejected' ? 'bg-danger' :
-                                                            'bg-secondary'
+                                                e.status === 'submitted' ? 'bg-info' :
+                                                    e.status === 'rejected' ? 'bg-danger' :
+                                                        'bg-secondary'
                                                 }`}>
                                                 {e.status}
                                             </span>
@@ -213,7 +213,7 @@ const TimesheetPage = () => {
                                 ))}
                                 <tr className="fw-bold">
                                     <td colSpan={7}>Total</td>
-                                    <td>${weekTotal.toFixed(2)}</td>
+                                    <td>Ksh {weekTotal.toFixed(2)}</td>
                                     <td colSpan={2}></td>
                                 </tr>
                             </tbody>
@@ -296,7 +296,7 @@ const TimesheetPage = () => {
                             </Col>
                             <Col md={6}>
                                 <Form.Group className="mb-3">
-                                    <Form.Label>Hourly Rate ($) *</Form.Label>
+                                    <Form.Label>Hourly Rate (Ksh) *</Form.Label>
                                     <Form.Control
                                         type="number"
                                         min={0}

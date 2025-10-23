@@ -7,16 +7,43 @@ User = get_user_model()
 
 class UserSerializer(serializers.ModelSerializer):
     doctor_name = serializers.SerializerMethodField()
+    distance = serializers.SerializerMethodField()
+    availability = serializers.SerializerMethodField()
     
     class Meta:
         model = User
-        fields = ['id', 'email', 'username', 'role', 'first_name', 'last_name', 'primary_condition', 'phone', 'doctor', 'doctor_name']
+        fields = ['id', 'email', 'username', 'role', 'first_name', 'last_name', 'primary_condition', 'phone', 'doctor', 'doctor_name', 'latitude', 'longitude', 'distance', 'availability']
     
     def get_doctor_name(self, obj):
         """Return the assigned doctor's full name if exists"""
         if obj.doctor:
             return f"{obj.doctor.first_name} {obj.doctor.last_name}".strip() or obj.doctor.email
         return None
+
+    def get_distance(self, obj):
+        # If view attached a precomputed distance in meters
+        d = getattr(obj, '_distance_meters', None)
+        if d is None:
+            return None
+        # Return numeric meters
+        try:
+            return round(float(d), 2)
+        except Exception:
+            return None
+
+    def get_availability(self, obj):
+        # Consider a caregiver "Available Now" if location updated within last 10 minutes
+        from django.utils import timezone
+        if getattr(obj, 'role', None) != 'caregiver':
+            return None
+        updated = getattr(obj, 'location_updated_at', None)
+        if not updated:
+            return 'Contact for availability'
+        if timezone.now() - updated <= timezone.timedelta(minutes=10):
+            return 'Available Now'
+        if timezone.now() - updated <= timezone.timedelta(hours=24):
+            return 'Recently Active'
+        return 'Contact for availability'
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)

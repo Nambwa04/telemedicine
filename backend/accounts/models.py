@@ -15,6 +15,10 @@ class User(AbstractUser):
     role = models.CharField(max_length=20, choices=ROLE_CHOICES)
     primary_condition = models.CharField(max_length=120, blank=True)
     phone = models.CharField(max_length=20, blank=True)
+    # Realtime location for caregivers (and optionally others)
+    latitude = models.FloatField(null=True, blank=True)
+    longitude = models.FloatField(null=True, blank=True)
+    location_updated_at = models.DateTimeField(null=True, blank=True)
     # Doctor assignment for patients
     doctor = models.ForeignKey(
         'self', 

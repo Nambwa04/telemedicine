@@ -5,6 +5,7 @@ from rest_framework.views import APIView
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.pagination import PageNumberPagination
 from django.db.models import Q, Count, Avg
+import math
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.utils import timezone
@@ -501,12 +502,79 @@ class CaregiverListView(generics.ListAPIView):
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    def get_queryset(self):
+    def haversine_m(self, lat1, lon1, lat2, lon2):
+        """Return distance in meters between two lat/lon points."""
+        # convert decimal degrees to radians
+        rlat1, rlon1, rlat2, rlon2 = map(math.radians, [lat1, lon1, lat2, lon2])
+        dlon = rlon2 - rlon1
+        dlat = rlat2 - rlat1
+        a = math.sin(dlat/2)**2 + math.cos(rlat1) * math.cos(rlat2) * math.sin(dlon/2)**2
+        c = 2 * math.asin(math.sqrt(a))
+        R = 6371000.0  # meters
+        return R * c
+
+    def list(self, request, *args, **kwargs):
         qs = User.objects.filter(role='caregiver')
-        search = self.request.query_params.get('search')
+        search = request.query_params.get('search')
         if search:
             qs = qs.filter(Q(first_name__icontains=search) | Q(last_name__icontains=search) | Q(email__icontains=search))
-        return qs.order_by('id')
+
+        # Proximity filtering
+        patient_lat = request.query_params.get('patient_lat')
+        patient_lng = request.query_params.get('patient_lng')
+        max_distance = request.query_params.get('max_distance')  # meters
+
+        caregivers = list(qs)
+        if patient_lat and patient_lng:
+            try:
+                plat = float(patient_lat)
+                plng = float(patient_lng)
+            except ValueError:
+                plat = plng = None
+            if plat is not None and plng is not None:
+                # compute distances for those with known coords
+                filtered = []
+                for u in caregivers:
+                    if u.latitude is not None and u.longitude is not None:
+                        try:
+                            d = self.haversine_m(plat, plng, float(u.latitude), float(u.longitude))
+                            u._distance_meters = d
+                            filtered.append(u)
+                        except Exception:
+                            pass
+                # apply max distance if given
+                try:
+                    if max_distance is not None:
+                        md = float(max_distance)
+                        filtered = [u for u in filtered if getattr(u, '_distance_meters', 0) <= md]
+                except ValueError:
+                    pass
+                # sort by distance
+                filtered.sort(key=lambda x: getattr(x, '_distance_meters', float('inf')))
+                caregivers = filtered
+
+        serializer = self.get_serializer(caregivers, many=True)
+        return Response(serializer.data)
+
+
+class MeLocationView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def patch(self, request):
+        """Update current user's geolocation (latitude/longitude)."""
+        from django.utils import timezone
+        lat = request.data.get('latitude')
+        lng = request.data.get('longitude')
+        if lat is None or lng is None:
+            return Response({'detail': 'latitude and longitude are required'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            request.user.latitude = float(lat)
+            request.user.longitude = float(lng)
+            request.user.location_updated_at = timezone.now()
+            request.user.save(update_fields=['latitude', 'longitude', 'location_updated_at'])
+            return Response({'detail': 'Location updated'})
+        except Exception as e:
+            return Response({'detail': f'Invalid coordinates: {e}'}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class ScopedRateThrottle(throttling.SimpleRateThrottle):

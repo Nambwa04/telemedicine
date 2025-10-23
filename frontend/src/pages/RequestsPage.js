@@ -101,7 +101,7 @@ const RequestsPage = () => {
                                     <th>Family</th>
                                     <th>Service</th>
                                     <th>Duration</th>
-                                    <th>Rate</th>
+                                    <th>Rate (Ksh)</th>
                                     <th>Status</th>
                                     <th style={{ width: '260px' }}>Actions</th>
                                 </tr>
@@ -112,7 +112,7 @@ const RequestsPage = () => {
                                         <td className="fw-semibold">{req.family} {req.urgent && <span className="badge badge-soft-danger ms-1">Urgent</span>}</td>
                                         <td>{req.service}</td>
                                         <td>{req.duration}</td>
-                                        <td>${req.rate}/{req.unit}</td>
+                                        <td>Ksh {req.rate}/{req.unit}</td>
                                         <td>{(() => { const meta = getStatusMeta('request', req.status); return <span className={`badge ${meta.badgeClass}`}>{meta.label}</span>; })()}</td>
                                         <td className="quick-actions">
                                             {req.status === 'new' && isCaregiver && (

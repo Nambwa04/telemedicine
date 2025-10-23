@@ -9,6 +9,7 @@ from .views import (
     AdminAnalyticsView, AdminAppointmentListView, dashboard_stats, DoctorUpdatePatientView,
     GoogleAuthView
 )
+from .views import MeLocationView
 
 urlpatterns = [
     path('register/', RegisterView.as_view(), name='register'),
@@ -34,6 +35,7 @@ urlpatterns = [
     path('dashboard-stats/', dashboard_stats, name='dashboard-stats'),
     # Other endpoints
     path('me/', MeView.as_view(), name='me'),
+    path('me/location/', MeLocationView.as_view(), name='me-location'),
     path('patients/', PatientListView.as_view(), name='patients'),
     path('doctors/', DoctorListView.as_view(), name='doctors'),
     path('caregivers/', CaregiverListView.as_view(), name='caregivers'),

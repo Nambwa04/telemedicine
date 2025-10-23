@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Button, Table, Badge, ListGroup, Modal, Form } from 'react-bootstrap';
 import QuickActionTile from '../Common/QuickActionTile';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -6,8 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 // Patient list removed; caregivers should only see clients they serve
 import { listAppointments } from '../../services/appointmentService';
-import { listFollowUps } from '../../services/prescriptionService';
-import { listCareRequests, acceptCareRequest, declineCareRequest } from '../../services/caregiverService';
+import { listCareRequests, acceptCareRequest, declineCareRequest, updateMyLocation } from '../../services/caregiverService';
 
 const CaregiverDashboard = () => {
     const { user } = useAuth();
@@ -55,6 +54,23 @@ const CaregiverDashboard = () => {
         return () => { mounted = false; };
     }, []);
 
+    // Auto-report caregiver location once on mount
+    useEffect(() => {
+        if (!user || user.role !== 'caregiver') return;
+        if (!('geolocation' in navigator)) return;
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                const { latitude, longitude } = pos.coords;
+                updateMyLocation(latitude, longitude);
+            },
+            (err) => {
+                // silently ignore
+                console.debug('Geolocation error:', err?.message || err);
+            },
+            { enableHighAccuracy: true, maximumAge: 60000, timeout: 8000 }
+        );
+    }, [user]);
+
     // Handler for accepting a care request
     const handleAcceptRequest = async (requestId) => {
         try {
@@ -99,16 +115,6 @@ const CaregiverDashboard = () => {
         }
     };
 
-    // Follow-ups pending count
-    const [pendingFollowUps, setPendingFollowUps] = useState(0);
-    const loadFollowUpsCount = useCallback(async () => {
-        try {
-            const fu = await listFollowUps();
-            const count = (Array.isArray(fu) ? fu : []).filter(x => x.status === 'pending').length;
-            setPendingFollowUps(count);
-        } catch { }
-    }, []);
-    useEffect(() => { loadFollowUpsCount(); }, [loadFollowUpsCount]);
 
     // Placeholder for future backend messages integration
     const [recentMessages] = useState([]);
@@ -306,18 +312,18 @@ const CaregiverDashboard = () => {
                     </Card>
                 </Col>
 
-                {/* Recent Messages */}
+                {/* Recent Activities */}
                 <Col lg={4} className="mb-4">
                     <Card className="medical-card h-100">
                         <Card.Header className="fw-bold text-dark">
-                            <FontAwesomeIcon icon="comments" className="me-2" />
-                            Recent Messages
+                            <FontAwesomeIcon icon="history" className="me-2" />
+                            Recent Activities
                         </Card.Header>
                         <Card.Body>
-                            {messagesLoading && <div className="text-center py-4">Loading messages...</div>}
+                            {messagesLoading && <div className="text-center py-4">Loading activity...</div>}
                             {messagesError && <div className="text-danger py-2">{messagesError}</div>}
                             {!messagesLoading && !messagesError && recentMessages.length === 0 && (
-                                <div className="text-center py-4 text-muted">No messages found.</div>
+                                <div className="text-center py-4 text-muted">No recent activity.</div>
                             )}
                             {!messagesLoading && !messagesError && recentMessages.map((message) => (
                                 <div key={message.id} className="activity-tile d-flex align-items-start mb-3 p-3 rounded">
@@ -332,7 +338,7 @@ const CaregiverDashboard = () => {
                                 </div>
                             ))}
                             <Button variant="link" className="p-0 text-primary">
-                                View all messages
+                                View all activity
                                 <FontAwesomeIcon icon="arrow-right" className="ms-1" />
                             </Button>
                         </Card.Body>
@@ -367,7 +373,7 @@ const CaregiverDashboard = () => {
                                                     )}
                                                 </div>
                                                 <div className="small text-muted mb-1">{(request.services && request.services.join(', ')) || request.service || 'Service'} • {request.duration || 'Duration'}</div>
-                                                <div className="fw-medium">Rate: {request.hourlyRate ? `$${request.hourlyRate}/hour` : request.rate ? request.rate : '—'}</div>
+                                                <div className="fw-medium">Rate: {request.hourlyRate ? `Ksh ${request.hourlyRate}/hour` : request.rate ? request.rate : '—'}</div>
                                             </Col>
                                             <Col md={4} className="text-end">
                                                 <Button
@@ -422,15 +428,7 @@ const CaregiverDashboard = () => {
                                         onClick={handleOpenAvailability}
                                     />
                                 </div>
-                                <div className="col-12">
-                                    <QuickActionTile
-                                        icon="flag"
-                                        label="Follow-Ups"
-                                        accent="blue-theme"
-                                        count={pendingFollowUps}
-                                        onClick={() => navigate('/follow-ups')}
-                                    />
-                                </div>
+                                {/* Follow-ups tile removed */}
                             </div>
                         </Card.Body>
                     </Card>

@@ -5,6 +5,48 @@ import { ZegoUIKitPrebuilt } from '@zegocloud/zego-uikit-prebuilt';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
+// Error boundary to catch SDK errors
+class VideoCallErrorBoundary extends React.Component {
+    constructor(props) {
+        super(props);
+        this.state = { hasError: false };
+    }
+
+    static getDerivedStateFromError(error) {
+        // Check if it's a Zego SDK error we want to ignore
+        if (error?.message?.includes('createSpan') ||
+            error?.message?.includes('createTextNode') ||
+            error?.message?.includes('ZegoUIKit')) {
+            console.warn('Caught and suppressed SDK error:', error.message);
+            return { hasError: false }; // Don't show error UI
+        }
+        return { hasError: true };
+    }
+
+    componentDidCatch(error, errorInfo) {
+        // Check if it's a Zego SDK error
+        if (error?.message?.includes('createSpan') ||
+            error?.message?.includes('createTextNode') ||
+            error?.message?.includes('ZegoUIKit')) {
+            console.warn('Suppressed SDK error in boundary:', error);
+            return;
+        }
+        console.error('Uncaught error:', error, errorInfo);
+    }
+
+    render() {
+        if (this.state.hasError) {
+            return (
+                <Alert variant="danger">
+                    <Alert.Heading>Something went wrong</Alert.Heading>
+                    <p>Please refresh the page and try again.</p>
+                </Alert>
+            );
+        }
+        return this.props.children;
+    }
+}
+
 const VideoConsultation = ({ appointmentId, userRole = 'patient' }) => {
     const navigate = useNavigate();
     const location = useLocation();
@@ -194,16 +236,26 @@ const VideoConsultation = ({ appointmentId, userRole = 'patient' }) => {
             joinRafRef.current = 0;
         }
 
-        // Hide the container immediately to prevent visual artifacts
-        if (zegoContainerRef.current) {
-            zegoContainerRef.current.style.display = 'none';
+        // Get reference to instance and container
+        const instance = zegoInstanceRef.current;
+        const container = zegoContainerRef.current;
+
+        // Null out refs immediately
+        zegoInstanceRef.current = null;
+        zegoContainerRef.current = null;
+
+        // Hide container immediately
+        if (container) {
+            container.style.display = 'none';
+            container.style.visibility = 'hidden';
         }
 
-        // Immediately null out ref before destroying to prevent SDK from using it
-        const instance = zegoInstanceRef.current;
-        zegoInstanceRef.current = null;
+        // Update state immediately to trigger UI change
+        setIsCallActive(false);
+        setCallStatus('ended');
+        setCallDuration(0);
 
-        // Navigate immediately to force unmount and prevent SDK async operations
+        // Navigate immediately - don't wait for SDK cleanup
         const params = new URLSearchParams();
         if (roomId) params.set('roomId', roomId);
         if (displayName) params.set('name', displayName);
@@ -211,19 +263,40 @@ const VideoConsultation = ({ appointmentId, userRole = 'patient' }) => {
         params.set('ts', String(Date.now()));
         const suffix = `?${params.toString()}`;
 
-        // Navigate first, then destroy in background
         navigate(`/video-call${suffix}`, { replace: true, state: { from: location.pathname, ended: true, duration: endDuration } });
 
-        // Destroy after navigation initiated
+        // Clean up SDK in background - errors will be caught by global handler
         setTimeout(() => {
-            try { instance?.destroy?.(); } catch (e) {
-                console.warn('SDK cleanup after navigation:', e);
+            try {
+                if (instance) {
+                    instance.leaveRoom?.();
+                }
+            } catch (e) {
+                // Silently ignore
             }
-        }, 0);
 
-        setIsCallActive(false);
-        setCallStatus('ended');
-        setCallDuration(0);
+            setTimeout(() => {
+                try {
+                    if (instance) {
+                        instance.destroy?.();
+                    }
+                } catch (e) {
+                    // Silently ignore
+                }
+
+                // Final container cleanup
+                setTimeout(() => {
+                    try {
+                        if (container && container.parentNode) {
+                            container.innerHTML = '';
+                            container.parentNode.removeChild(container);
+                        }
+                    } catch (e) {
+                        // Silently ignore
+                    }
+                }, 200);
+            }, 200);
+        }, 100);
     };
 
     // Ensure Zego UI reflows when the layout width changes (e.g., sidebar toggle)
@@ -305,26 +378,91 @@ const VideoConsultation = ({ appointmentId, userRole = 'patient' }) => {
     useEffect(() => {
         mountedRef.current = true;
 
-        // Global error handler to catch SDK errors after leave
+        // Monkey-patch document.createElement to intercept SDK DOM operations
+        const originalCreateElement = document.createElement.bind(document);
+        document.createElement = function (tagName, options) {
+            // If we're leaving, return a dummy element that won't throw
+            if (leavingRef.current && !mountedRef.current) {
+                const dummy = originalCreateElement('div');
+                // Add dummy methods to prevent errors
+                dummy.createSpan = () => dummy;
+                dummy.createTextNode = () => dummy;
+                return dummy;
+            }
+            return originalCreateElement(tagName, options);
+        };
+
+        // Global error handler to catch SDK errors
         const errorHandler = (event) => {
-            if (event.message?.includes('createSpan') || event.error?.message?.includes('createSpan')) {
+            const msg = event.message || event.error?.message || '';
+            const stack = event.error?.stack || '';
+
+            // Suppress SDK-related errors that occur during/after cleanup
+            if (msg.includes('createSpan') ||
+                msg.includes('createTextNode') ||
+                msg.includes('ZegoUIKit') ||
+                msg.includes('Cannot read properties of null') ||
+                stack.includes('zego') ||
+                stack.includes('Zego')) {
                 event.preventDefault();
                 event.stopPropagation();
-                console.warn('Suppressed SDK error after leave:', event.error || event.message);
+                event.stopImmediatePropagation();
+                console.warn('Suppressed SDK error:', msg);
                 return true;
             }
         };
+
+        // Capture phase to catch errors as early as possible
         window.addEventListener('error', errorHandler, true);
+        document.addEventListener('error', errorHandler, true);
+
+        // Also suppress unhandled Promise rejections
+        const rejectionHandler = (event) => {
+            const reason = event?.reason;
+            const msg = typeof reason === 'string' ? reason : (reason?.message || '');
+            const stack = reason?.stack || '';
+
+            if (msg.includes('createSpan') ||
+                msg.includes('createTextNode') ||
+                msg.includes('ZegoUIKit') ||
+                msg.includes('Cannot read properties of null') ||
+                stack.includes('zego') ||
+                stack.includes('Zego')) {
+                event.preventDefault();
+                event.stopPropagation();
+                event.stopImmediatePropagation();
+                console.warn('Suppressed SDK rejection:', msg);
+                return true;
+            }
+        };
+        window.addEventListener('unhandledrejection', rejectionHandler, true);
 
         return () => {
             mountedRef.current = false;
+
+            // Restore original createElement
+            document.createElement = originalCreateElement;
+
             window.removeEventListener('error', errorHandler, true);
+            document.removeEventListener('error', errorHandler, true);
+            window.removeEventListener('unhandledrejection', rejectionHandler, true);
+
             if (joinRafRef.current) {
                 try { cancelAnimationFrame(joinRafRef.current); } catch (_) { }
                 joinRafRef.current = 0;
             }
-            try { zegoInstanceRef.current?.destroy?.(); } catch (_) { }
+
+            // Clean up instance on unmount
+            const instance = zegoInstanceRef.current;
             zegoInstanceRef.current = null;
+
+            if (instance) {
+                // Async cleanup to avoid blocking unmount
+                setTimeout(() => {
+                    try { instance.leaveRoom?.(); } catch (_) { }
+                    try { instance.destroy?.(); } catch (_) { }
+                }, 0);
+            }
         };
     }, []);
 
@@ -430,20 +568,35 @@ const VideoConsultation = ({ appointmentId, userRole = 'patient' }) => {
                                         <div className="mt-2 text-light">Connecting…</div>
                                     </div>
                                 )}
-                                {callStatus === 'connected' && (
-                                    <div className="position-absolute top-0 end-0 m-3" style={{ zIndex: 1000 }}>
-                                        <Button
-                                            variant="danger"
-                                            size="sm"
-                                            onClick={handleLeaveCall}
-                                            title="Leave Call"
-                                        >
-                                            <FontAwesomeIcon icon="phone-slash" className="me-2" />
-                                            Leave Call
-                                        </Button>
-                                    </div>
-                                )}
-                                <div ref={zegoContainerRef} className="w-100 h-100" />
+                                {/* Top-right Leave Call button removed per request; rely on in-app controls */}
+                                <div
+                                    ref={(el) => {
+                                        if (el && !leavingRef.current) {
+                                            zegoContainerRef.current = el;
+
+                                            // Protect the element from modifications during cleanup
+                                            const originalAppendChild = el.appendChild.bind(el);
+                                            const originalRemoveChild = el.removeChild.bind(el);
+                                            const originalInsertBefore = el.insertBefore.bind(el);
+
+                                            el.appendChild = function (node) {
+                                                if (leavingRef.current) return node;
+                                                return originalAppendChild(node);
+                                            };
+
+                                            el.removeChild = function (node) {
+                                                if (leavingRef.current) return node;
+                                                return originalRemoveChild(node);
+                                            };
+
+                                            el.insertBefore = function (node, ref) {
+                                                if (leavingRef.current) return node;
+                                                return originalInsertBefore(node, ref);
+                                            };
+                                        }
+                                    }}
+                                    className="w-100 h-100"
+                                />
                             </Card.Body>
                         </Card>
                     </Col>
@@ -516,4 +669,11 @@ const VideoConsultation = ({ appointmentId, userRole = 'patient' }) => {
     );
 };
 
-export default VideoConsultation;
+// Wrap with error boundary
+const VideoConsultationWithErrorBoundary = (props) => (
+    <VideoCallErrorBoundary>
+        <VideoConsultation {...props} />
+    </VideoCallErrorBoundary>
+);
+
+export default VideoConsultationWithErrorBoundary;
