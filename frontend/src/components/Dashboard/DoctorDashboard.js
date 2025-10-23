@@ -316,11 +316,7 @@ const DoctorDashboard = () => {
     };
 
 
-    const priorityMeta = {
-        high: { label: 'High', badgeClass: 'badge-soft-danger' },
-        medium: { label: 'Medium', badgeClass: 'badge-soft-warning' },
-        low: { label: 'Low', badgeClass: 'badge-soft-success' }
-    };
+
 
     // Action handlers
     const handleViewPatient = (patient) => {
@@ -411,12 +407,7 @@ const DoctorDashboard = () => {
     const handleVideoAppointment = (appt) => {
         alert(`Start video call for ${appt.patient} at ${appt.time}`);
     };
-    const handleCompleteTask = (task) => {
-        alert(`Mark task as complete: ${task.task}`);
-    };
-    const handleViewAllTasks = () => {
-        alert('View all tasks (not implemented)');
-    };
+
     const handleViewAllPatients = () => {
         if (navigate) navigate('/patients');
         else alert('View all patients');
@@ -497,7 +488,8 @@ const DoctorDashboard = () => {
                 setAddPatientSuccess(null);
                 break;
             case 'Consult':
-                alert('Start a new consult');
+                if (navigate) navigate('/video-calls');
+                else window.location.assign('/video-calls');
                 break;
             case 'Prescription':
                 setShowPrescription(true);

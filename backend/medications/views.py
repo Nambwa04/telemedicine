@@ -7,6 +7,10 @@ from .serializers import MedicationSerializer, MedicationLogSerializer, Complian
 from django.utils import timezone
 from django.db.models import Prefetch
 from .utils import compute_noncompliance_risk, next_followup_time, evaluate_and_create_followups_for_medications
+from appointments.models import Appointment
+from django.contrib.auth import get_user_model
+from datetime import datetime
+import re
 
 class IsCaregiverOrPatientOrDoctor(permissions.BasePermission):
     def has_permission(self, request, view):
@@ -204,8 +208,41 @@ class MedicationViewSet(viewsets.ModelViewSet):
         medication = self.get_object()
         reason = request.data.get('reason', 'high_risk')
         notes = request.data.get('notes', '')
+        # Accept both snake_case and camelCase for client flexibility
+        scheduled_at = request.data.get('scheduled_at') or request.data.get('scheduledAt')  # Optional ISO datetime
+        date_str = request.data.get('date')  # Optional YYYY-MM-DD
+        time_str = request.data.get('time')  # Optional HH:MM
+        doctor_id = request.data.get('doctor_id')
         score = compute_noncompliance_risk(medication)
-        due = next_followup_time(score)
+        # Determine due time
+        due = None
+        if scheduled_at:
+            try:
+                # Normalize times like HH:MM by appending seconds, if needed
+                if re.match(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$', scheduled_at):
+                    scheduled_at = scheduled_at + ':00'
+                # Replace space with T if client sent 'YYYY-MM-DD HH:MM'
+                if ' ' in scheduled_at and 'T' not in scheduled_at:
+                    scheduled_at = scheduled_at.replace(' ', 'T')
+                due = datetime.fromisoformat(scheduled_at)
+            except Exception:
+                due = None
+        if due is None and date_str and time_str:
+            try:
+                t = time_str
+                if re.match(r'^\d{2}:\d{2}$', t):
+                    t = t + ':00'
+                due = datetime.fromisoformat(f"{date_str}T{t}")
+            except Exception:
+                due = None
+        if due is None:
+            due = next_followup_time(score)
+        # Ensure timezone-aware datetime if project uses timezones
+        try:
+            if timezone.is_naive(due):
+                due = timezone.make_aware(due, timezone.get_current_timezone())
+        except Exception:
+            pass
         follow = ComplianceFollowUp.objects.create(
             patient=medication.patient,
             medication=medication,
@@ -216,6 +253,36 @@ class MedicationViewSet(viewsets.ModelViewSet):
             created_by=request.user,
             risk_score_snapshot=score,
         )
+        # Attempt to create a corresponding Appointment so it appears as a scheduled meeting
+        try:
+            Doctor = get_user_model()
+            doctor = None
+            if doctor_id:
+                try:
+                    doctor = Doctor.objects.get(id=doctor_id, role='doctor')
+                except Doctor.DoesNotExist:
+                    doctor = None
+            if doctor is None and getattr(request.user, 'role', None) == 'doctor':
+                doctor = request.user
+            if doctor is None:
+                # Use patient's assigned doctor if available
+                doctor = getattr(medication.patient, 'doctor', None)
+
+            if doctor is not None:
+                appt = Appointment.objects.create(
+                    patient=medication.patient,
+                    doctor=doctor,
+                    date=due.date(),
+                    time=due.time().replace(microsecond=0),
+                    type='Follow-up',
+                    notes=(notes or f"Follow-up for {medication.name} ({reason})"),
+                    status='scheduled'
+                )
+                follow.appointment = appt
+                follow.save(update_fields=['appointment'])
+        except Exception:
+            # If anything fails, we still return the follow-up
+            pass
         return Response(ComplianceFollowUpSerializer(follow).data, status=status.HTTP_201_CREATED)
 
 
@@ -234,7 +301,66 @@ class ComplianceFollowUpViewSet(viewsets.ModelViewSet):
         return qs.none()
 
     def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
+        # Save follow-up first
+        instance = serializer.save(created_by=self.request.user)
+        # Optionally create an appointment if inputs provided or due_at present
+        data = self.request.data
+        scheduled_at = data.get('scheduled_at') or data.get('scheduledAt')
+        date_str = data.get('date')
+        time_str = data.get('time')
+        doctor_id = data.get('doctor_id')
+
+        due = instance.due_at
+        if scheduled_at:
+            try:
+                if re.match(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$', scheduled_at):
+                    scheduled_at = scheduled_at + ':00'
+                if ' ' in scheduled_at and 'T' not in scheduled_at:
+                    scheduled_at = scheduled_at.replace(' ', 'T')
+                due = datetime.fromisoformat(scheduled_at)
+            except Exception:
+                pass
+        elif date_str and time_str:
+            try:
+                t = time_str
+                if re.match(r'^\d{2}:\d{2}$', t):
+                    t = t + ':00'
+                due = datetime.fromisoformat(f"{date_str}T{t}")
+            except Exception:
+                pass
+        try:
+            if due and timezone.is_naive(due):
+                due = timezone.make_aware(due, timezone.get_current_timezone())
+        except Exception:
+            pass
+
+        try:
+            Doctor = get_user_model()
+            doctor = None
+            if doctor_id:
+                try:
+                    doctor = Doctor.objects.get(id=doctor_id, role='doctor')
+                except Doctor.DoesNotExist:
+                    doctor = None
+            if doctor is None and getattr(self.request.user, 'role', None) == 'doctor':
+                doctor = self.request.user
+            if doctor is None:
+                doctor = getattr(instance.patient, 'doctor', None)
+
+            if doctor is not None and due is not None and instance.appointment_id is None:
+                appt = Appointment.objects.create(
+                    patient=instance.patient,
+                    doctor=doctor,
+                    date=due.date(),
+                    time=due.time().replace(microsecond=0),
+                    type='Follow-up',
+                    notes=(instance.notes or f"Follow-up ({instance.get_reason_display()})"),
+                    status='scheduled'
+                )
+                instance.appointment = appt
+                instance.save(update_fields=['appointment'])
+        except Exception:
+            pass
 
     @action(detail=True, methods=['post'], url_path='complete')
     def complete(self, request, pk=None):

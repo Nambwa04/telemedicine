@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { Container, Row, Col, Card, Table, Button, Form, Spinner, Alert, Modal, InputGroup } from 'react-bootstrap';
+import { Container, Row, Col, Card, Table, Button, Form, Spinner, Alert, Modal, InputGroup, ButtonGroup, Badge } from 'react-bootstrap';
 import { useAuth } from '../context/AuthContext';
 import { listAppointments, createAppointment, updateAppointment, cancelAppointment, deleteAppointment } from '../services/appointmentService';
-import { fetchPatientList, fetchDoctorList } from '../services/healthService';
+import { fetchPatientList, fetchDoctorList, fetchDashboardStats } from '../services/healthService';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { useNavigate } from 'react-router-dom';
 import { getStatusMeta } from '../utils/statusStyles';
+import MonthCalendar from '../components/Calendar/MonthCalendar';
 
 // Centralized status metadata now managed in utils/statusStyles
 
@@ -34,6 +35,10 @@ const AppointmentsPage = () => {
     });
 
     const canManage = user && (user.role === 'doctor' || user.role === 'caregiver');
+    const [viewMode, setViewMode] = useState('calendar'); // 'calendar' | 'list'
+    const [monthDate, setMonthDate] = useState(() => new Date());
+    const [selectedDate, setSelectedDate] = useState('');
+    const [stats, setStats] = useState(null);
 
     async function load(targetPage = 1) {
         try {
@@ -63,6 +68,13 @@ const AppointmentsPage = () => {
         load(); // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    useEffect(() => {
+        // Load dashboard stats for doctors to enrich UI
+        if (user?.role === 'doctor') {
+            fetchDashboardStats().then(setStats).catch(() => setStats(null));
+        }
+    }, [user?.role]);
+
     const filtered = useMemo(() => {
         return appointments.filter(a => {
             if (dateFilter && a.date !== dateFilter) return false;
@@ -77,6 +89,27 @@ const AppointmentsPage = () => {
             return true;
         });
     }, [appointments, filterText, dateFilter]);
+
+    // Build eventsByDate for the current month view
+    const eventsByDate = useMemo(() => {
+        const map = {};
+        const month = monthDate.getMonth();
+        const year = monthDate.getFullYear();
+        appointments.forEach(a => {
+            // Only include in current month grid to avoid clutter
+            const [y, m] = a.date.split('-').map(Number);
+            if (y === year && (m - 1) === month) {
+                map[a.date] = (map[a.date] || 0) + 1;
+            }
+        });
+        return map;
+    }, [appointments, monthDate]);
+
+    const appointmentsForSelected = useMemo(() => {
+        const target = selectedDate || dateFilter;
+        if (!target) return [];
+        return appointments.filter(a => a.date === target);
+    }, [appointments, selectedDate, dateFilter]);
 
     const resetForm = () => setForm({ date: '', time: '', patientId: '', doctorId: '', type: 'Consultation', notes: '' });
 
@@ -126,7 +159,20 @@ const AppointmentsPage = () => {
     return (
         <Container className="mt-4">
             <Row className="mb-3">
-                <Col><h3><FontAwesomeIcon icon="calendar" className="me-2" />Appointments</h3></Col>
+                <Col>
+                    <h3 className="d-flex align-items-center gap-2">
+                        <FontAwesomeIcon icon="calendar" className="text-primary" />
+                        Appointments
+                    </h3>
+                    {user?.role === 'doctor' && stats && (
+                        <div className="small text-muted mt-1 d-flex flex-wrap gap-3">
+                            <span><FontAwesomeIcon icon="clock" className="me-1 text-info" /> Today: <strong>{stats.todayAppointments}</strong></span>
+                            <span><FontAwesomeIcon icon="users" className="me-1 text-success" /> Patients: <strong>{stats.totalPatients}</strong></span>
+                            <span><FontAwesomeIcon icon="stethoscope" className="me-1 text-warning" /> In Progress: <strong>{stats.pendingConsutls || stats.pendingConsults}</strong></span>
+                            <span><FontAwesomeIcon icon="check-circle" className="me-1 text-secondary" /> Completed Today: <strong>{stats.completedToday}</strong></span>
+                        </div>
+                    )}
+                </Col>
                 <Col className="text-end">
                     {canManage && (
                         <Button onClick={openCreate} variant="primary">
@@ -155,71 +201,156 @@ const AppointmentsPage = () => {
                                 </InputGroup>
                             </Form.Group>
                         </Col>
+                        <Col md={4} className="text-end">
+                            <div className="d-inline-flex align-items-center gap-2">
+                                <ButtonGroup>
+                                    <Button size="sm" variant={viewMode === 'calendar' ? 'primary' : 'outline-primary'} onClick={() => setViewMode('calendar')}>
+                                        <FontAwesomeIcon icon="calendar" className="me-1" /> Calendar
+                                    </Button>
+                                    <Button size="sm" variant={viewMode === 'list' ? 'primary' : 'outline-primary'} onClick={() => setViewMode('list')}>
+                                        <FontAwesomeIcon icon="list" className="me-1" /> List
+                                    </Button>
+                                </ButtonGroup>
+                                <Button size="sm" variant="outline-secondary" onClick={() => load(page)}>
+                                    <FontAwesomeIcon icon="sync" className="me-1" /> Refresh
+                                </Button>
+                            </div>
+                        </Col>
                     </Row>
                 </Card.Body>
             </Card>
 
-            <Card>
-                <Card.Body>
-                    {loading && <div className="text-center py-4"><Spinner animation="border" /></div>}
-                    {error && <Alert variant="danger">{error}</Alert>}
-                    {!loading && !error && (
-                        <Table hover responsive className="align-middle">
-                            <thead>
-                                <tr>
-                                    <th>Date</th>
-                                    <th>Time</th>
-                                    <th>Patient</th>
-                                    <th>Type</th>
-                                    <th>Status</th>
-                                    <th style={{ width: '220px' }}>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filtered.map(appt => (
-                                    <tr key={appt.id} className={appt.status === 'cancelled' ? 'text-muted' : ''}>
-                                        <td>{appt.date}</td>
-                                        <td><strong>{appt.time}</strong></td>
-                                        <td>{appt.patientName}</td>
-                                        <td>{appt.type}</td>
-                                        <td>{(() => { const meta = getStatusMeta('appointment', appt.status); return <span className={`badge ${meta.badgeClass}`}>{meta.label}</span>; })()}</td>
-                                        <td className="quick-actions">
-                                            <button type="button" className="btn-icon me-1" onClick={() => viewDashboard(appt)} title="View Health">
-                                                <FontAwesomeIcon icon="heartbeat" />
-                                            </button>
-                                            {appt.status === 'scheduled' && canManage && (
-                                                <button type="button" className="btn-icon me-1" onClick={() => changeStatus(appt, 'in-progress')} title="Start">
-                                                    <FontAwesomeIcon icon="play" />
-                                                </button>
-                                            )}
-                                            {appt.status === 'in-progress' && canManage && (
-                                                <button type="button" className="btn-icon me-1" onClick={() => changeStatus(appt, 'completed')} title="Complete">
-                                                    <FontAwesomeIcon icon="check" />
-                                                </button>
-                                            )}
-                                            {appt.status !== 'cancelled' && appt.status !== 'completed' && canManage && (
-                                                <button type="button" className="btn-icon me-1" onClick={() => cancel(appt)} title="Cancel">
-                                                    <FontAwesomeIcon icon="ban" />
-                                                </button>
-                                            )}
-                                            {canManage && (
-                                                <button type="button" className="btn-icon" onClick={() => remove(appt)} title="Delete">
-                                                    <FontAwesomeIcon icon="trash" />
-                                                </button>
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
-                                {filtered.length === 0 && (
-                                    <tr>
-                                        <td colSpan={6} className="text-center py-4 text-muted">No appointments match your filters.</td>
-                                    </tr>
+            {viewMode === 'calendar' ? (
+                <Row>
+                    <Col lg={8} className="mb-3">
+                        <MonthCalendar
+                            monthDate={monthDate}
+                            eventsByDate={eventsByDate}
+                            onSelectDate={(d) => { setSelectedDate(d); setDateFilter(d); }}
+                            onPrev={() => setMonthDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))}
+                            onNext={() => setMonthDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))}
+                            titlePrefix={user?.role === 'doctor' ? 'Your patients' : 'Appointments'}
+                        />
+                    </Col>
+                    <Col lg={4} className="mb-3">
+                        <Card className="h-100 shadow-sm">
+                            <Card.Header className="d-flex justify-content-between align-items-center">
+                                <span>
+                                    <FontAwesomeIcon icon="calendar-day" className="me-2 text-primary" />
+                                    {selectedDate || dateFilter || 'Pick a date'}
+                                </span>
+                                {selectedDate || dateFilter ? (
+                                    <Badge bg="secondary">{appointmentsForSelected.length}</Badge>
+                                ) : null}
+                            </Card.Header>
+                            <Card.Body>
+                                {loading && <div className="text-center py-4"><Spinner animation="border" /></div>}
+                                {!loading && appointmentsForSelected.length === 0 && (
+                                    <div className="text-center text-muted">No appointments for the selected day.</div>
                                 )}
-                            </tbody>
-                        </Table>
-                    )}
-                </Card.Body>
-            </Card>
+                                {!loading && appointmentsForSelected.length > 0 && (
+                                    <div className="d-flex flex-column gap-2">
+                                        {appointmentsForSelected.map(appt => (
+                                            <Card key={appt.id} className="border-0 shadow-sm">
+                                                <Card.Body className="py-2">
+                                                    <div className="d-flex justify-content-between align-items-center">
+                                                        <div>
+                                                            <div className="fw-semibold">{appt.time} · {appt.type}</div>
+                                                            <div className="small text-muted">{appt.patientName}</div>
+                                                        </div>
+                                                        <div>
+                                                            <span className={`badge ${getStatusMeta('appointment', appt.status).badgeClass}`}>
+                                                                {getStatusMeta('appointment', appt.status).label}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="mt-2 d-flex gap-2">
+                                                        <Button size="sm" variant="outline-primary" onClick={() => viewDashboard(appt)}>
+                                                            <FontAwesomeIcon icon="heartbeat" className="me-1" /> View
+                                                        </Button>
+                                                        {appt.status === 'scheduled' && canManage && (
+                                                            <Button size="sm" variant="outline-success" onClick={() => changeStatus(appt, 'in-progress')}>
+                                                                <FontAwesomeIcon icon="play" className="me-1" /> Start
+                                                            </Button>
+                                                        )}
+                                                        {appt.status === 'in-progress' && canManage && (
+                                                            <Button size="sm" variant="outline-success" onClick={() => changeStatus(appt, 'completed')}>
+                                                                <FontAwesomeIcon icon="check" className="me-1" /> Complete
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                </Card.Body>
+                                            </Card>
+                                        ))}
+                                    </div>
+                                )}
+                            </Card.Body>
+                        </Card>
+                    </Col>
+                </Row>
+            ) : (
+                <Card>
+                    <Card.Body>
+                        {loading && <div className="text-center py-4"><Spinner animation="border" /></div>}
+                        {error && <Alert variant="danger">{error}</Alert>}
+                        {!loading && !error && (
+                            <Table hover responsive className="align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Time</th>
+                                        <th>Patient</th>
+                                        <th>Type</th>
+                                        <th>Status</th>
+                                        <th style={{ width: '220px' }}>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {filtered.map(appt => (
+                                        <tr key={appt.id} className={appt.status === 'cancelled' ? 'text-muted' : ''}>
+                                            <td>{appt.date}</td>
+                                            <td><strong>{appt.time}</strong></td>
+                                            <td>{appt.patientName}</td>
+                                            <td>{appt.type}</td>
+                                            <td>{(() => { const meta = getStatusMeta('appointment', appt.status); return <span className={`badge ${meta.badgeClass}`}>{meta.label}</span>; })()}</td>
+                                            <td className="quick-actions">
+                                                <button type="button" className="btn-icon me-1" onClick={() => viewDashboard(appt)} title="View Health">
+                                                    <FontAwesomeIcon icon="heartbeat" />
+                                                </button>
+                                                {appt.status === 'scheduled' && canManage && (
+                                                    <button type="button" className="btn-icon me-1" onClick={() => changeStatus(appt, 'in-progress')} title="Start">
+                                                        <FontAwesomeIcon icon="play" />
+                                                    </button>
+                                                )}
+                                                {appt.status === 'in-progress' && canManage && (
+                                                    <button type="button" className="btn-icon me-1" onClick={() => changeStatus(appt, 'completed')} title="Complete">
+                                                        <FontAwesomeIcon icon="check" />
+                                                    </button>
+                                                )}
+                                                {appt.status !== 'cancelled' && appt.status !== 'completed' && canManage && (
+                                                    <button type="button" className="btn-icon me-1" onClick={() => cancel(appt)} title="Cancel">
+                                                        <FontAwesomeIcon icon="ban" />
+                                                    </button>
+                                                )}
+                                                {canManage && (
+                                                    <button type="button" className="btn-icon" onClick={() => remove(appt)} title="Delete">
+                                                        <FontAwesomeIcon icon="trash" />
+                                                    </button>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {filtered.length === 0 && (
+                                        <tr>
+                                            <td colSpan={6} className="text-center py-4 text-muted">No appointments match your filters.</td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </Table>
+                        )}
+                    </Card.Body>
+                </Card>
+            )}
 
             <div className="d-flex justify-content-between align-items-center mt-3">
                 <div className="text-muted small">Total: {pageMeta.count}</div>

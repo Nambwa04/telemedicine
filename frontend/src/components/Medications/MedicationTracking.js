@@ -31,6 +31,10 @@ const MedicationTracking = ({ userRole = 'patient' }) => {
     const [fuReason, setFuReason] = useState('high_risk');
     const [fuNotes, setFuNotes] = useState('');
     const [fuSubmitting, setFuSubmitting] = useState(false);
+    const [fuDate, setFuDate] = useState(() => {
+        const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10);
+    });
+    const [fuTime, setFuTime] = useState('10:00');
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -53,7 +57,7 @@ const MedicationTracking = ({ userRole = 'patient' }) => {
         } finally {
             setLoading(false);
         }
-    }, [user?.id, role, selectedPatient?.id]);
+    }, [user?.id, role, selectedPatient]);
 
     useEffect(() => {
         fetchData();
@@ -82,6 +86,9 @@ const MedicationTracking = ({ userRole = 'patient' }) => {
         setFuMedication(med);
         setFuReason(suggestReason(med));
         setFuNotes('');
+        const d = new Date(); d.setDate(d.getDate() + 1);
+        setFuDate(d.toISOString().slice(0, 10));
+        setFuTime('10:00');
         setShowCreateFU(true);
     };
 
@@ -89,7 +96,11 @@ const MedicationTracking = ({ userRole = 'patient' }) => {
         if (!fuMedication) return;
         try {
             setFuSubmitting(true);
-            await createMedicationFollowUp(fuMedication.id, { reason: fuReason, notes: fuNotes });
+            const scheduled_at = (fuDate && fuTime) ? `${fuDate}T${fuTime}` : undefined;
+            await createMedicationFollowUp(
+                fuMedication.id,
+                { reason: fuReason, notes: fuNotes, scheduled_at }
+            );
             setShowCreateFU(false);
             setFuMedication(null);
             setFuNotes('');
@@ -617,6 +628,20 @@ const MedicationTracking = ({ userRole = 'patient' }) => {
                         <>
                             <h5 className="mb-2">{fuMedication.name}</h5>
                             <p className="text-muted mb-3">{fuMedication.dosage} · {fuMedication.frequency}</p>
+                            <Row className="g-2">
+                                <Col md={6}>
+                                    <Form.Group className="mb-3">
+                                        <Form.Label>Date</Form.Label>
+                                        <Form.Control type="date" value={fuDate} onChange={e => setFuDate(e.target.value)} />
+                                    </Form.Group>
+                                </Col>
+                                <Col md={6}>
+                                    <Form.Group className="mb-3">
+                                        <Form.Label>Time</Form.Label>
+                                        <Form.Control type="time" value={fuTime} onChange={e => setFuTime(e.target.value)} />
+                                    </Form.Group>
+                                </Col>
+                            </Row>
                             <Form.Group className="mb-3">
                                 <Form.Label>Reason</Form.Label>
                                 <Form.Select value={fuReason} onChange={(e) => setFuReason(e.target.value)}>

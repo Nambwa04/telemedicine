@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Container, Row, Col, Card, Table, Button, Badge, Alert, Form } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { useAuth } from '../context/AuthContext';
+// import { useAuth } from '../context/AuthContext';
 import { listFollowUps, completeFollowUp, cancelFollowUp, listAtRiskMedications, createMedicationFollowUp } from '../services/prescriptionService';
 
 const FollowUpsPage = () => {
-    const { user } = useAuth();
+    // const { user } = useAuth();
     const [followUps, setFollowUps] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -40,7 +40,18 @@ const FollowUpsPage = () => {
         try { await cancelFollowUp(fu.id); await loadData(); } catch (e) { alert(e.message || 'Failed to cancel'); }
     };
     const onCreateForMed = async (m) => {
-        try { await createMedicationFollowUp(m.id, { reason: m.risk_level === 'high' ? 'high_risk' : 'low_compliance' }); await loadData(); } catch (e) { alert(e.message || 'Failed to create follow-up'); }
+        try {
+            // Default schedule: tomorrow at 10:00
+            const d = new Date(); d.setDate(d.getDate() + 1);
+            const date = d.toISOString().slice(0, 10);
+            const time = '10:00';
+            const scheduled_at = `${date}T${time}`;
+            await createMedicationFollowUp(m.id, {
+                reason: m.risk_level === 'high' ? 'high_risk' : 'low_compliance',
+                scheduled_at
+            });
+            await loadData();
+        } catch (e) { alert(e.message || 'Failed to create follow-up'); }
     };
 
     return (

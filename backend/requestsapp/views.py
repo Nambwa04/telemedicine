@@ -152,16 +152,24 @@ class DoctorRequestViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         qs = super().get_queryset()
-        
+
         # Patients see only their own requests
         if user.role == 'patient':
-            return qs.filter(patient=user)
-        
+            qs = qs.filter(patient=user)
         # Doctors see requests assigned to them or new unassigned requests
-        if user.role == 'doctor':
-            return qs.filter(models.Q(doctor=user) | models.Q(status='new'))
-        
-        # Admins see all
+        elif user.role == 'doctor':
+            qs = qs.filter(models.Q(doctor=user) | models.Q(status='new'))
+        # Admins see all by default
+
+        # Optional filters
+        status_param = self.request.query_params.get('status')
+        if status_param and status_param != 'all':
+            qs = qs.filter(status=status_param)
+
+        ordering = self.request.query_params.get('ordering')
+        if ordering:
+            qs = qs.order_by(ordering)
+
         return qs
     
     def perform_create(self, serializer):

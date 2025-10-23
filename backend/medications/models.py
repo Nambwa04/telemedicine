@@ -65,6 +65,14 @@ class ComplianceFollowUp(models.Model):
 
     patient = models.ForeignKey(User, on_delete=models.CASCADE, related_name='compliance_followups')
     medication = models.ForeignKey(Medication, on_delete=models.CASCADE, related_name='followups', null=True, blank=True)
+    # Optional link to a scheduled meeting/appointment created for this follow-up
+    appointment = models.ForeignKey(
+        'appointments.Appointment',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='followups'
+    )
     due_at = models.DateTimeField(default=timezone.now)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
     reason = models.CharField(max_length=50, choices=Reason.choices)

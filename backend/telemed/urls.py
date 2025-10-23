@@ -47,6 +47,7 @@ urlpatterns = [
     path('api/requests/', include('requestsapp.urls')),
     path('api/medications/', include('medications.urls')),
     path('api/timesheet/', include('timesheet.urls')),
+    path('api/payments/', include('payments.urls')),
     # Optional: catch-all for client-side routing (uncomment if you want Django to serve SPA for any non-API path)
     # re_path(r'^(?!api/|admin/).*$' , root_view),
 ]

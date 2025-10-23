@@ -14,6 +14,10 @@
   display: flex;
   flex-direction: column;
   z-index: 1040;
+  /* Make entire sidebar scrollable when content exceeds viewport */
+  overflow-y: auto;
+  max-height: 100vh;
+  -webkit-overflow-scrolling: touch;
 }
 /* Collapsed state */
 .app-sidebar.collapsed {

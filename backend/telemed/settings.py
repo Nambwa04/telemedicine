@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     'requestsapp',
     'medications',
     'timesheet',
+    'payments',
 ]
 
 MIDDLEWARE = [
@@ -157,3 +158,16 @@ else:
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'TeleMed+ <noreply@telemedplus.com>')
+
+# --- Safaricom Daraja / M-PESA configuration ---
+# Note: set these in .env; sensible defaults for local dev
+DARAJA_ENV = os.environ.get('DARAJA_ENV', 'sandbox').lower()  # 'sandbox' or 'production'
+DARAJA_CONSUMER_KEY = os.environ.get('DARAJA_CONSUMER_KEY', '')
+DARAJA_CONSUMER_SECRET = os.environ.get('DARAJA_CONSUMER_SECRET', '')
+DARAJA_B2C_SHORTCODE = os.environ.get('DARAJA_B2C_SHORTCODE', '')
+DARAJA_INITIATOR_NAME = os.environ.get('DARAJA_INITIATOR_NAME', '')
+DARAJA_INITIATOR_PASSWORD = os.environ.get('DARAJA_INITIATOR_PASSWORD', '')
+# Path to Safaricom production public certificate (.cer) for encrypting the InitiatorPassword
+DARAJA_CERT_PATH = os.environ.get('DARAJA_CERT_PATH', str(BASE_DIR / 'safaricom_prod.cer'))
+# Public base URL for callbacks: e.g. https://api.mytelemed.co.ke
+DARAJA_CALLBACK_BASE_URL = os.environ.get('DARAJA_CALLBACK_BASE_URL', 'https://example.com')

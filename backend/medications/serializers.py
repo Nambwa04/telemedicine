@@ -91,13 +91,18 @@ class MedicationSerializer(serializers.ModelSerializer):
 class ComplianceFollowUpSerializer(serializers.ModelSerializer):
     patient_email = serializers.EmailField(source='patient.email', read_only=True)
     medication_name = serializers.CharField(source='medication.name', read_only=True)
+    appointment_id = serializers.IntegerField(source='appointment.id', read_only=True)
+    appointment_date = serializers.DateField(source='appointment.date', read_only=True)
+    appointment_time = serializers.TimeField(source='appointment.time', read_only=True)
+    appointment_status = serializers.CharField(source='appointment.status', read_only=True)
 
     class Meta:
         model = ComplianceFollowUp
         fields = [
             'id', 'patient', 'patient_email', 'medication', 'medication_name',
             'due_at', 'status', 'reason', 'notes', 'created_at', 'created_by',
-            'completed_at', 'risk_score_snapshot'
+            'completed_at', 'risk_score_snapshot',
+            'appointment_id', 'appointment_date', 'appointment_time', 'appointment_status'
         ]
         read_only_fields = ['id', 'created_at', 'created_by', 'risk_score_snapshot']
 

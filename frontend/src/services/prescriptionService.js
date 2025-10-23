@@ -87,9 +87,18 @@ export async function listAtRiskMedications() {
     return [];
 }
 
-export async function createMedicationFollowUp(medicationId, { reason = 'high_risk', notes = '' } = {}) {
+export async function createMedicationFollowUp(
+    medicationId,
+    { reason = 'high_risk', notes = '', scheduled_at, date, time, doctor_id } = {}
+) {
     // POST /medications/{id}/create-followup/
-    return api.post(`/medications/${medicationId}/create-followup/`, { reason, notes });
+    const body = { reason, notes };
+    if (scheduled_at) body.scheduled_at = scheduled_at;
+    if (date && time) {
+        body.date = date; body.time = time;
+    }
+    if (doctor_id) body.doctor_id = doctor_id;
+    return api.post(`/medications/${medicationId}/create-followup/`, body);
 }
 
 export async function scanAndCreateFollowUps() {

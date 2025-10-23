@@ -78,7 +78,8 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         if user.role == 'patient':
             qs = qs.filter(patient=user)
         elif user.role == 'doctor':
-            qs = qs.filter(doctor=user)
+            # Show only appointments for patients assigned to this doctor
+            qs = qs.filter(patient__doctor=user)
         date = self.request.query_params.get('date')
         if date:
             qs = qs.filter(date=date)

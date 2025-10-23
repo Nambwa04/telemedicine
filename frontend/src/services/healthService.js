@@ -92,3 +92,12 @@ export function mapTrendLabel(trend) {
         default: return { icon: 'question', color: 'secondary', text: 'Unknown' };
     }
 }
+
+// Dashboard stats for current user (doctor-focused metrics supported server-side)
+export async function fetchDashboardStats() {
+    try {
+        return await api.get('/accounts/dashboard-stats/');
+    } catch (e) {
+        return { todayAppointments: 0, totalPatients: 0, pendingConsults: 0, completedToday: 0 };
+    }
+}

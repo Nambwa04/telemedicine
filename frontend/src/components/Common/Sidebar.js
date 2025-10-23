@@ -36,6 +36,7 @@ const Sidebar = ({ mobileOpen = false, onMobileClose }) => {
             { to: '/appointments', icon: 'calendar-day', label: 'Appointments' },
             { to: '/video-call', icon: 'video', label: 'Video Call' },
             { to: '/medications', icon: 'pills', label: 'Medications' },
+            { to: '/follow-ups', icon: 'bell', label: 'Follow-Ups' },
             { to: '/doctors', icon: 'user-md', label: 'Find a Doctor' },
             { to: '/caregivers', icon: 'user-nurse', label: 'Caregivers' },
             { to: '/health-dashboard', icon: 'chart-line', label: 'Health' }
@@ -44,12 +45,14 @@ const Sidebar = ({ mobileOpen = false, onMobileClose }) => {
             { to: '/patients', icon: 'users', label: 'Patients' },
             { to: '/appointments', icon: 'calendar-day', label: 'Appointments' },
             { to: '/assignment-requests', icon: 'user-plus', label: 'Assignment Requests' },
+            { to: '/follow-ups', icon: 'bell', label: 'Follow-Ups' },
             { to: '/video-calls', icon: 'video', label: 'Video Calls' },
             { to: '/health-dashboard', icon: 'chart-line', label: 'Health' }
         ],
         caregiver: [
             { to: '/clients', icon: 'users', label: 'Clients' },
             { to: '/requests', icon: 'clipboard-list', label: 'Requests' },
+            { to: '/follow-ups', icon: 'bell', label: 'Follow-Ups' },
             { to: '/caregiver/timesheet', icon: 'clock', label: 'Timesheet' },
             { to: '/health-dashboard', icon: 'chart-line', label: 'Health' }
         ]
@@ -65,6 +68,12 @@ const Sidebar = ({ mobileOpen = false, onMobileClose }) => {
     const toggleCollapse = () => setCollapsed(c => !c);
 
     const mobileClass = mobileOpen ? ' open' : '';
+    // Build a robust display name and details for footer
+    const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ').trim();
+    const displayName = fullName || (typeof user.name === 'string' && user.name.trim()) || user.email || user.username || 'User';
+    const displayEmail = user.email || '';
+    const displayRole = (user.role || '').charAt(0).toUpperCase() + (user.role || '').slice(1);
+
     return (
         <aside className={"app-sidebar" + (collapsed ? ' collapsed' : '') + mobileClass} aria-label="Primary">
             <div className="sidebar-header">
@@ -103,7 +112,15 @@ const Sidebar = ({ mobileOpen = false, onMobileClose }) => {
                 </button>
             </nav>
             <div className="sidebar-footer small text-muted px-3 py-2">
-                <span className="nav-label">Signed in as<br /><strong>{user.name}</strong></span>
+                <div className="d-flex align-items-start gap-2">
+                    <span aria-hidden="true" className="mt-1"><FontAwesomeIcon icon="user-circle" /></span>
+                    <div>
+                        <div className="nav-label">Signed in as</div>
+                        <strong className="d-block">{displayName}</strong>
+                        {displayEmail && <span className="d-block" aria-label="Email">{displayEmail}</span>}
+                        {displayRole && <span className="d-block" aria-label="Role">Role: {displayRole}</span>}
+                    </div>
+                </div>
             </div>
         </aside>
     );
