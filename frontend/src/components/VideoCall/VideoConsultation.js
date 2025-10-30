@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Container, Row, Col, Card, Button, Alert, Badge, OverlayTrigger, Tooltip, Form, InputGroup, Spinner } from 'react-bootstrap';
+import { Container, Row, Col, Card, Button, Alert, OverlayTrigger, Tooltip, Form, InputGroup, Spinner } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { ZegoUIKitPrebuilt } from '@zegocloud/zego-uikit-prebuilt';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -57,6 +57,7 @@ const VideoConsultation = ({ appointmentId, userRole = 'patient' }) => {
     const [callDuration, setCallDuration] = useState(0);
     const [isLeaving, setIsLeaving] = useState(false);
     const callTimerRef = useRef(null);
+    const callStartTimeRef = useRef(null);
 
     // Zego container
     const zegoContainerRef = useRef(null);
@@ -89,13 +90,7 @@ const VideoConsultation = ({ appointmentId, userRole = 'patient' }) => {
             setDarkMode(true);
         }
     }, []);
-    const toggleDarkMode = () => {
-        setDarkMode((v) => {
-            const next = !v;
-            localStorage.setItem('telemed.video.dark', String(next));
-            return next;
-        });
-    };
+    // Dark mode toggle intentionally omitted from UI to keep the call screen simple
     // Pre-fill from URL if present
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -192,7 +187,7 @@ const VideoConsultation = ({ appointmentId, userRole = 'patient' }) => {
                         return;
                     }
                     zegoInstanceRef.current = zp;
-                    setCallStatus('connected');
+                    // keep status as connecting until SDK confirms join
                     zp.joinRoom({
                         container: containerEl,
                         sharedLinks: [
@@ -206,8 +201,22 @@ const VideoConsultation = ({ appointmentId, userRole = 'patient' }) => {
                         },
                         showPreJoinView: false,
                         showScreenSharingButton: true,
+                        onJoinRoom: () => {
+                            callStartTimeRef.current = Date.now();
+                            setCallStatus('connected');
+                            console.log('Joined room');
+                        },
                         onLeaveRoom: () => {
-                            handleLeaveCall();
+                            // Only treat as a real leave if the call was active for a bit
+                            const elapsed = (typeof callStartTimeRef !== 'undefined' && callStartTimeRef?.current)
+                                ? Date.now() - callStartTimeRef.current
+                                : 0;
+                            console.log('onLeaveRoom triggered, elapsed since join(ms):', elapsed);
+                            if (elapsed >= 3000) {
+                                handleLeaveCall();
+                            } else {
+                                console.log('Ignoring early onLeaveRoom event (likely during join)');
+                            }
                         }
                     });
                 } catch (e) {
@@ -471,6 +480,7 @@ const VideoConsultation = ({ appointmentId, userRole = 'patient' }) => {
             fluid
             ref={pageContainerRef}
             className={`video-consultation-container ${darkMode ? 'dark' : ''} p-0`}
+            style={{ paddingLeft: sidebarPadding }}
         >
 
             {/* Welcome / Pre-Join */}

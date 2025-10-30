@@ -63,7 +63,15 @@ const FollowUpsPage = () => {
     const handleConfirmCreate = async () => {
         if (!scheduleTargetMed) { setShowScheduleModal(false); return; }
         try {
-            const scheduled_at = `${scheduleDate}T${scheduleTime}`;
+            // Build an ISO-8601 string that preserves the user's local time with timezone offset
+            // so the backend stores the exact intended moment regardless of server timezone.
+            const local = new Date(`${scheduleDate}T${scheduleTime}:00`);
+            const pad = (n) => String(n).padStart(2, '0');
+            const offsetMin = -local.getTimezoneOffset(); // minutes east of UTC
+            const sign = offsetMin >= 0 ? '+' : '-';
+            const oh = pad(Math.floor(Math.abs(offsetMin) / 60));
+            const om = pad(Math.abs(offsetMin) % 60);
+            const scheduled_at = `${scheduleDate}T${scheduleTime}:00${sign}${oh}:${om}`;
             await createMedicationFollowUp(scheduleTargetMed.id, {
                 reason: scheduleTargetMed.risk_level === 'high' ? 'high_risk' : 'low_compliance',
                 scheduled_at

@@ -581,7 +581,7 @@ const AdminDashboard = () => {
                                     </Row>
 
                                     {/* Health Metrics */}
-                                    <Row>
+                                    {/* <Row>
                                         <Col md={12}>
                                             <Card>
                                                 <Card.Header><strong>Health Data Summary</strong></Card.Header>
@@ -595,7 +595,7 @@ const AdminDashboard = () => {
                                                 </Card.Body>
                                             </Card>
                                         </Col>
-                                    </Row>
+                                    </Row> */}
                                 </>
                             ) : (
                                 <Alert variant="info">No analytics data available</Alert>
