@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     'medications',
     'timesheet',
     'payments',
+    'rest_framework.authtoken',
 ]
 
 MIDDLEWARE = [
@@ -140,6 +141,10 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Media (uploads)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
 
 # Email Configuration
 # Load email settings from environment variables

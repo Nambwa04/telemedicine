@@ -10,6 +10,7 @@ from .views import (
     GoogleAuthView
 )
 from .views import MeLocationView
+from .views import AdminCaregiverVerifyView, AdminDoctorVerifyView, MeVerificationDocumentUploadView, AdminUserVerificationDocumentsView, AdminVerificationDocumentReviewView
 
 urlpatterns = [
     path('register/', RegisterView.as_view(), name='register'),
@@ -25,10 +26,17 @@ urlpatterns = [
     path('admin/patients/<int:pk>/delete/', AdminPatientDeleteView.as_view(), name='admin-patient-delete'),
     # Doctor patient management
     path('doctor/patients/<int:pk>/update/', DoctorUpdatePatientView.as_view(), name='doctor-patient-update'),
+    # Doctor verification
+    path('admin/doctors/<int:pk>/verify/', AdminDoctorVerifyView.as_view(), name='admin-doctor-verify'),
     # Caregiver endpoints
     path('admin/caregivers/create/', AdminCaregiverCreateView.as_view(), name='admin-caregiver-create'),
     path('admin/caregivers/<int:pk>/update/', AdminCaregiverUpdateView.as_view(), name='admin-caregiver-update'),
     path('admin/caregivers/<int:pk>/delete/', AdminCaregiverDeleteView.as_view(), name='admin-caregiver-delete'),
+    path('admin/caregivers/<int:pk>/verify/', AdminCaregiverVerifyView.as_view(), name='admin-caregiver-verify'),
+    # Verification documents
+    path('me/verification-documents/', MeVerificationDocumentUploadView.as_view(), name='me-verification-doc-upload'),
+    path('admin/users/<int:pk>/verification-documents/', AdminUserVerificationDocumentsView.as_view(), name='admin-user-verification-docs'),
+    path('admin/verification-documents/<int:pk>/review/', AdminVerificationDocumentReviewView.as_view(), name='admin-verification-doc-review'),
     # Analytics and monitoring
     path('admin/analytics/', AdminAnalyticsView.as_view(), name='admin-analytics'),
     path('admin/appointments/', AdminAppointmentListView.as_view(), name='admin-appointments'),

@@ -5,12 +5,13 @@ export function createApiClient(getAuth, API_BASE = process.env.REACT_APP_API_BA
     async function request(path, { method = 'GET', body, headers = {}, retry = true } = {}) {
         const auth = getAuth();
         const access = auth?.user?.access;
-        const finalHeaders = { 'Content-Type': 'application/json', ...headers };
+        const isFormData = (typeof FormData !== 'undefined') && body instanceof FormData;
+        const finalHeaders = isFormData ? { ...headers } : { 'Content-Type': 'application/json', ...headers };
         if (access) finalHeaders.Authorization = `Bearer ${access}`;
         const res = await fetch(`${API_BASE}${path}`, {
             method,
             headers: finalHeaders,
-            body: body ? JSON.stringify(body) : undefined
+            body: body ? (isFormData ? body : JSON.stringify(body)) : undefined
         });
         if (res.status === 401 && retry && auth?.refreshToken) {
             const newAccess = await auth.refreshToken();
@@ -33,6 +34,8 @@ export function createApiClient(getAuth, API_BASE = process.env.REACT_APP_API_BA
         post: (p, b) => request(p, { method: 'POST', body: b }),
         patch: (p, b) => request(p, { method: 'PATCH', body: b }),
         del: (p) => request(p, { method: 'DELETE' }),
+        // Alias for compatibility with existing services that call `delete`
+        delete: (p) => request(p, { method: 'DELETE' }),
     };
 }
 

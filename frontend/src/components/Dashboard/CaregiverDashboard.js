@@ -7,9 +7,10 @@ import { useNavigate } from 'react-router-dom';
 // Patient list removed; caregivers should only see clients they serve
 import { listAppointments } from '../../services/appointmentService';
 import { listCareRequests, acceptCareRequest, declineCareRequest, updateMyLocation } from '../../services/caregiverService';
+import { uploadMyVerificationDocument } from '../../services/verificationService';
 
 const CaregiverDashboard = () => {
-    const { user } = useAuth();
+    const { user, refreshUserProfile, updateUser } = useAuth();
 
     // Greeting based on time of day
     const getGreeting = () => {
@@ -210,6 +211,125 @@ const CaregiverDashboard = () => {
         setShowRateClient(false);
     };
 
+    // --- Profile summary: fetch latest profile (to get computed availability) ---
+    const [profileLoading, setProfileLoading] = useState(false);
+    const [profileError, setProfileError] = useState(null);
+    useEffect(() => {
+        let mounted = true;
+        const run = async () => {
+            if (!user) return;
+            setProfileLoading(true);
+            setProfileError(null);
+            try {
+                await refreshUserProfile();
+            } catch (e) {
+                if (mounted) setProfileError(e?.message || 'Failed to load profile');
+            } finally {
+                if (mounted) setProfileLoading(false);
+            }
+        };
+        run();
+        return () => { mounted = false; };
+    }, [user, refreshUserProfile]);
+
+    // Edit profile modal
+    const [showEditProfile, setShowEditProfile] = useState(false);
+    const [editSaving, setEditSaving] = useState(false);
+    const [editError, setEditError] = useState(null);
+    const [editFieldErrors, setEditFieldErrors] = useState({});
+    const [editForm, setEditForm] = useState({
+        first_name: user?.first_name || '',
+        last_name: user?.last_name || '',
+        phone: user?.phone || '',
+        experience_years: typeof user?.experience_years === 'number' ? user.experience_years : (user?.experience_years || 0),
+        specializations: Array.isArray(user?.specializations) ? user.specializations.join(', ') : '',
+        hourly_rate: user?.hourly_rate != null ? user.hourly_rate : '',
+        bio: user?.bio || ''
+    });
+
+    useEffect(() => {
+        // keep form in sync with user when it changes
+        setEditForm({
+            first_name: user?.first_name || '',
+            last_name: user?.last_name || '',
+            phone: user?.phone || '',
+            experience_years: typeof user?.experience_years === 'number' ? user.experience_years : (user?.experience_years || 0),
+            specializations: Array.isArray(user?.specializations) ? user.specializations.join(', ') : '',
+            hourly_rate: user?.hourly_rate != null ? user.hourly_rate : '',
+            bio: user?.bio || ''
+        });
+    }, [user?.first_name, user?.last_name, user?.phone, user?.experience_years, user?.specializations, user?.hourly_rate, user?.bio]);
+
+    const handleOpenEdit = () => setShowEditProfile(true);
+    const handleCloseEdit = () => { setShowEditProfile(false); setEditError(null); };
+    const handleSaveEdit = async () => {
+        try {
+            setEditSaving(true);
+            setEditError(null);
+            setEditFieldErrors({});
+            const payload = {
+                first_name: editForm.first_name?.trim() || '',
+                last_name: editForm.last_name?.trim() || '',
+                phone: editForm.phone?.trim() || '',
+                experience_years: Number(editForm.experience_years) || 0,
+                specializations: editForm.specializations
+                    ? editForm.specializations.split(',').map(s => s.trim()).filter(Boolean)
+                    : [],
+                hourly_rate: editForm.hourly_rate === '' ? 0 : Number(editForm.hourly_rate),
+                bio: editForm.bio?.toString() || ''
+            };
+            const res = await updateUser(payload);
+            if (!res?.success) {
+                if (res.fieldErrors) {
+                    setEditFieldErrors(res.fieldErrors);
+                }
+                throw new Error(res?.error || 'Update failed');
+            }
+            await refreshUserProfile();
+            setShowEditProfile(false);
+        } catch (e) {
+            setEditError(e?.message || 'Failed to save');
+        } finally {
+            setEditSaving(false);
+        }
+    };
+
+    const getFieldError = (field) => {
+        const val = editFieldErrors && editFieldErrors[field];
+        if (!val) return '';
+        if (Array.isArray(val)) return val.join(' ');
+        if (typeof val === 'string') return val;
+        try { return JSON.stringify(val); } catch { return String(val); }
+    };
+
+    const formatKsh = (value) => {
+        const n = Number(value);
+        if (Number.isNaN(n)) return 'Ksh —';
+        return `Ksh ${new Intl.NumberFormat('en-KE').format(Math.round(n))}`;
+    };
+
+    // Verification document upload
+    const [docUploading, setDocUploading] = useState(false);
+    const [docUploadError, setDocUploadError] = useState(null);
+    const [docFile, setDocFile] = useState(null);
+    const [docType, setDocType] = useState('');
+    const [docNote, setDocNote] = useState('');
+    const handleUploadDoc = async () => {
+        if (!docFile) { setDocUploadError('Please choose a file.'); return; }
+        setDocUploading(true);
+        setDocUploadError(null);
+        try {
+            await uploadMyVerificationDocument({ file: docFile, doc_type: docType, note: docNote });
+            await refreshUserProfile();
+            setDocFile(null); setDocType(''); setDocNote('');
+            alert('Document uploaded successfully. Admin will review it.');
+        } catch (e) {
+            setDocUploadError(e?.message || 'Upload failed');
+        } finally {
+            setDocUploading(false);
+        }
+    };
+
     return (
         <Container fluid className="fade-in">
             {/* Welcome Header */}
@@ -226,10 +346,10 @@ const CaregiverDashboard = () => {
             </div>
 
             {/* Today's Schedule and Recent Messages */}
-            <Row>
+            <Row className="equal-cols">
                 {/* Today's Schedule */}
                 <Col lg={8} className="mb-4">
-                    <Card className="medical-card">
+                    <Card className="medical-card h-100">
                         <Card.Header className="d-flex justify-content-between align-items-center fw-bold text-dark">
                             <span>
                                 <FontAwesomeIcon icon="calendar" className="me-2" />
@@ -347,10 +467,10 @@ const CaregiverDashboard = () => {
             </Row>
 
             {/* Service Requests and Quick Actions/Profile */}
-            <Row>
+            <Row className="equal-cols">
                 {/* Service Requests */}
                 <Col lg={8} className="mb-4">
-                    <Card className="medical-card">
+                    <Card className="medical-card h-100">
                         <Card.Header className="fw-bold text-dark">
                             <FontAwesomeIcon icon="clipboard-list" className="me-2" />
                             New Service Requests
@@ -373,7 +493,19 @@ const CaregiverDashboard = () => {
                                                     )}
                                                 </div>
                                                 <div className="small text-muted mb-1">{(request.services && request.services.join(', ')) || request.service || 'Service'} • {request.duration || 'Duration'}</div>
-                                                <div className="fw-medium">Rate: {request.hourlyRate ? `Ksh ${request.hourlyRate}/hour` : request.rate ? request.rate : '—'}</div>
+                                                <div className="fw-medium">
+                                                    Rate: {(() => {
+                                                        if (request.hourlyRate != null && request.hourlyRate !== '') {
+                                                            return `${formatKsh(request.hourlyRate)}/hour`;
+                                                        }
+                                                        if (request.rate != null && request.rate !== '') {
+                                                            // attempt to format numeric string; fallback to raw
+                                                            const num = Number(request.rate);
+                                                            return Number.isFinite(num) ? formatKsh(num) : (request.rate || '—');
+                                                        }
+                                                        return '—';
+                                                    })()}
+                                                </div>
                                             </Col>
                                             <Col md={4} className="text-end">
                                                 <Button
@@ -405,7 +537,7 @@ const CaregiverDashboard = () => {
                 {/* Quick Actions & Profile */}
                 <Col lg={4} className="mb-4">
                     {/* Quick Actions */}
-                    <Card className="medical-card mb-4">
+                    <Card className="medical-card mb-4 h-100">
                         <Card.Header className="fw-bold text-dark">
                             <FontAwesomeIcon icon="bolt" className="me-2" />
                             Quick Actions
@@ -522,44 +654,103 @@ const CaregiverDashboard = () => {
                         </Modal.Footer>
                     </Modal>
 
-                    {/* Profile Summary */}
-                    <Card className="medical-card">
-                        <Card.Header className="fw-bold text-dark">
-                            <FontAwesomeIcon icon="id-badge" className="me-2" />
-                            Profile Summary
-                        </Card.Header>
-                        <Card.Body>
-                            <div className="text-center mb-3">
-                                <FontAwesomeIcon icon="user-circle" size="3x" className="text-primary mb-2" />
-                                <h6>{getUserFullName()}</h6>
-                                <Badge bg="success">Verified Caregiver</Badge>
-                            </div>
-                            <ListGroup variant="flush">
-                                <ListGroup.Item className="d-flex justify-content-between px-0">
-                                    <span>Rating:</span>
-                                    <span>
-                                        <FontAwesomeIcon icon="star" className="text-warning me-1" />
-                                        4.9/5.0
-                                    </span>
-                                </ListGroup.Item>
-                                <ListGroup.Item className="d-flex justify-content-between px-0">
-                                    <span>Completed Jobs:</span>
-                                    <span>247</span>
-                                </ListGroup.Item>
-                                <ListGroup.Item className="d-flex justify-content-between px-0">
-                                    <span>Years Experience:</span>
-                                    <span>5+</span>
-                                </ListGroup.Item>
-                                <ListGroup.Item className="d-flex justify-content-between px-0">
-                                    <span>Specialization:</span>
-                                    <span>Elder Care</span>
-                                </ListGroup.Item>
-                            </ListGroup>
-                            <Button className="gradient-primary w-100 mt-3">
-                                <FontAwesomeIcon icon="edit" className="me-2" /> Edit Profile
+
+
+                    {/* Edit Profile Modal */}
+                    <Modal show={showEditProfile} onHide={handleCloseEdit} centered>
+                        <Modal.Header closeButton>
+                            <Modal.Title>Edit Profile</Modal.Title>
+                        </Modal.Header>
+                        <Modal.Body>
+                            {editError && <div className="text-danger small mb-2">{editError}</div>}
+                            <Form>
+                                <Form.Group className="mb-3">
+                                    <Form.Label>First Name</Form.Label>
+                                    <Form.Control
+                                        type="text"
+                                        value={editForm.first_name}
+                                        onChange={(e) => setEditForm(prev => ({ ...prev, first_name: e.target.value }))}
+                                        isInvalid={!!getFieldError('first_name')}
+                                    />
+                                    <Form.Control.Feedback type="invalid">{getFieldError('first_name')}</Form.Control.Feedback>
+                                </Form.Group>
+                                <Form.Group className="mb-3">
+                                    <Form.Label>Last Name</Form.Label>
+                                    <Form.Control
+                                        type="text"
+                                        value={editForm.last_name}
+                                        onChange={(e) => setEditForm(prev => ({ ...prev, last_name: e.target.value }))}
+                                        isInvalid={!!getFieldError('last_name')}
+                                    />
+                                    <Form.Control.Feedback type="invalid">{getFieldError('last_name')}</Form.Control.Feedback>
+                                </Form.Group>
+                                <Form.Group>
+                                    <Form.Label>Phone</Form.Label>
+                                    <Form.Control
+                                        type="text"
+                                        value={editForm.phone}
+                                        onChange={(e) => setEditForm(prev => ({ ...prev, phone: e.target.value }))}
+                                        isInvalid={!!getFieldError('phone')}
+                                        placeholder="e.g., +2547..."
+                                    />
+                                    <Form.Control.Feedback type="invalid">{getFieldError('phone')}</Form.Control.Feedback>
+                                </Form.Group>
+                                <hr />
+                                <Form.Group className="mb-3 mt-2">
+                                    <Form.Label>Experience (years)</Form.Label>
+                                    <Form.Control
+                                        type="number"
+                                        min={0}
+                                        value={editForm.experience_years}
+                                        onChange={(e) => setEditForm(prev => ({ ...prev, experience_years: e.target.value }))}
+                                        isInvalid={!!getFieldError('experience_years')}
+                                    />
+                                    <Form.Control.Feedback type="invalid">{getFieldError('experience_years')}</Form.Control.Feedback>
+                                </Form.Group>
+                                <Form.Group className="mb-3">
+                                    <Form.Label>Specializations</Form.Label>
+                                    <Form.Control
+                                        type="text"
+                                        value={editForm.specializations}
+                                        onChange={(e) => setEditForm(prev => ({ ...prev, specializations: e.target.value }))}
+                                        isInvalid={!!getFieldError('specializations')}
+                                        placeholder="e.g., Elder Care, Post-Surgery Care"
+                                    />
+                                    <Form.Control.Feedback type="invalid">{getFieldError('specializations')}</Form.Control.Feedback>
+                                </Form.Group>
+                                <Form.Group className="mb-3">
+                                    <Form.Label>Hourly Rate (Ksh)</Form.Label>
+                                    <Form.Control
+                                        type="number"
+                                        min={0}
+                                        step={1}
+                                        value={editForm.hourly_rate}
+                                        onChange={(e) => setEditForm(prev => ({ ...prev, hourly_rate: e.target.value }))}
+                                        isInvalid={!!getFieldError('hourly_rate')}
+                                    />
+                                    <Form.Control.Feedback type="invalid">{getFieldError('hourly_rate')}</Form.Control.Feedback>
+                                </Form.Group>
+                                <Form.Group>
+                                    <Form.Label>Bio</Form.Label>
+                                    <Form.Control
+                                        as="textarea"
+                                        rows={3}
+                                        value={editForm.bio}
+                                        onChange={(e) => setEditForm(prev => ({ ...prev, bio: e.target.value }))}
+                                        isInvalid={!!getFieldError('bio')}
+                                        placeholder="Short professional bio..."
+                                    />
+                                    <Form.Control.Feedback type="invalid">{getFieldError('bio')}</Form.Control.Feedback>
+                                </Form.Group>
+                            </Form>
+                        </Modal.Body>
+                        <Modal.Footer>
+                            <Button variant="secondary" onClick={handleCloseEdit} disabled={editSaving}>Cancel</Button>
+                            <Button className="gradient-primary" onClick={handleSaveEdit} disabled={editSaving}>
+                                {editSaving ? 'Saving…' : 'Save Changes'}
                             </Button>
-                        </Card.Body>
-                    </Card>
+                        </Modal.Footer>
+                    </Modal>
                 </Col>
             </Row>
         </Container>

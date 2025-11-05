@@ -1,13 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Table, Badge } from 'react-bootstrap';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Container, Row, Col, Card, Table, Badge, Button, Form, Modal, Alert, Spinner } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { listCareRequests } from '../services/caregiverService';
+import { listCareRequests, updateCareRequest, getCareRequest } from '../services/caregiverService';
 
 const CaregiverClientsPage = () => {
     // Current Clients: get unique clients from accepted/in-progress service requests
     const [currentClients, setCurrentClients] = useState([]);
     const [clientsLoading, setClientsLoading] = useState(true);
     const [clientsError, setClientsError] = useState(null);
+    const [search, setSearch] = useState('');
+    const [actionBusyId, setActionBusyId] = useState(null);
+    const [alertMsg, setAlertMsg] = useState(null);
+    const [details, setDetails] = useState({ show: false, item: null, loading: false, extra: null });
+    const [endModal, setEndModal] = useState({ show: false, item: null, note: '' });
+    const isMessagingEnabled = false; // Flip to true when messaging module/routes exist
 
     useEffect(() => {
         let mounted = true;
@@ -35,6 +41,7 @@ const CaregiverClientsPage = () => {
                     })
                     .map((req, index) => ({
                         id: req.id || index,
+                        requestId: req.id,
                         name: req.family,
                         service: req.services?.[0] || req.service || 'General Care',
                         status: req.status,
@@ -68,6 +75,60 @@ const CaregiverClientsPage = () => {
         return <span className={`badge rounded-pill ${meta.className}`}>{meta.label}</span>;
     };
 
+    // Derived list with search
+    const filteredClients = useMemo(() => {
+        const q = search.trim().toLowerCase();
+        if (!q) return currentClients;
+        return currentClients.filter(c => (c.name || '').toLowerCase().includes(q));
+    }, [search, currentClients]);
+
+    const refreshList = async () => {
+        setClientsLoading(true);
+        setClientsError(null);
+        try {
+            const allRequests = await listCareRequests();
+            const activeStatuses = ['accepted', 'in-progress'];
+            const activeRequests = allRequests.filter(req => activeStatuses.includes(req.status));
+            const seen = new Set();
+            const clients = activeRequests
+                .filter(req => req.family)
+                .filter(req => { if (seen.has(req.family)) return false; seen.add(req.family); return true; })
+                .map((req, index) => ({
+                    id: req.id || index,
+                    requestId: req.id,
+                    name: req.family,
+                    service: req.services?.[0] || req.service || 'General Care',
+                    status: req.status,
+                    duration: req.duration,
+                    hourlyRate: req.hourlyRate,
+                    requestedDate: req.requestedDate
+                }));
+            setCurrentClients(clients);
+        } catch (e) {
+            setClientsError(e.message || 'Failed to load clients');
+            setCurrentClients([]);
+        } finally {
+            setClientsLoading(false);
+        }
+    };
+
+    const handleStatusChange = async (client, newStatus) => {
+        if (!client?.requestId) return;
+        if (!window.confirm(`Mark ${client.name} as ${newStatus.replace('-', ' ')}?`)) return;
+        setActionBusyId(client.id);
+        setAlertMsg(null);
+        try {
+            const res = await updateCareRequest(client.requestId, { status: newStatus });
+            if (!res.success) throw new Error(res.error || 'Update failed');
+            await refreshList();
+            setAlertMsg({ type: 'success', text: `Client marked as ${newStatus}.` });
+        } catch (e) {
+            setAlertMsg({ type: 'danger', text: e.message || 'Failed to update status' });
+        } finally {
+            setActionBusyId(null);
+        }
+    };
+
     return (
         <Container fluid className="fade-in">
             {/* Page Header */}
@@ -87,16 +148,30 @@ const CaregiverClientsPage = () => {
             <Row>
                 <Col lg={12}>
                     <Card className="medical-card">
-                        <Card.Header className="d-flex justify-content-between align-items-center fw-bold text-dark">
-                            <span>
+                        <Card.Header className="d-flex justify-content-between align-items-center fw-bold text-dark flex-wrap gap-2">
+                            <div className="d-flex align-items-center gap-2">
                                 <FontAwesomeIcon icon="user-friends" className="me-2" />
-                                Active Clients
-                            </span>
-                            <Badge bg="primary" className="soft-badge">
-                                {currentClients.length} {currentClients.length === 1 ? 'Client' : 'Clients'}
-                            </Badge>
+                                <span>Active Clients</span>
+                                <Badge bg="primary" className="soft-badge">
+                                    {filteredClients.length} {filteredClients.length === 1 ? 'Client' : 'Clients'}
+                                </Badge>
+                            </div>
+                            <Form className="d-flex" style={{ maxWidth: 320 }} onSubmit={(e) => e.preventDefault()}>
+                                <Form.Control
+                                    size="sm"
+                                    type="search"
+                                    placeholder="Search clients..."
+                                    value={search}
+                                    onChange={(e) => setSearch(e.target.value)}
+                                />
+                            </Form>
                         </Card.Header>
                         <Card.Body>
+                            {alertMsg && (
+                                <Alert variant={alertMsg.type} onClose={() => setAlertMsg(null)} dismissible>
+                                    {alertMsg.text}
+                                </Alert>
+                            )}
                             {clientsLoading && (
                                 <div className="text-center py-5">
                                     <FontAwesomeIcon icon="spinner" spin size="2x" className="text-primary mb-3" />
@@ -109,15 +184,15 @@ const CaregiverClientsPage = () => {
                                     {clientsError}
                                 </div>
                             )}
-                            {!clientsLoading && !clientsError && currentClients.length === 0 && (
+                            {!clientsLoading && !clientsError && filteredClients.length === 0 && (
                                 <div className="text-center py-5">
                                     <FontAwesomeIcon icon="user-plus" size="3x" className="text-muted mb-3" />
                                     <h5 className="text-muted">No Active Clients</h5>
                                     <p className="text-muted">Accept service requests to see active clients here.</p>
                                 </div>
                             )}
-                            {!clientsLoading && !clientsError && currentClients.length > 0 && (
-                                <Table hover responsive className="mb-0">
+                            {!clientsLoading && !clientsError && filteredClients.length > 0 && (
+                                <Table hover responsive className="mb-0 align-middle">
                                     <thead>
                                         <tr>
                                             <th>Client Name</th>
@@ -126,10 +201,11 @@ const CaregiverClientsPage = () => {
                                             <th>Rate</th>
                                             <th>Status</th>
                                             <th>Since</th>
+                                            <th className="text-end">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {currentClients.map(client => (
+                                        {filteredClients.map(client => (
                                             <tr key={client.id}>
                                                 <td className="fw-medium">
                                                     <FontAwesomeIcon icon="user-circle" className="text-primary me-2" />
@@ -144,6 +220,48 @@ const CaregiverClientsPage = () => {
                                                         {client.requestedDate ? new Date(client.requestedDate).toLocaleDateString() : '—'}
                                                     </small>
                                                 </td>
+                                                <td className="text-end">
+                                                    <div className="d-inline-flex gap-2">
+
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline-secondary"
+                                                            onClick={() => setDetails({ show: true, item: client })}
+                                                        >
+                                                            <FontAwesomeIcon icon="eye" className="me-1" /> Details
+                                                        </Button>
+                                                        {client.status === 'accepted' && (
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline-primary"
+                                                                disabled={actionBusyId === client.id}
+                                                                onClick={() => handleStatusChange(client, 'in-progress')}
+                                                            >
+                                                                {actionBusyId === client.id ? (
+                                                                    <><Spinner size="sm" animation="border" className="me-1" />Updating…</>
+                                                                ) : (
+                                                                    <>Start</>
+                                                                )}
+                                                            </Button>
+                                                        )}
+                                                        {client.status !== 'completed' && (
+                                                            <Button
+                                                                size="sm"
+                                                                variant="success"
+                                                                disabled={actionBusyId === client.id}
+                                                                onClick={() => handleStatusChange(client, 'completed')}
+                                                            >
+                                                                {actionBusyId === client.id ? (
+                                                                    <><Spinner size="sm" animation="border" className="me-1" />Saving…</>
+                                                                ) : (
+                                                                    <>
+                                                                        <FontAwesomeIcon icon="check" className="me-1" /> Complete
+                                                                    </>
+                                                                )}
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                </td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -153,6 +271,36 @@ const CaregiverClientsPage = () => {
                     </Card>
                 </Col>
             </Row>
+
+            {/* Details Modal */}
+            <Modal show={details.show} onHide={() => setDetails({ show: false, item: null })} centered>
+                <Modal.Header closeButton>
+                    <Modal.Title>
+                        <FontAwesomeIcon icon="user-circle" className="me-2" />
+                        {details.item?.name || 'Client'}
+                    </Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    {details.item && (
+                        <>
+                            <Row className="mb-2">
+                                <Col md={6}><strong>Service:</strong> <span className="text-muted">{details.item.service}</span></Col>
+                                <Col md={6}><strong>Status:</strong> <span>{getStatusBadge(details.item.status)}</span></Col>
+                            </Row>
+                            <Row className="mb-2">
+                                <Col md={6}><strong>Duration:</strong> <span className="text-muted">{details.item.duration || '—'}</span></Col>
+                                <Col md={6}><strong>Rate:</strong> <span className="text-muted">Ksh {details.item.hourlyRate}/hr</span></Col>
+                            </Row>
+                            <Row>
+                                <Col md={12}><strong>Since:</strong> <span className="text-muted">{details.item.requestedDate ? new Date(details.item.requestedDate).toLocaleDateString() : '—'}</span></Col>
+                            </Row>
+                        </>
+                    )}
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setDetails({ show: false, item: null })}>Close</Button>
+                </Modal.Footer>
+            </Modal>
         </Container>
     );
 };

@@ -5,8 +5,11 @@ import {
     createPatient, updatePatient, deletePatient,
     createCaregiver, updateCaregiver, deleteCaregiver,
     fetchAnalytics,
-    fetchAllAppointments
+    fetchAllAppointments,
+    verifyCaregiver,
+    verifyDoctor
 } from '../../services/adminService';
+import { listUserVerificationDocuments, reviewVerificationDocument } from '../../services/verificationService';
 import { Card, Table, Button, Modal, Form, Alert, Spinner, Tabs, Tab, Row, Col, Badge, ProgressBar, OverlayTrigger, Tooltip } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faEdit, faTrash, faSearch, faPlus } from '@fortawesome/free-solid-svg-icons';
@@ -23,6 +26,7 @@ const AdminDashboard = () => {
     const [doctorSearch, setDoctorSearch] = useState('');
     const [patientSearch, setPatientSearch] = useState('');
     const [caregiverSearch, setCaregiverSearch] = useState('');
+    const [caregiverVerifiedFilter, setCaregiverVerifiedFilter] = useState(''); // '', 'verified', 'unverified'
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
@@ -37,6 +41,10 @@ const AdminDashboard = () => {
     const [appointments, setAppointments] = useState([]);
     const [appointmentsLoading, setAppointmentsLoading] = useState(false);
     const [appointmentFilters, setAppointmentFilters] = useState({});
+
+    // Verify in-flight state
+    const [verifyingId, setVerifyingId] = useState(null); // caregivers
+    const [verifyingDoctorId, setVerifyingDoctorId] = useState(null);
 
     // Modal state
     const [showModal, setShowModal] = useState(false);
@@ -56,6 +64,14 @@ const AdminDashboard = () => {
 
     // Active tab
     const [activeTab, setActiveTab] = useState('analytics');
+
+    // Verification documents modal state
+    const [showDocsModal, setShowDocsModal] = useState(false);
+    const [docsLoading, setDocsLoading] = useState(false);
+    const [docsList, setDocsList] = useState([]);
+    const [docReviewingId, setDocReviewingId] = useState(null);
+    const [docReviewError, setDocReviewError] = useState('');
+    const [docsUser, setDocsUser] = useState(null);
 
     useEffect(() => {
         // Initialize filters from URL or localStorage
@@ -121,6 +137,100 @@ const AdminDashboard = () => {
             setError('Failed to load users');
         } finally {
             setLoading(false);
+        }
+    };
+
+    // Re-apply caregivers filters on changes
+    useEffect(() => {
+        const q = caregiverSearch.trim().toLowerCase();
+        const vf = caregiverVerifiedFilter;
+        let arr = allCaregivers;
+        if (vf === 'verified') arr = arr.filter(u => !!u.is_verified);
+        else if (vf === 'unverified') arr = arr.filter(u => !u.is_verified);
+        if (q) {
+            arr = arr.filter(c =>
+                (c.email || '').toLowerCase().includes(q) ||
+                (c.first_name || '').toLowerCase().includes(q) ||
+                (c.last_name || '').toLowerCase().includes(q)
+            );
+        }
+        setCaregivers(arr);
+    }, [allCaregivers, caregiverSearch, caregiverVerifiedFilter]);
+
+    const handleToggleCaregiverVerify = async (cg) => {
+        try {
+            setVerifyingId(cg.id);
+            const updated = await verifyCaregiver(cg.id, !cg.is_verified);
+            // updated is the full user object from API
+            setCaregivers(prev => prev.map(u => u.id === cg.id ? { ...u, ...updated } : u));
+            setAllCaregivers(prev => prev.map(u => u.id === cg.id ? { ...u, ...updated } : u));
+        } catch (e) {
+            setError(e?.message || 'Failed to update verification');
+        } finally {
+            setVerifyingId(null);
+        }
+    };
+
+    const handleToggleDoctorVerify = async (doc) => {
+        try {
+            setVerifyingDoctorId(doc.id);
+            const updated = await verifyDoctor(doc.id, !doc.is_verified);
+            setDoctors(prev => prev.map(u => u.id === doc.id ? { ...u, ...updated } : u));
+            setAllDoctors(prev => prev.map(u => u.id === doc.id ? { ...u, ...updated } : u));
+        } catch (e) {
+            setError(e?.message || 'Failed to update verification');
+        } finally {
+            setVerifyingDoctorId(null);
+        }
+    };
+
+    const openDocsModalForUser = async (user) => {
+        setDocsUser(user);
+        setShowDocsModal(true);
+        setDocsLoading(true);
+        setError('');
+        try {
+            const data = await listUserVerificationDocuments(user.id);
+            const list = Array.isArray(data?.results) ? data.results : (Array.isArray(data) ? data : []);
+            setDocsList(list);
+        } catch (e) {
+            setError(e?.message || 'Failed to load verification documents');
+            setDocsList([]);
+        } finally {
+            setDocsLoading(false);
+        }
+    };
+    const closeDocsModal = () => {
+        setShowDocsModal(false);
+        setDocsUser(null);
+        setDocsList([]);
+        setDocsLoading(false);
+        setDocReviewError('');
+        setDocReviewingId(null);
+    };
+
+    const handleReviewDoc = async (doc, decision) => {
+        try {
+            setDocReviewError('');
+            setDocReviewingId(doc.id);
+            await reviewVerificationDocument(doc.id, decision);
+            // Refresh list
+            if (docsUser) {
+                const data = await listUserVerificationDocuments(docsUser.id);
+                const list = Array.isArray(data?.results) ? data.results : (Array.isArray(data) ? data : []);
+                setDocsList(list);
+                // If approved, reflect verification on user rows immediately
+                if (decision === 'approved') {
+                    setDoctors(prev => prev.map(u => u.id === docsUser.id ? { ...u, is_verified: true } : u));
+                    setAllDoctors(prev => prev.map(u => u.id === docsUser.id ? { ...u, is_verified: true } : u));
+                    setCaregivers(prev => prev.map(u => u.id === docsUser.id ? { ...u, is_verified: true } : u));
+                    setAllCaregivers(prev => prev.map(u => u.id === docsUser.id ? { ...u, is_verified: true } : u));
+                }
+            }
+        } catch (e) {
+            setDocReviewError(e?.message || 'Failed to update review status');
+        } finally {
+            setDocReviewingId(null);
         }
     };
 
@@ -728,12 +838,14 @@ const AdminDashboard = () => {
                                         <th>Email</th>
                                         <th>First Name</th>
                                         <th>Last Name</th>
+                                        <th>Verified</th>
+                                        <th>Verification Doc</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {doctors.length === 0 ? (
-                                        <tr><td colSpan="5" className="text-center">No doctors found</td></tr>
+                                        <tr><td colSpan="7" className="text-center">No doctors found</td></tr>
                                     ) : (
                                         doctors.map(u => (
                                             <tr key={u.id}>
@@ -741,6 +853,27 @@ const AdminDashboard = () => {
                                                 <td>{u.email}</td>
                                                 <td>{u.first_name}</td>
                                                 <td>{u.last_name}</td>
+                                                <td>
+                                                    <Badge bg={u.is_verified ? 'success' : 'secondary'}>
+                                                        {u.is_verified ? 'Verified' : 'Not Verified'}
+                                                    </Badge>
+                                                </td>
+                                                <td>
+                                                    {u.latest_verification_document_url ? (
+                                                        <div className="d-flex flex-column gap-1">
+                                                            <a href={u.latest_verification_document_url} target="_blank" rel="noreferrer">Latest Document</a>
+                                                            {u.latest_verification_document_uploaded_at && (
+                                                                <small className="text-muted">{new Date(u.latest_verification_document_uploaded_at).toLocaleString()}</small>
+                                                            )}
+                                                            <Button size="sm" variant="outline-secondary" onClick={() => openDocsModalForUser(u)}>View All</Button>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="d-flex flex-column gap-1">
+                                                            <span className="text-muted">No docs</span>
+                                                            <Button size="sm" variant="outline-secondary" onClick={() => openDocsModalForUser(u)}>View All</Button>
+                                                        </div>
+                                                    )}
+                                                </td>
                                                 <td>
                                                     <OverlayTrigger placement="top" overlay={<Tooltip>Edit</Tooltip>}>
                                                         <Button
@@ -759,8 +892,24 @@ const AdminDashboard = () => {
                                                             size="sm"
                                                             onClick={() => handleDelete('doctor', u.id)}
                                                             aria-label="Delete doctor"
+                                                            className="me-2"
                                                         >
                                                             <FontAwesomeIcon icon={faTrash} />
+                                                        </Button>
+                                                    </OverlayTrigger>
+                                                    <OverlayTrigger placement="top" overlay={<Tooltip>{u.is_verified ? 'Unverify' : 'Verify'}</Tooltip>}>
+                                                        <Button
+                                                            variant={u.is_verified ? 'outline-secondary' : 'outline-success'}
+                                                            size="sm"
+                                                            onClick={() => handleToggleDoctorVerify(u)}
+                                                            disabled={verifyingDoctorId === u.id}
+                                                            aria-label={u.is_verified ? 'Unverify doctor' : 'Verify doctor'}
+                                                        >
+                                                            {verifyingDoctorId === u.id ? (
+                                                                <Spinner as="span" animation="border" size="sm" />
+                                                            ) : (
+                                                                u.is_verified ? 'Unverify' : 'Verify'
+                                                            )}
                                                         </Button>
                                                     </OverlayTrigger>
                                                 </td>
@@ -855,31 +1004,33 @@ const AdminDashboard = () => {
                             </Table>
                         </Tab>
                         <Tab eventKey="caregivers" title={<><FontAwesomeIcon icon="user-nurse" className="me-2" />Caregivers</>}>
-                            <Row className="mb-2 align-items-center">
+                            <Row className="mb-2 align-items-center g-2">
                                 <Col md={4}>
                                     <Button variant="primary" onClick={() => openModal('add-caregiver')}>
                                         <FontAwesomeIcon icon={faPlus} className="me-1" /> Add Caregiver
                                     </Button>
                                 </Col>
-                                <Col md={4} className="ms-auto">
-                                    <Form className="d-flex">
+                                <Col md={3} className="ms-auto">
+                                    <Form.Select
+                                        size="sm"
+                                        value={caregiverVerifiedFilter}
+                                        onChange={(e) => setCaregiverVerifiedFilter(e.target.value)}
+                                        aria-label="Filter by verification status"
+                                    >
+                                        <option value="">All</option>
+                                        <option value="verified">Verified</option>
+                                        <option value="unverified">Not Verified</option>
+                                    </Form.Select>
+                                </Col>
+                                <Col md={4}>
+                                    <Form className="d-flex" role="search">
                                         <Form.Control
                                             size="sm"
                                             type="search"
                                             placeholder="Search caregivers..."
                                             className="me-2"
                                             value={caregiverSearch}
-                                            onChange={e => {
-                                                const val = e.target.value;
-                                                setCaregiverSearch(val);
-                                                setCaregivers(
-                                                    allCaregivers.filter(c =>
-                                                        c.email.toLowerCase().includes(val.toLowerCase()) ||
-                                                        c.first_name.toLowerCase().includes(val.toLowerCase()) ||
-                                                        c.last_name.toLowerCase().includes(val.toLowerCase())
-                                                    )
-                                                );
-                                            }}
+                                            onChange={e => setCaregiverSearch(e.target.value)}
                                         />
                                         <Button size="sm" variant="outline-secondary" disabled>
                                             <FontAwesomeIcon icon={faSearch} />
@@ -894,12 +1045,14 @@ const AdminDashboard = () => {
                                         <th>Email</th>
                                         <th>First Name</th>
                                         <th>Last Name</th>
+                                        <th>Verified</th>
+                                        <th>Verification Doc</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {caregivers.length === 0 ? (
-                                        <tr><td colSpan="5" className="text-center">No caregivers found</td></tr>
+                                        <tr><td colSpan="6" className="text-center">No caregivers found</td></tr>
                                     ) : (
                                         caregivers.map(u => (
                                             <tr key={u.id}>
@@ -907,6 +1060,27 @@ const AdminDashboard = () => {
                                                 <td>{u.email}</td>
                                                 <td>{u.first_name}</td>
                                                 <td>{u.last_name}</td>
+                                                <td>
+                                                    <Badge bg={u.is_verified ? 'success' : 'secondary'}>
+                                                        {u.is_verified ? 'Verified' : 'Not Verified'}
+                                                    </Badge>
+                                                </td>
+                                                <td>
+                                                    {u.latest_verification_document_url ? (
+                                                        <div className="d-flex flex-column gap-1">
+                                                            <a href={u.latest_verification_document_url} target="_blank" rel="noreferrer">Latest Document</a>
+                                                            {u.latest_verification_document_uploaded_at && (
+                                                                <small className="text-muted">{new Date(u.latest_verification_document_uploaded_at).toLocaleString()}</small>
+                                                            )}
+                                                            <Button size="sm" variant="outline-secondary" onClick={() => openDocsModalForUser(u)}>View All</Button>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="d-flex flex-column gap-1">
+                                                            <span className="text-muted">No docs</span>
+                                                            <Button size="sm" variant="outline-secondary" onClick={() => openDocsModalForUser(u)}>View All</Button>
+                                                        </div>
+                                                    )}
+                                                </td>
                                                 <td>
                                                     <OverlayTrigger placement="top" overlay={<Tooltip>Edit</Tooltip>}>
                                                         <Button
@@ -925,8 +1099,24 @@ const AdminDashboard = () => {
                                                             size="sm"
                                                             onClick={() => handleDelete('caregiver', u.id)}
                                                             aria-label="Delete caregiver"
+                                                            className="me-2"
                                                         >
                                                             <FontAwesomeIcon icon={faTrash} />
+                                                        </Button>
+                                                    </OverlayTrigger>
+                                                    <OverlayTrigger placement="top" overlay={<Tooltip>{u.is_verified ? 'Unverify' : 'Verify'}</Tooltip>}>
+                                                        <Button
+                                                            variant={u.is_verified ? 'outline-secondary' : 'outline-success'}
+                                                            size="sm"
+                                                            onClick={() => handleToggleCaregiverVerify(u)}
+                                                            disabled={verifyingId === u.id}
+                                                            aria-label={u.is_verified ? 'Unverify caregiver' : 'Verify caregiver'}
+                                                        >
+                                                            {verifyingId === u.id ? (
+                                                                <Spinner as="span" animation="border" size="sm" />
+                                                            ) : (
+                                                                u.is_verified ? 'Unverify' : 'Verify'
+                                                            )}
                                                         </Button>
                                                     </OverlayTrigger>
                                                 </td>
@@ -1026,6 +1216,71 @@ const AdminDashboard = () => {
                         </Button>
                     </Modal.Footer>
                 </Form>
+            </Modal>
+            {/* Verification Documents Modal */}
+            <Modal show={showDocsModal} onHide={closeDocsModal} size="lg">
+                <Modal.Header closeButton>
+                    <Modal.Title>Verification Documents {docsUser ? `for ${docsUser.first_name || ''} ${docsUser.last_name || ''}` : ''}</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    {docReviewError && <Alert variant="danger">{docReviewError}</Alert>}
+                    {docsLoading ? (
+                        <div className="text-center py-4"><Spinner animation="border" /></div>
+                    ) : (
+                        <>
+                            {docsList.length === 0 ? (
+                                <Alert variant="info">No verification documents uploaded.</Alert>
+                            ) : (
+                                <Table striped bordered hover responsive>
+                                    <thead>
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>Type</th>
+                                            <th>Note</th>
+                                            <th>Status</th>
+                                            <th>Reviewed By</th>
+                                            <th>Reviewed At</th>
+                                            <th>Uploaded</th>
+                                            <th>Link</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {docsList.map(doc => (
+                                            <tr key={doc.id}>
+                                                <td>{doc.id}</td>
+                                                <td>{doc.doc_type || '-'}</td>
+                                                <td>{doc.note || '-'}</td>
+                                                <td>
+                                                    <Badge bg={doc.status === 'approved' ? 'success' : (doc.status === 'rejected' ? 'danger' : 'secondary')}>
+                                                        {doc.status || 'pending'}
+                                                    </Badge>
+                                                </td>
+                                                <td>{doc.reviewed_by ? `${doc.reviewed_by.first_name || ''} ${doc.reviewed_by.last_name || ''}`.trim() || doc.reviewed_by.email : '-'}</td>
+                                                <td>{doc.reviewed_at ? new Date(doc.reviewed_at).toLocaleString() : '-'}</td>
+                                                <td>{doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleString() : '-'}</td>
+                                                <td>{doc.url ? <a href={doc.url} target="_blank" rel="noreferrer">Open</a> : '-'}</td>
+                                                <td>
+                                                    <div className="d-flex gap-2">
+                                                        <Button size="sm" variant="outline-success" disabled={docReviewingId === doc.id} onClick={() => handleReviewDoc(doc, 'approved')}>
+                                                            {docReviewingId === doc.id ? <Spinner as="span" animation="border" size="sm" /> : 'Approve'}
+                                                        </Button>
+                                                        <Button size="sm" variant="outline-danger" disabled={docReviewingId === doc.id} onClick={() => handleReviewDoc(doc, 'rejected')}>
+                                                            {docReviewingId === doc.id ? <Spinner as="span" animation="border" size="sm" /> : 'Reject'}
+                                                        </Button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </Table>
+                            )}
+                        </>
+                    )}
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={closeDocsModal}>Close</Button>
+                </Modal.Footer>
             </Modal>
         </Card>
     );

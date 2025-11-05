@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.parsers import MultiPartParser, FormParser
 from django.db.models import Q, Count, Avg
 import math
 from django.db import models
@@ -14,9 +15,10 @@ from datetime import timedelta
 from .serializers import (
     RegisterSerializer, UserSerializer,
     EmailVerificationRequestSerializer, EmailVerificationConfirmSerializer,
-    PasswordResetRequestSerializer, PasswordResetConfirmSerializer
+    PasswordResetRequestSerializer, PasswordResetConfirmSerializer,
+    VerificationDocumentSerializer
 )
-from .models import EmailVerificationToken, PasswordResetToken
+from .models import EmailVerificationToken, PasswordResetToken, VerificationDocument
 from appointments.models import Appointment
 from accounts.models import User
 
@@ -152,6 +154,132 @@ class AdminCaregiverDeleteView(generics.DestroyAPIView):
     permission_classes = [IsAdmin]
     def get_queryset(self):
         return User.objects.filter(role='caregiver')
+
+class AdminCaregiverVerifyView(APIView):
+    """Admin endpoint to set or toggle a caregiver's verification status.
+
+    - PATCH/POST with body {"is_verified": true|false} sets the flag explicitly.
+    - If body is missing, toggles the current value.
+    """
+    permission_classes = [IsAdmin]
+
+    def post(self, request, pk):
+        return self._set_or_toggle(request, pk)
+
+    def patch(self, request, pk):
+        return self._set_or_toggle(request, pk)
+
+    def _set_or_toggle(self, request, pk):
+        try:
+            user = User.objects.get(pk=pk, role='caregiver')
+        except User.DoesNotExist:
+            return Response({'detail': 'Caregiver not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if 'is_verified' in request.data:
+            val = request.data.get('is_verified')
+            user.is_verified = bool(val) if not isinstance(val, str) else val.lower() in ('1','true','yes','on')
+        else:
+            user.is_verified = not bool(user.is_verified)
+        user.save(update_fields=['is_verified'])
+        return Response(UserSerializer(user).data)
+
+class AdminDoctorVerifyView(APIView):
+    """Admin endpoint to set or toggle a doctor's verification status.
+
+    - PATCH/POST with body {"is_verified": true|false} sets the flag explicitly.
+    - If body is missing, toggles the current value.
+    """
+    permission_classes = [IsAdmin]
+
+    def post(self, request, pk):
+        return self._set_or_toggle(request, pk)
+
+    def patch(self, request, pk):
+        return self._set_or_toggle(request, pk)
+
+    def _set_or_toggle(self, request, pk):
+        try:
+            user = User.objects.get(pk=pk, role='doctor')
+        except User.DoesNotExist:
+            return Response({'detail': 'Doctor not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if 'is_verified' in request.data:
+            val = request.data.get('is_verified')
+            user.is_verified = bool(val) if not isinstance(val, str) else val.lower() in ('1','true','yes','on')
+        else:
+            user.is_verified = not bool(user.is_verified)
+        user.save(update_fields=['is_verified'])
+        return Response(UserSerializer(user).data)
+
+
+class MeVerificationDocumentUploadView(APIView):
+    """Authenticated user uploads a professional verification document.
+
+    Accepts multipart/form-data with fields:
+    - file: required file
+    - doc_type: optional string
+    - note: optional string
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        f = request.FILES.get('file')
+        if not f:
+            return Response({'file': ['This field is required.']}, status=status.HTTP_400_BAD_REQUEST)
+        doc_type = request.data.get('doc_type', '')
+        note = request.data.get('note', '')
+        vd = VerificationDocument.objects.create(user=request.user, file=f, doc_type=doc_type, note=note)
+        return Response(VerificationDocumentSerializer(vd, context={'request': request}).data, status=status.HTTP_201_CREATED)
+
+
+class AdminUserVerificationDocumentsView(APIView):
+    """Admin lists verification documents for a specific user."""
+    permission_classes = [IsAdmin]
+
+    def get(self, request, pk):
+        qs = VerificationDocument.objects.filter(user_id=pk).order_by('-uploaded_at')
+        data = VerificationDocumentSerializer(qs, many=True, context={'request': request}).data
+        return Response(data)
+
+class AdminVerificationDocumentReviewView(APIView):
+    """Admin approves or rejects a specific verification document.
+
+    Body: { "decision": "approved"|"rejected", "review_note": "optional" }
+    Also accepts { "status": ... } for flexibility.
+    """
+    permission_classes = [IsAdmin]
+
+    def post(self, request, pk):
+        return self._review(request, pk)
+
+    def patch(self, request, pk):
+        return self._review(request, pk)
+
+    def _review(self, request, pk):
+        try:
+            doc = VerificationDocument.objects.get(pk=pk)
+        except VerificationDocument.DoesNotExist:
+            return Response({'detail': 'Document not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        decision = request.data.get('decision') or request.data.get('status')
+        review_note = request.data.get('review_note', '')
+        if decision not in ('approved', 'rejected'):
+            return Response({'detail': 'decision must be approved or rejected'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from django.utils import timezone as _tz
+        doc.status = decision
+        doc.review_note = review_note or ''
+        doc.reviewed_by = request.user
+        doc.reviewed_at = _tz.now()
+        doc.save(update_fields=['status', 'review_note', 'reviewed_by', 'reviewed_at'])
+
+        # If approved, also verify the user so admins don't need a second action
+        if decision == 'approved' and not doc.user.is_verified:
+            doc.user.is_verified = True
+            doc.user.save(update_fields=['is_verified'])
+
+        return Response(VerificationDocumentSerializer(doc, context={'request': request}).data)
 
 # Doctor: Update patient
 class DoctorUpdatePatientView(generics.UpdateAPIView):
@@ -455,9 +583,110 @@ class MeView(APIView):
 
     def patch(self, request):
         user = request.user
-        allowed_fields = {'first_name', 'last_name', 'primary_condition', 'phone'}
-        data = {k: v for k, v in request.data.items() if k in allowed_fields}
-        for k, v in data.items():
+        from decimal import Decimal
+        from django.utils.dateparse import parse_date
+        allowed_fields = {
+            'first_name', 'last_name', 'primary_condition', 'phone',
+            # personal details
+            'date_of_birth', 'gender', 'address', 'emergency_contact',
+            # caregiver profile fields (self-editable except is_verified)
+            'experience_years', 'specializations', 'hourly_rate', 'bio'
+        }
+        # Shallow copy and filter allowed
+        raw = {k: v for k, v in request.data.items() if k in allowed_fields}
+
+        # Normalize fields
+        if 'experience_years' in raw:
+            try:
+                raw['experience_years'] = int(raw['experience_years'])
+            except Exception:
+                raw['experience_years'] = 0
+
+        if 'hourly_rate' in raw:
+            try:
+                raw['hourly_rate'] = Decimal(str(raw['hourly_rate']))
+            except Exception:
+                raw['hourly_rate'] = Decimal('0')
+
+        if 'specializations' in raw:
+            spec = raw['specializations']
+            if isinstance(spec, str):
+                # Support comma-separated input
+                parts = [s.strip() for s in spec.split(',') if s.strip()]
+                raw['specializations'] = parts
+            elif isinstance(spec, list):
+                raw['specializations'] = [str(s).strip() for s in spec if str(s).strip()]
+            else:
+                raw['specializations'] = []
+
+        # Normalize date_of_birth: accept YYYY-MM-DD string, set None for empty
+        if 'date_of_birth' in raw:
+            dob = raw['date_of_birth']
+            if dob in (None, ''):
+                raw['date_of_birth'] = None
+            elif isinstance(dob, str):
+                parsed = parse_date(dob)
+                if not parsed:
+                    return Response({'errors': {'date_of_birth': 'Invalid date format. Expected YYYY-MM-DD.'}}, status=status.HTTP_400_BAD_REQUEST)
+                raw['date_of_birth'] = parsed
+
+        # Normalize emergency_contact
+        if 'emergency_contact' in raw:
+            ec = raw['emergency_contact']
+            if not isinstance(ec, dict):
+                raw['emergency_contact'] = {}
+            else:
+                name = str(ec.get('name', '')).strip()
+                phone = str(ec.get('phone', '')).strip()
+                relationship = str(ec.get('relationship', '')).strip()
+                raw['emergency_contact'] = {
+                    'name': name,
+                    'phone': phone,
+                    'relationship': relationship
+                }
+
+        # Validate constraints
+        errors = {}
+        # experience_years: 0..80
+        if 'experience_years' in raw:
+            ey = raw['experience_years']
+            if ey < 0 or ey > 80:
+                errors['experience_years'] = 'Must be between 0 and 80.'
+        # hourly_rate: 0..1,000,000
+        if 'hourly_rate' in raw:
+            hr = raw['hourly_rate']
+            try:
+                if hr < 0 or hr > Decimal('1000000'):
+                    errors['hourly_rate'] = 'Must be between 0 and 1,000,000.'
+            except Exception:
+                errors['hourly_rate'] = 'Invalid number.'
+        # bio: max 2000 chars
+        if 'bio' in raw and raw['bio']:
+            if len(str(raw['bio'])) > 2000:
+                errors['bio'] = 'Bio is too long (max 2000 characters).'
+        # specializations: max 20 items; each <= 50 chars
+        if 'specializations' in raw:
+            specs = raw['specializations'] or []
+            if len(specs) > 20:
+                errors['specializations'] = 'Too many items (max 20).'
+            else:
+                too_long = [s for s in specs if len(s) > 50]
+                if too_long:
+                    errors['specializations'] = 'Each specialization must be 50 characters or fewer.'
+
+        # emergency_contact: fields length validation
+        if 'emergency_contact' in raw:
+            ec = raw['emergency_contact'] or {}
+            for key in ('name', 'phone', 'relationship'):
+                val = str(ec.get(key, ''))
+                if len(val) > 120:
+                    errors['emergency_contact'] = f'{key} is too long (max 120 characters).'
+                    break
+
+        if errors:
+            return Response({'errors': errors}, status=status.HTTP_400_BAD_REQUEST)
+
+        for k, v in raw.items():
             setattr(user, k, v)
         user.save()
         return Response(UserSerializer(user).data)

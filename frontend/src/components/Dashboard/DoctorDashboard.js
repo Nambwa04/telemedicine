@@ -315,6 +315,8 @@ const DoctorDashboard = () => {
         }
     };
 
+    // Verification upload moved to Profile Management
+
 
 
 
@@ -669,7 +671,7 @@ const DoctorDashboard = () => {
 
                 {/* Recent Activity */}
                 <Col lg={4} className="mb-4">
-                    <Card className="medical-card h-100 border-0 shadow-sm">
+                    <Card className="medical-card border-0 shadow-sm">
                         <Card.Header>
                             <FontAwesomeIcon icon="history" className="me-2" />
                             Recent Activity
@@ -716,6 +718,7 @@ const DoctorDashboard = () => {
                             )}
                         </Card.Body>
                     </Card>
+
                 </Col>
             </Row>
 

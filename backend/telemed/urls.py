@@ -1,5 +1,7 @@
 from django.contrib import admin
 from django.urls import path, include, re_path
+from django.conf import settings
+from django.conf.urls.static import static
 from django.http import HttpResponse
 from pathlib import Path
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
@@ -51,3 +53,6 @@ urlpatterns = [
     # Optional: catch-all for client-side routing (uncomment if you want Django to serve SPA for any non-API path)
     # re_path(r'^(?!api/|admin/).*$' , root_view),
 ]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

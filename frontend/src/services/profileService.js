@@ -22,6 +22,14 @@ export async function fetchUserProfile() {
             role: data.role,
             primaryCondition: data.primary_condition || '',
             phone: data.phone || '',
+            dateOfBirth: data.date_of_birth || '',
+            gender: data.gender || '',
+            address: data.address || '',
+            emergencyContact: {
+                name: (data.emergency_contact && data.emergency_contact.name) || '',
+                phone: (data.emergency_contact && data.emergency_contact.phone) || '',
+                relationship: (data.emergency_contact && data.emergency_contact.relationship) || ''
+            },
             // Add other fields as available from backend
         };
     } catch (error) {
@@ -44,6 +52,14 @@ export async function updateUserProfile(profileData) {
         if (profileData.lastName !== undefined) payload.last_name = profileData.lastName;
         if (profileData.primaryCondition !== undefined) payload.primary_condition = profileData.primaryCondition;
         if (profileData.phone !== undefined) payload.phone = profileData.phone;
+        if (profileData.dateOfBirth !== undefined) payload.date_of_birth = profileData.dateOfBirth || null;
+        if (profileData.gender !== undefined) payload.gender = profileData.gender;
+        if (profileData.address !== undefined) payload.address = profileData.address;
+        if (profileData.emergencyContact !== undefined) payload.emergency_contact = {
+            name: profileData.emergencyContact?.name || '',
+            phone: profileData.emergencyContact?.phone || '',
+            relationship: profileData.emergencyContact?.relationship || ''
+        };
 
         const data = await api.patch('/accounts/me/', payload);
 
@@ -56,6 +72,14 @@ export async function updateUserProfile(profileData) {
             role: data.role,
             primaryCondition: data.primary_condition || '',
             phone: data.phone || '',
+            dateOfBirth: data.date_of_birth || '',
+            gender: data.gender || '',
+            address: data.address || '',
+            emergencyContact: {
+                name: (data.emergency_contact && data.emergency_contact.name) || '',
+                phone: (data.emergency_contact && data.emergency_contact.phone) || '',
+                relationship: (data.emergency_contact && data.emergency_contact.relationship) || ''
+            },
         };
     } catch (error) {
         console.error('Failed to update user profile:', error);

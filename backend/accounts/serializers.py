@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
-from .models import EmailVerificationToken, PasswordResetToken
+from .models import EmailVerificationToken, PasswordResetToken, VerificationDocument
 
 User = get_user_model()
 
@@ -9,10 +9,22 @@ class UserSerializer(serializers.ModelSerializer):
     doctor_name = serializers.SerializerMethodField()
     distance = serializers.SerializerMethodField()
     availability = serializers.SerializerMethodField()
+    latest_verification_document_url = serializers.SerializerMethodField()
+    latest_verification_document_uploaded_at = serializers.SerializerMethodField()
     
     class Meta:
         model = User
-        fields = ['id', 'email', 'username', 'role', 'first_name', 'last_name', 'primary_condition', 'phone', 'doctor', 'doctor_name', 'latitude', 'longitude', 'distance', 'availability']
+        fields = [
+            'id', 'email', 'username', 'role', 'first_name', 'last_name',
+            'primary_condition', 'phone', 'doctor', 'doctor_name',
+            # Personal details
+            'date_of_birth', 'gender', 'address', 'emergency_contact',
+            'latitude', 'longitude', 'distance', 'availability',
+            # Caregiver profile fields
+            'experience_years', 'specializations', 'hourly_rate', 'bio', 'is_verified',
+            # Verification doc info
+            'latest_verification_document_url', 'latest_verification_document_uploaded_at'
+        ]
     
     def get_doctor_name(self, obj):
         """Return the assigned doctor's full name if exists"""
@@ -44,6 +56,57 @@ class UserSerializer(serializers.ModelSerializer):
         if timezone.now() - updated <= timezone.timedelta(hours=24):
             return 'Recently Active'
         return 'Contact for availability'
+
+    def get_latest_verification_document_url(self, obj):
+        doc = obj.verification_documents.order_by('-uploaded_at').first()
+        if not doc or not getattr(doc, 'file', None):
+            return None
+        try:
+            request = self.context.get('request')
+            url = doc.file.url
+            if request is not None:
+                return request.build_absolute_uri(url)
+            return url
+        except Exception:
+            return None
+
+    def get_latest_verification_document_uploaded_at(self, obj):
+        doc = obj.verification_documents.order_by('-uploaded_at').first()
+        return doc.uploaded_at if doc else None
+
+
+class VerificationDocumentSerializer(serializers.ModelSerializer):
+    url = serializers.SerializerMethodField()
+    reviewed_by = serializers.SerializerMethodField()
+
+    class Meta:
+        model = VerificationDocument
+        fields = [
+            'id', 'user', 'doc_type', 'note', 'uploaded_at', 'url',
+            'status', 'review_note', 'reviewed_at', 'reviewed_by'
+        ]
+        read_only_fields = ['id', 'user', 'uploaded_at', 'url', 'reviewed_at', 'reviewed_by']
+
+    def get_url(self, obj):
+        try:
+            request = self.context.get('request')
+            url = obj.file.url
+            if request is not None:
+                return request.build_absolute_uri(url)
+            return url
+        except Exception:
+            return None
+
+    def get_reviewed_by(self, obj):
+        u = getattr(obj, 'reviewed_by', None)
+        if not u:
+            return None
+        return {
+            'id': u.id,
+            'first_name': u.first_name,
+            'last_name': u.last_name,
+            'email': u.email,
+        }
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)

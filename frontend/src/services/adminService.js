@@ -29,6 +29,11 @@ export function deleteDoctor(doctorId) {
     return apiClient.delete(`/accounts/admin/doctors/${doctorId}/delete/`);
 }
 
+export function verifyDoctor(doctorId, isVerified) {
+    const body = (typeof isVerified === 'undefined') ? {} : { is_verified: !!isVerified };
+    return apiClient.post(`/accounts/admin/doctors/${doctorId}/verify/`, body);
+}
+
 // ===== Patient CRUD =====
 export function createPatient(data) {
     return apiClient.post('/accounts/admin/patients/create/', data);
@@ -53,6 +58,13 @@ export function updateCaregiver(caregiverId, data) {
 
 export function deleteCaregiver(caregiverId) {
     return apiClient.delete(`/accounts/admin/caregivers/${caregiverId}/delete/`);
+}
+
+// ===== Caregiver Verification =====
+export function verifyCaregiver(caregiverId, isVerified) {
+    // If isVerified is undefined, backend will toggle; otherwise set explicitly
+    const body = (typeof isVerified === 'undefined') ? {} : { is_verified: !!isVerified };
+    return apiClient.post(`/accounts/admin/caregivers/${caregiverId}/verify/`, body);
 }
 
 // ===== Analytics =====

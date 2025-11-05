@@ -3,9 +3,10 @@ import { Container, Row, Col, Card, Button, Form, Badge, Alert, Modal } from 're
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { useAuth } from '../../context/AuthContext';
 import { fetchUserProfile, updateUserProfile } from '../../services/profileService';
+import { uploadMyVerificationDocument } from '../../services/verificationService';
 
 const ProfileManagement = () => {
-    const { user, updateUser } = useAuth();
+    const { user, updateUser, refreshUserProfile } = useAuth();
     const [activeTab, setActiveTab] = useState('profile');
     const [showChangePassword, setShowChangePassword] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -53,6 +54,68 @@ const ProfileManagement = () => {
     const [alerts, setAlerts] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isFetching, setIsFetching] = useState(true);
+    const [showEditPersonal, setShowEditPersonal] = useState(false);
+
+    // Caregiver verification state
+    const [docUploading, setDocUploading] = useState(false);
+    const [docUploadError, setDocUploadError] = useState(null);
+    const [docFile, setDocFile] = useState(null);
+    const [docType, setDocType] = useState('');
+    const [docNote, setDocNote] = useState('');
+
+    // Professional profile edit state (caregivers)
+    const [profEditMode, setProfEditMode] = useState(false);
+    const [profSaving, setProfSaving] = useState(false);
+    const [profFieldErrors, setProfFieldErrors] = useState({});
+    const [profForm, setProfForm] = useState({
+        experience_years: user?.experience_years ?? 0,
+        specializations: Array.isArray(user?.specializations) ? user.specializations.join(', ') : '',
+        hourly_rate: user?.hourly_rate ?? '',
+        bio: user?.bio || ''
+    });
+    useEffect(() => {
+        setProfForm({
+            experience_years: user?.experience_years ?? 0,
+            specializations: Array.isArray(user?.specializations) ? user.specializations.join(', ') : '',
+            hourly_rate: user?.hourly_rate ?? '',
+            bio: user?.bio || ''
+        });
+    }, [user?.experience_years, user?.specializations, user?.hourly_rate, user?.bio]);
+
+    const getProfFieldError = (field) => {
+        const v = profFieldErrors && profFieldErrors[field];
+        if (!v) return '';
+        if (Array.isArray(v)) return v.join(' ');
+        if (typeof v === 'string') return v;
+        try { return JSON.stringify(v); } catch { return String(v); }
+    };
+
+    const handleSaveProfessional = async () => {
+        try {
+            setProfSaving(true);
+            setProfFieldErrors({});
+            const payload = {
+                experience_years: Number(profForm.experience_years) || 0,
+                specializations: profForm.specializations
+                    ? profForm.specializations.split(',').map(s => s.trim()).filter(Boolean)
+                    : [],
+                hourly_rate: profForm.hourly_rate === '' ? 0 : Number(profForm.hourly_rate),
+                bio: (profForm.bio ?? '').toString()
+            };
+            const res = await updateUser(payload);
+            if (!res?.success) {
+                if (res?.fieldErrors) setProfFieldErrors(res.fieldErrors);
+                throw new Error(res?.error || 'Update failed');
+            }
+            await refreshUserProfile();
+            setProfEditMode(false);
+            addAlert('success', 'Professional profile updated.');
+        } catch (e) {
+            addAlert('danger', e?.message || 'Failed to update professional profile');
+        } finally {
+            setProfSaving(false);
+        }
+    };
 
     useEffect(() => {
         // Fetch user profile from backend
@@ -124,7 +187,7 @@ const ProfileManagement = () => {
     };
 
     const handleSaveProfile = async (e) => {
-        e.preventDefault();
+        if (e && e.preventDefault) e.preventDefault();
         setIsLoading(true);
 
         try {
@@ -133,20 +196,35 @@ const ProfileManagement = () => {
                 firstName: formData.firstName,
                 lastName: formData.lastName,
                 primaryCondition: formData.primaryCondition,
-                phone: formData.phone
+                phone: formData.phone,
+                dateOfBirth: formData.dateOfBirth,
+                gender: formData.gender,
+                address: formData.address,
+                emergencyContact: formData.emergencyContact
             });
 
-            // Update user context with new data
-            await updateUser({
-                ...user,
-                first_name: updatedProfile.firstName,
-                last_name: updatedProfile.lastName,
-                name: updatedProfile.name,
-                primary_condition: updatedProfile.primaryCondition,
-                phone: updatedProfile.phone
-            });
+            // Reflect saved values in the local summary immediately
+            setFormData(prev => ({
+                ...prev,
+                firstName: updatedProfile.firstName || '',
+                lastName: updatedProfile.lastName || '',
+                primaryCondition: updatedProfile.primaryCondition || '',
+                phone: updatedProfile.phone || '',
+                dateOfBirth: updatedProfile.dateOfBirth || '',
+                gender: updatedProfile.gender || '',
+                address: updatedProfile.address || '',
+                emergencyContact: {
+                    name: updatedProfile.emergencyContact?.name || '',
+                    phone: updatedProfile.emergencyContact?.phone || '',
+                    relationship: updatedProfile.emergencyContact?.relationship || ''
+                }
+            }));
+
+            // Refresh global user context so other pages reflect changes
+            await refreshUserProfile();
 
             addAlert('success', 'Profile updated successfully!');
+            setShowEditPersonal(false);
         } catch (error) {
             addAlert('danger', error.message || 'Failed to update profile. Please try again.');
         } finally {
@@ -207,6 +285,22 @@ const ProfileManagement = () => {
             case 'doctor': return 'success';
             case 'caregiver': return 'info';
             default: return 'secondary';
+        }
+    };
+
+    const handleUploadDoc = async () => {
+        if (!docFile) { setDocUploadError('Please choose a file.'); return; }
+        setDocUploading(true);
+        setDocUploadError(null);
+        try {
+            await uploadMyVerificationDocument({ file: docFile, doc_type: docType, note: docNote });
+            await refreshUserProfile();
+            setDocFile(null); setDocType(''); setDocNote('');
+            addAlert('success', 'Document uploaded. Admin will review it.');
+        } catch (e) {
+            setDocUploadError(e?.message || 'Upload failed');
+        } finally {
+            setDocUploading(false);
         }
     };
 
@@ -274,6 +368,16 @@ const ProfileManagement = () => {
                                     </button>
                                 )}
 
+                                {(user?.role === 'caregiver' || user?.role === 'doctor') && (
+                                    <button
+                                        className={`list-group-item list-group-item-action ${activeTab === 'verification' ? 'active' : ''}`}
+                                        onClick={() => setActiveTab('verification')}
+                                    >
+                                        <FontAwesomeIcon icon="id-badge" className="me-2" />
+                                        Verification
+                                    </button>
+                                )}
+
                                 <button
                                     className={`list-group-item list-group-item-action ${activeTab === 'preferences' ? 'active' : ''}`}
                                     onClick={() => setActiveTab('preferences')}
@@ -295,178 +399,217 @@ const ProfileManagement = () => {
                 </Col>
 
                 <Col lg={9}>
-                    {/* Personal Information Tab */}
+                    {/* Personal Information Tab */
+                    }
                     {activeTab === 'profile' && (
-                        <Card className="medical-card">
-                            <Card.Header>
-                                <FontAwesomeIcon icon="user" className="me-2" />
-                                Personal Information
-                            </Card.Header>
-                            <Card.Body>
-                                <Form onSubmit={handleSaveProfile}>
-                                    <Row>
-                                        <Col md={6} className="mb-3">
-                                            <Form.Group>
-                                                <Form.Label>First Name</Form.Label>
-                                                <Form.Control
-                                                    type="text"
-                                                    value={formData.firstName}
-                                                    onChange={(e) => handleInputChange(null, 'firstName', e.target.value)}
-                                                    required
-                                                    disabled={isFetching}
-                                                />
-                                            </Form.Group>
+                        <>
+                            <Card className="medical-card mb-4">
+                                <Card.Header className="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <FontAwesomeIcon icon="user" className="me-2" />
+                                        Personal Information
+                                    </div>
+                                    <Button size="sm" className="gradient-primary" onClick={() => setShowEditPersonal(true)}>
+                                        <FontAwesomeIcon icon="edit" className="me-1" /> Edit
+                                    </Button>
+                                </Card.Header>
+                                <Card.Body>
+                                    <Row className="g-3">
+                                        <Col md={6}>
+                                            <div className="text-muted small">First Name</div>
+                                            <div className="fw-semibold">{formData.firstName || '—'}</div>
                                         </Col>
-                                        <Col md={6} className="mb-3">
-                                            <Form.Group>
-                                                <Form.Label>Last Name</Form.Label>
-                                                <Form.Control
-                                                    type="text"
-                                                    value={formData.lastName}
-                                                    onChange={(e) => handleInputChange(null, 'lastName', e.target.value)}
-                                                    required
-                                                    disabled={isFetching}
-                                                />
-                                            </Form.Group>
+                                        <Col md={6}>
+                                            <div className="text-muted small">Last Name</div>
+                                            <div className="fw-semibold">{formData.lastName || '—'}</div>
                                         </Col>
-                                        <Col md={6} className="mb-3">
-                                            <Form.Group>
-                                                <Form.Label>Email Address</Form.Label>
-                                                <Form.Control
-                                                    type="email"
-                                                    value={formData.email}
-                                                    disabled
-                                                    readOnly
-                                                    title="Email cannot be changed"
-                                                />
-                                                <Form.Text className="text-muted">
-                                                    Email cannot be changed
-                                                </Form.Text>
-                                            </Form.Group>
+                                        <Col md={6}>
+                                            <div className="text-muted small">Email</div>
+                                            <div className="fw-semibold">{formData.email || '—'}</div>
                                         </Col>
                                         {user?.role === 'patient' && (
-                                            <Col md={6} className="mb-3">
-                                                <Form.Group>
-                                                    <Form.Label>Primary Condition</Form.Label>
-                                                    <Form.Control
-                                                        type="text"
-                                                        value={formData.primaryCondition}
-                                                        onChange={(e) => handleInputChange(null, 'primaryCondition', e.target.value)}
-                                                        placeholder="e.g., Diabetes, Hypertension"
-                                                        disabled={isFetching}
-                                                    />
-                                                    <Form.Text className="text-muted">
-                                                        Your main health condition
-                                                    </Form.Text>
-                                                </Form.Group>
+                                            <Col md={6}>
+                                                <div className="text-muted small">Primary Condition</div>
+                                                <div className="fw-semibold">{formData.primaryCondition || '—'}</div>
                                             </Col>
                                         )}
-                                        <Col md={6} className="mb-3">
-                                            <Form.Group>
-                                                <Form.Label>Phone Number</Form.Label>
-                                                <Form.Control
-                                                    type="tel"
-                                                    value={formData.phone}
-                                                    onChange={(e) => handleInputChange(null, 'phone', e.target.value)}
-                                                    placeholder="e.g., +1234567890"
-                                                    disabled={isFetching}
-                                                />
-                                                <Form.Text className="text-muted">
-                                                    Your contact phone number
-                                                </Form.Text>
-                                            </Form.Group>
+                                        <Col md={6}>
+                                            <div className="text-muted small">Phone</div>
+                                            <div className="fw-semibold">{formData.phone || '—'}</div>
                                         </Col>
-                                        <Col md={6} className="mb-3">
-                                            <Form.Group>
-                                                <Form.Label>Date of Birth</Form.Label>
-                                                <Form.Control
-                                                    type="date"
-                                                    value={formData.dateOfBirth}
-                                                    onChange={(e) => handleInputChange(null, 'dateOfBirth', e.target.value)}
-                                                />
-                                            </Form.Group>
+                                        <Col md={6}>
+                                            <div className="text-muted small">Date of Birth</div>
+                                            <div className="fw-semibold">{formData.dateOfBirth || '—'}</div>
                                         </Col>
-                                        <Col md={6} className="mb-3">
-                                            <Form.Group>
-                                                <Form.Label>Gender</Form.Label>
-                                                <Form.Select
-                                                    value={formData.gender}
-                                                    onChange={(e) => handleInputChange(null, 'gender', e.target.value)}
-                                                >
-                                                    <option value="">Select Gender</option>
-                                                    <option value="male">Male</option>
-                                                    <option value="female">Female</option>
-                                                    <option value="other">Other</option>
-                                                    <option value="prefer-not-to-say">Prefer not to say</option>
-                                                </Form.Select>
-                                            </Form.Group>
+                                        <Col md={6}>
+                                            <div className="text-muted small">Gender</div>
+                                            <div className="fw-semibold">{formData.gender || '—'}</div>
                                         </Col>
-                                        <Col md={12} className="mb-3">
-                                            <Form.Group>
-                                                <Form.Label>Address</Form.Label>
-                                                <Form.Control
-                                                    as="textarea"
-                                                    rows={2}
-                                                    value={formData.address}
-                                                    onChange={(e) => handleInputChange(null, 'address', e.target.value)}
-                                                />
-                                            </Form.Group>
+                                        <Col md={12}>
+                                            <div className="text-muted small">Address</div>
+                                            <div className="fw-semibold">{formData.address || '—'}</div>
                                         </Col>
                                     </Row>
 
                                     <h5 className="mt-4 mb-3">Emergency Contact</h5>
-                                    <Row>
-                                        <Col md={6} className="mb-3">
-                                            <Form.Group>
-                                                <Form.Label>Contact Name</Form.Label>
-                                                <Form.Control
-                                                    type="text"
-                                                    value={formData.emergencyContact.name}
-                                                    onChange={(e) => handleInputChange('emergencyContact', 'name', e.target.value)}
-                                                />
-                                            </Form.Group>
+                                    <Row className="g-3">
+                                        <Col md={6}>
+                                            <div className="text-muted small">Name</div>
+                                            <div className="fw-semibold">{formData.emergencyContact.name || '—'}</div>
                                         </Col>
-                                        <Col md={6} className="mb-3">
-                                            <Form.Group>
-                                                <Form.Label>Contact Phone</Form.Label>
-                                                <Form.Control
-                                                    type="tel"
-                                                    value={formData.emergencyContact.phone}
-                                                    onChange={(e) => handleInputChange('emergencyContact', 'phone', e.target.value)}
-                                                />
-                                            </Form.Group>
+                                        <Col md={6}>
+                                            <div className="text-muted small">Phone</div>
+                                            <div className="fw-semibold">{formData.emergencyContact.phone || '—'}</div>
                                         </Col>
-                                        <Col md={12} className="mb-3">
-                                            <Form.Group>
-                                                <Form.Label>Relationship</Form.Label>
-                                                <Form.Control
-                                                    type="text"
-                                                    value={formData.emergencyContact.relationship}
-                                                    onChange={(e) => handleInputChange('emergencyContact', 'relationship', e.target.value)}
-                                                    placeholder="e.g., Spouse, Parent, Sibling"
-                                                />
-                                            </Form.Group>
+                                        <Col md={12}>
+                                            <div className="text-muted small">Relationship</div>
+                                            <div className="fw-semibold">{formData.emergencyContact.relationship || '—'}</div>
                                         </Col>
                                     </Row>
+                                </Card.Body>
+                            </Card>
 
-                                    <div className="d-flex justify-content-end">
-                                        <Button type="submit" variant="primary" disabled={isLoading}>
-                                            {isLoading ? (
-                                                <>
-                                                    <FontAwesomeIcon icon="spinner" spin className="me-1" />
-                                                    Saving...
-                                                </>
+                            {/* Verification section moved to its own tab below */}
+
+                            {user?.role === 'caregiver' && (
+                                <Card className="medical-card">
+                                    <Card.Header>
+                                        <FontAwesomeIcon icon="id-badge" className="me-2" />
+                                        Professional Profile
+                                        <div className="float-end">
+                                            {!profEditMode ? (
+                                                <Button size="sm" variant="outline-primary" onClick={() => setProfEditMode(true)}>
+                                                    <FontAwesomeIcon icon="edit" className="me-1" /> Edit
+                                                </Button>
                                             ) : (
                                                 <>
-                                                    <FontAwesomeIcon icon="save" className="me-1" />
-                                                    Save Changes
+                                                    <Button size="sm" variant="secondary" className="me-2" disabled={profSaving}
+                                                        onClick={() => {
+                                                            setProfEditMode(false); setProfFieldErrors({}); setProfForm({
+                                                                experience_years: user?.experience_years ?? 0,
+                                                                specializations: Array.isArray(user?.specializations) ? user.specializations.join(', ') : '',
+                                                                hourly_rate: user?.hourly_rate ?? '',
+                                                                bio: user?.bio || ''
+                                                            });
+                                                        }}>
+                                                        Cancel
+                                                    </Button>
+                                                    <Button size="sm" className="gradient-primary" disabled={profSaving} onClick={handleSaveProfessional}>
+                                                        {profSaving ? 'Saving…' : 'Save'}
+                                                    </Button>
                                                 </>
                                             )}
-                                        </Button>
-                                    </div>
-                                </Form>
-                            </Card.Body>
-                        </Card>
+                                        </div>
+                                    </Card.Header>
+                                    <Card.Body>
+                                        {!profEditMode ? (
+                                            <Row className="g-3">
+                                                <Col md={6}>
+                                                    <div className="text-muted small">Experience</div>
+                                                    <div className="fw-semibold">{Number.isFinite(Number(user?.experience_years)) ? `${user.experience_years} years` : '—'}</div>
+                                                </Col>
+                                                <Col md={6}>
+                                                    <div className="text-muted small">Specializations</div>
+                                                    <div className="fw-semibold">{Array.isArray(user?.specializations) && user.specializations.length > 0 ? user.specializations.join(', ') : '—'}</div>
+                                                </Col>
+                                                <Col md={6}>
+                                                    <div className="text-muted small">Hourly Rate</div>
+                                                    <div className="fw-semibold">{
+                                                        (() => {
+                                                            const n = Number(user?.hourly_rate);
+                                                            if (!Number.isFinite(n)) return 'Ksh —';
+                                                            return `Ksh ${new Intl.NumberFormat('en-KE').format(Math.round(n))}`;
+                                                        })()
+                                                    }</div>
+                                                </Col>
+                                                <Col md={6}>
+                                                    <div className="text-muted small">Availability</div>
+                                                    <div className="fw-semibold">{user?.availability || 'Contact for availability'}</div>
+                                                </Col>
+                                                <Col md={12}>
+                                                    <div className="text-muted small">Bio</div>
+                                                    <div>{user?.bio || <span className="text-muted">—</span>}</div>
+                                                </Col>
+                                                <Col md={12} className="mt-2">
+                                                    <div className="text-muted small">Location</div>
+                                                    <div className="fw-semibold">
+                                                        {user?.latitude != null && user?.longitude != null
+                                                            ? `${Number(user.latitude).toFixed(5)}, ${Number(user.longitude).toFixed(5)}`
+                                                            : '—'}
+                                                        {user?.distance != null && (
+                                                            <span className="text-muted"> · {Number(user.distance).toFixed(1)} km away</span>
+                                                        )}
+                                                    </div>
+                                                </Col>
+                                            </Row>
+                                        ) : (
+                                            <Form>
+                                                <Row className="g-3">
+                                                    <Col md={6}>
+                                                        <Form.Group>
+                                                            <Form.Label>Experience (years)</Form.Label>
+                                                            <Form.Control
+                                                                type="number"
+                                                                min={0}
+                                                                value={profForm.experience_years}
+                                                                onChange={(e) => setProfForm(prev => ({ ...prev, experience_years: e.target.value }))}
+                                                                isInvalid={!!getProfFieldError('experience_years')}
+                                                            />
+                                                            <Form.Control.Feedback type="invalid">{getProfFieldError('experience_years')}</Form.Control.Feedback>
+                                                        </Form.Group>
+                                                    </Col>
+                                                    <Col md={6}>
+                                                        <Form.Group>
+                                                            <Form.Label>Specializations</Form.Label>
+                                                            <Form.Control
+                                                                type="text"
+                                                                placeholder="e.g., Elder Care, Post-Surgery Care"
+                                                                value={profForm.specializations}
+                                                                onChange={(e) => setProfForm(prev => ({ ...prev, specializations: e.target.value }))}
+                                                                isInvalid={!!getProfFieldError('specializations')}
+                                                            />
+                                                            <Form.Control.Feedback type="invalid">{getProfFieldError('specializations')}</Form.Control.Feedback>
+                                                        </Form.Group>
+                                                    </Col>
+                                                    <Col md={6}>
+                                                        <Form.Group>
+                                                            <Form.Label>Hourly Rate (Ksh)</Form.Label>
+                                                            <Form.Control
+                                                                type="number"
+                                                                min={0}
+                                                                step={1}
+                                                                value={profForm.hourly_rate}
+                                                                onChange={(e) => setProfForm(prev => ({ ...prev, hourly_rate: e.target.value }))}
+                                                                isInvalid={!!getProfFieldError('hourly_rate')}
+                                                            />
+                                                            <Form.Control.Feedback type="invalid">{getProfFieldError('hourly_rate')}</Form.Control.Feedback>
+                                                        </Form.Group>
+                                                    </Col>
+                                                    <Col md={12}>
+                                                        <Form.Group>
+                                                            <Form.Label>Bio</Form.Label>
+                                                            <Form.Control
+                                                                as="textarea"
+                                                                rows={3}
+                                                                placeholder="Short professional bio..."
+                                                                value={profForm.bio}
+                                                                onChange={(e) => setProfForm(prev => ({ ...prev, bio: e.target.value }))}
+                                                                isInvalid={!!getProfFieldError('bio')}
+                                                            />
+                                                            <Form.Control.Feedback type="invalid">{getProfFieldError('bio')}</Form.Control.Feedback>
+                                                        </Form.Group>
+                                                    </Col>
+                                                    <Col md={12}>
+                                                        <div className="text-muted small">Availability</div>
+                                                        <div className="text-muted small">Manage availability from the dashboard quick action for now.</div>
+                                                    </Col>
+                                                </Row>
+                                            </Form>
+                                        )}
+                                    </Card.Body>
+                                </Card>
+                            )}
+                        </>
                     )}
 
                     {/* Medical Information Tab (Patients Only) */}
@@ -671,6 +814,55 @@ const ProfileManagement = () => {
                         </Card>
                     )}
 
+                    {/* Verification Tab (Caregivers and Doctors) */}
+                    {activeTab === 'verification' && (user?.role === 'caregiver' || user?.role === 'doctor') && (
+                        <Card className="medical-card">
+                            <Card.Header>
+                                <FontAwesomeIcon icon="id-badge" className="me-2" />
+                                Verification
+                            </Card.Header>
+                            <Card.Body>
+                                <div className="d-flex align-items-center justify-content-between flex-wrap mb-3">
+                                    <div className="d-flex align-items-center gap-2">
+                                        {user?.is_verified ? (
+                                            <Badge bg="success">Verified {user?.role === 'doctor' ? 'Doctor' : 'Caregiver'}</Badge>
+                                        ) : (
+                                            <Badge bg="secondary">Not Verified</Badge>
+                                        )}
+                                        {user?.latest_verification_document_uploaded_at && (
+                                            <small className="text-muted">
+                                                · Doc uploaded: {new Date(user.latest_verification_document_uploaded_at).toLocaleString()}
+                                            </small>
+                                        )}
+                                    </div>
+                                    {user?.latest_verification_document_url && (
+                                        <a href={user.latest_verification_document_url} target="_blank" rel="noreferrer">Latest Document</a>
+                                    )}
+                                </div>
+                                {docUploadError && <div className="text-danger small mb-2">{docUploadError}</div>}
+                                {!user?.latest_verification_document_uploaded_at && !user?.is_verified && (
+                                    <div className="small text-muted mb-2">No document on file. Upload a professional credential to get verified.</div>
+                                )}
+                                <Row className="g-3">
+                                    <Col md={12}>
+                                        <Form.Control type="file" onChange={(e) => setDocFile(e.target.files?.[0] || null)} />
+                                    </Col>
+                                    <Col md={6}>
+                                        <Form.Control type="text" placeholder="Document Type (e.g., License)" value={docType} onChange={(e) => setDocType(e.target.value)} />
+                                    </Col>
+                                    <Col md={6}>
+                                        <Form.Control as="textarea" rows={1} placeholder="Note (optional)" value={docNote} onChange={(e) => setDocNote(e.target.value)} />
+                                    </Col>
+                                </Row>
+                                <div className="d-flex justify-content-end mt-3">
+                                    <Button className="gradient-primary" disabled={docUploading} onClick={handleUploadDoc}>
+                                        {docUploading ? 'Uploading…' : 'Upload Document'}
+                                    </Button>
+                                </div>
+                            </Card.Body>
+                        </Card>
+                    )}
+
                     {/* Security Tab */}
                     {activeTab === 'security' && (
                         <Card className="medical-card">
@@ -824,6 +1016,179 @@ const ProfileManagement = () => {
                         )}
                     </Button>
                 </Modal.Footer>
+            </Modal>
+
+            {/* Edit Personal Information Modal */}
+            <Modal show={showEditPersonal} onHide={() => setShowEditPersonal(false)}>
+                <Modal.Header closeButton>
+                    <Modal.Title>
+                        <FontAwesomeIcon icon="user" className="me-2" />
+                        Edit Personal Information
+                    </Modal.Title>
+                </Modal.Header>
+                <Form onSubmit={handleSaveProfile}>
+                    <Modal.Body>
+                        <Row>
+                            <Col md={6} className="mb-3">
+                                <Form.Group>
+                                    <Form.Label>First Name</Form.Label>
+                                    <Form.Control
+                                        type="text"
+                                        value={formData.firstName}
+                                        onChange={(e) => handleInputChange(null, 'firstName', e.target.value)}
+                                        required
+                                        disabled={isFetching}
+                                    />
+                                </Form.Group>
+                            </Col>
+                            <Col md={6} className="mb-3">
+                                <Form.Group>
+                                    <Form.Label>Last Name</Form.Label>
+                                    <Form.Control
+                                        type="text"
+                                        value={formData.lastName}
+                                        onChange={(e) => handleInputChange(null, 'lastName', e.target.value)}
+                                        required
+                                        disabled={isFetching}
+                                    />
+                                </Form.Group>
+                            </Col>
+                            <Col md={6} className="mb-3">
+                                <Form.Group>
+                                    <Form.Label>Email Address</Form.Label>
+                                    <Form.Control
+                                        type="email"
+                                        value={formData.email}
+                                        disabled
+                                        readOnly
+                                        title="Email cannot be changed"
+                                    />
+                                    <Form.Text className="text-muted">
+                                        Email cannot be changed
+                                    </Form.Text>
+                                </Form.Group>
+                            </Col>
+                            {user?.role === 'patient' && (
+                                <Col md={6} className="mb-3">
+                                    <Form.Group>
+                                        <Form.Label>Primary Condition</Form.Label>
+                                        <Form.Control
+                                            type="text"
+                                            value={formData.primaryCondition}
+                                            onChange={(e) => handleInputChange(null, 'primaryCondition', e.target.value)}
+                                            placeholder="e.g., Diabetes, Hypertension"
+                                            disabled={isFetching}
+                                        />
+                                        <Form.Text className="text-muted">
+                                            Your main health condition
+                                        </Form.Text>
+                                    </Form.Group>
+                                </Col>
+                            )}
+                            <Col md={6} className="mb-3">
+                                <Form.Group>
+                                    <Form.Label>Phone Number</Form.Label>
+                                    <Form.Control
+                                        type="tel"
+                                        value={formData.phone}
+                                        onChange={(e) => handleInputChange(null, 'phone', e.target.value)}
+                                        placeholder="e.g., +1234567890"
+                                        disabled={isFetching}
+                                    />
+                                    <Form.Text className="text-muted">
+                                        Your contact phone number
+                                    </Form.Text>
+                                </Form.Group>
+                            </Col>
+                            <Col md={6} className="mb-3">
+                                <Form.Group>
+                                    <Form.Label>Date of Birth</Form.Label>
+                                    <Form.Control
+                                        type="date"
+                                        value={formData.dateOfBirth}
+                                        onChange={(e) => handleInputChange(null, 'dateOfBirth', e.target.value)}
+                                    />
+                                </Form.Group>
+                            </Col>
+                            <Col md={6} className="mb-3">
+                                <Form.Group>
+                                    <Form.Label>Gender</Form.Label>
+                                    <Form.Select
+                                        value={formData.gender}
+                                        onChange={(e) => handleInputChange(null, 'gender', e.target.value)}
+                                    >
+                                        <option value="">Select Gender</option>
+                                        <option value="male">Male</option>
+                                        <option value="female">Female</option>
+                                        <option value="other">Other</option>
+                                        <option value="prefer-not-to-say">Prefer not to say</option>
+                                    </Form.Select>
+                                </Form.Group>
+                            </Col>
+                            <Col md={12} className="mb-3">
+                                <Form.Group>
+                                    <Form.Label>Address</Form.Label>
+                                    <Form.Control
+                                        as="textarea"
+                                        rows={2}
+                                        value={formData.address}
+                                        onChange={(e) => handleInputChange(null, 'address', e.target.value)}
+                                    />
+                                </Form.Group>
+                            </Col>
+
+                            <Col md={12} className="mb-2">
+                                <h5 className="mt-2">Emergency Contact</h5>
+                            </Col>
+                            <Col md={6} className="mb-3">
+                                <Form.Group>
+                                    <Form.Label>Contact Name</Form.Label>
+                                    <Form.Control
+                                        type="text"
+                                        value={formData.emergencyContact.name}
+                                        onChange={(e) => handleInputChange('emergencyContact', 'name', e.target.value)}
+                                    />
+                                </Form.Group>
+                            </Col>
+                            <Col md={6} className="mb-3">
+                                <Form.Group>
+                                    <Form.Label>Contact Phone</Form.Label>
+                                    <Form.Control
+                                        type="tel"
+                                        value={formData.emergencyContact.phone}
+                                        onChange={(e) => handleInputChange('emergencyContact', 'phone', e.target.value)}
+                                    />
+                                </Form.Group>
+                            </Col>
+                            <Col md={12} className="mb-3">
+                                <Form.Group>
+                                    <Form.Label>Relationship</Form.Label>
+                                    <Form.Control
+                                        type="text"
+                                        value={formData.emergencyContact.relationship}
+                                        onChange={(e) => handleInputChange('emergencyContact', 'relationship', e.target.value)}
+                                        placeholder="e.g., Spouse, Parent, Sibling"
+                                    />
+                                </Form.Group>
+                            </Col>
+                        </Row>
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button variant="secondary" onClick={() => setShowEditPersonal(false)}>
+                            Cancel
+                        </Button>
+                        <Button type="submit" className="gradient-primary" disabled={isLoading}>
+                            {isLoading ? (
+                                <>
+                                    <FontAwesomeIcon icon="spinner" spin className="me-1" />
+                                    Saving...
+                                </>
+                            ) : (
+                                'Save Changes'
+                            )}
+                        </Button>
+                    </Modal.Footer>
+                </Form>
             </Modal>
         </Container>
     );

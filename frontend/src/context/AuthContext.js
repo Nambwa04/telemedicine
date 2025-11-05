@@ -169,8 +169,24 @@ const AuthProvider = ({ children }) => {
     const updateUser = async (updatedUserData) => {
         try {
             setLoading(true);
-            const res = await fetch(`${API_BASE}/accounts/me/`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${user.access}` }, body: JSON.stringify(updatedUserData) });
-            if (!res.ok) throw new Error('Update failed');
+            const res = await fetch(`${API_BASE}/accounts/me/`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${user.access}` },
+                body: JSON.stringify(updatedUserData)
+            });
+            if (!res.ok) {
+                let msg = 'Update failed';
+                let fieldErrors = null;
+                try {
+                    const errJson = await res.json();
+                    // DRF returns { field: ["error", ...], ... } or { detail: "..." }
+                    if (errJson.detail) msg = errJson.detail;
+                    fieldErrors = errJson;
+                } catch { /* ignore parse error */ }
+                const err = new Error(msg);
+                err.fieldErrors = fieldErrors;
+                throw err;
+            }
             const fresh = await res.json();
             const merged = { ...user, ...fresh };
             saveUser(merged);
@@ -178,7 +194,7 @@ const AuthProvider = ({ children }) => {
             return { success: true };
         } catch (error) {
             setLoading(false);
-            return { success: false, error: error.message };
+            return { success: false, error: error.message || 'Update failed', fieldErrors: error.fieldErrors };
         }
     };
 
