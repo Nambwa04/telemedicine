@@ -2,10 +2,19 @@ import os
 from .settings import *
 from .settings import BASE_DIR
 
-ALLOWED_HOSTS = [os.environ['WEBSITE_HOSTNAME']]
-CSRF_TRUSTED_ORIGINS = ['https://'+os.environ['WEBSITE_HOSTNAME']]
+# Allow running in CI/local where Azure env vars are missing
+_HOSTNAME = os.getenv('WEBSITE_HOSTNAME')
+if _HOSTNAME:
+    ALLOWED_HOSTS = [_HOSTNAME]
+    CSRF_TRUSTED_ORIGINS = [f'https://{_HOSTNAME}']
+else:
+    # Safe defaults for non-Azure environments (CI/local build)
+    ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+    CSRF_TRUSTED_ORIGINS = []
+
 DEBUG = False
-SECRET_KEY = os.environ['MY_SECRET_KEY']
+# Use MY_SECRET_KEY if provided, otherwise keep the base settings SECRET_KEY
+SECRET_KEY = os.getenv('MY_SECRET_KEY', SECRET_KEY)
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
@@ -33,18 +42,20 @@ STORAGES = {
     },
 }
 
-CONNECTION = os.environ['AZURE_POSTGRESQL_CONNECTIONSTRING']
-CONNECTION_STR = {pair.split('=')[0]:pair.split('=')[1] for pair in CONNECTION.split(' ')}
-
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": CONNECTION_STR['dbname'],
-        "HOST": CONNECTION_STR['host'],
-        "USER": CONNECTION_STR['user'],
-        "PASSWORD": CONNECTION_STR['password'],
+# Configure Postgres only when Azure connection string is present; otherwise
+# inherit DATABASES from base settings (likely sqlite for local/CI)
+_CONNECTION = os.getenv('AZURE_POSTGRESQL_CONNECTIONSTRING')
+if _CONNECTION:
+    CONNECTION_STR = {pair.split('=')[0]: pair.split('=')[1] for pair in _CONNECTION.split(' ') if '=' in pair}
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": CONNECTION_STR.get('dbname', ''),
+            "HOST": CONNECTION_STR.get('host', ''),
+            "USER": CONNECTION_STR.get('user', ''),
+            "PASSWORD": CONNECTION_STR.get('password', ''),
+        }
     }
-}
 
 LOGGING = {
     'version': 1,
