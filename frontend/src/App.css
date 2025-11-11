@@ -963,6 +963,16 @@ nav .nav-link.active::after,
 .quick-action-tile.blue-theme .label {
   font-weight: 600;
   letter-spacing: 0.5px;
+  /* Ensure visible in light mode */
+  color: #0d63d6;
+}
+
+/* Generic quick action tile label contrast for light mode */
+.quick-action-tile .label {
+  color: #12324f; /* High contrast against #fff / very light gradients */
+}
+body.dark-mode .quick-action-tile .label {
+  color: #d0e6ff; /* Preserve readability in dark mode */
 }
 
 /* Gradient primary buttons */
@@ -1186,6 +1196,10 @@ body.dark-mode .cta-section .text-muted {
   background: linear-gradient(90deg, #ffffff, #f2f6fb);
   font-weight: 600;
   border-bottom: 1px solid var(--neutral-200);
+  color: #0f172a; /* Ensure header title visible in light mode */
+}
+body.dark-mode .medical-card > .card-header {
+  color: #e2e8f0; /* Light text in dark mode */
 }
 
 .task-tile {
@@ -1210,6 +1224,12 @@ body.dark-mode .cta-section .text-muted {
 .quick-action-tile:hover {
   transform: translateY(-4px);
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.15);
+  .stat-number {
+    color: #0b2850;
+  }
+  body.dark-mode .stat-number {
+    color: #e2e8f0;
+  }
 }
 
 /* =============================================================

@@ -42,13 +42,15 @@ class TimesheetEntry(models.Model):
         return f"{self.caregiver.email} - {self.date} - {self.client}"
 
     def save(self, *args, **kwargs):
-        # Auto-calculate hours and subtotal
+        # Auto-calculate hours and subtotal using Decimal for currency-safe math
         if self.start_time and self.end_time:
-            from datetime import datetime, timedelta
+            from datetime import datetime
+            from decimal import Decimal, ROUND_HALF_UP
             start = datetime.combine(datetime.today(), self.start_time)
             end = datetime.combine(datetime.today(), self.end_time)
-            total_minutes = (end - start).total_seconds() / 60
-            worked_minutes = total_minutes - self.break_minutes
-            self.hours = round(worked_minutes / 60, 2)
-            self.subtotal = round(self.hours * self.rate, 2)
+            total_minutes = Decimal((end - start).total_seconds()) / Decimal(60)
+            worked_minutes = total_minutes - Decimal(self.break_minutes)
+            hours = (worked_minutes / Decimal(60)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            self.hours = hours
+            self.subtotal = (hours * self.rate).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         super().save(*args, **kwargs)

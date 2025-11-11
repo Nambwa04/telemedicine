@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Container, Row, Col, Card, Badge, Table, Tab, Nav, Alert, ProgressBar, Spinner, Form, Button, Modal } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
-import { fetchPatientMetrics, fetchPatientList, mapTrendLabel } from '../../services/healthService';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, ComposedChart, Area, Legend, ReferenceArea } from 'recharts';
+import { fetchPatientMetrics, fetchPatientList, mapTrendLabel, fetchVitalsList } from '../../services/healthService';
 import { useAuth } from '../../context/AuthContext';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import API_BASE from '../../config';
@@ -22,6 +22,7 @@ const PatientHealthDashboard = () => {
 
     const [loading, setLoading] = useState(true);
     const [metrics, setMetrics] = useState(null);
+    const [fullVitals, setFullVitals] = useState([]);
     const [patients, setPatients] = useState([]);
     const [activeTab, setActiveTab] = useState('vitals');
     const [selectedPatientId, setSelectedPatientId] = useState(currentPatientId);
@@ -78,6 +79,193 @@ const PatientHealthDashboard = () => {
 
     // Analytics vital filter state
     const [selectedVital, setSelectedVital] = useState('bloodPressure');
+    const [viewMode, setViewMode] = useState('avg'); // 'avg' | 'range'
+
+    // Date range filtering state for vitals analytics
+    const [rangePreset, setRangePreset] = useState('30d'); // default last 30 days
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+
+    // Initialize date range when metrics arrive or preset changes
+    useEffect(() => {
+        // Anchor presets to today's date so empty recent ranges show no data (as expected)
+        const vitalsSrc = (fullVitals && fullVitals.length > 0) ? fullVitals : (metrics?.vitals || []);
+        const today = new Date();
+        const todayStr = today.toISOString().split('T')[0];
+        if (rangePreset === 'all') {
+            if (vitalsSrc && vitalsSrc.length > 0) {
+                // Span earliest to latest reading
+                const latestDateStr = vitalsSrc.reduce((latest, r) => {
+                    if (!r.date) return latest;
+                    return (!latest || new Date(r.date) > new Date(latest)) ? r.date : latest;
+                }, null) || todayStr;
+                const earliestStr = vitalsSrc.reduce((earliest, r) => {
+                    if (!r.date) return earliest;
+                    return (!earliest || new Date(r.date) < new Date(earliest)) ? r.date : earliest;
+                }, latestDateStr) || latestDateStr;
+                setStartDate(earliestStr);
+                setEndDate(latestDateStr);
+            } else {
+                // No vitals at all; default to today
+                setStartDate(todayStr);
+                setEndDate(todayStr);
+            }
+        } else if (rangePreset === 'today') {
+            setStartDate(todayStr);
+            setEndDate(todayStr);
+        } else if (rangePreset === 'yesterday') {
+            const y = new Date(today);
+            y.setDate(y.getDate() - 1);
+            const yStr = y.toISOString().split('T')[0];
+            setStartDate(yStr);
+            setEndDate(yStr);
+        } else {
+            const days = parseInt(rangePreset.replace('d', ''), 10) || 30;
+            const start = new Date(today);
+            start.setDate(start.getDate() - (days - 1));
+            setStartDate(start.toISOString().split('T')[0]);
+            setEndDate(todayStr);
+        }
+    }, [rangePreset, metrics, fullVitals]);
+
+    // Prefer full vitals list if available
+    const sourceVitals = useMemo(() => {
+        if (fullVitals && fullVitals.length > 0) return fullVitals;
+        if (metrics?.vitals) return metrics.vitals;
+        return [];
+    }, [fullVitals, metrics]);
+
+    // Filter vitals by selected date range
+    const filteredVitals = useMemo(() => {
+        if (!sourceVitals || sourceVitals.length === 0) return [];
+        if (!startDate || !endDate) return sourceVitals.slice().sort((a, b) => new Date(a.date) - new Date(b.date));
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        // Ensure end includes the whole day
+        end.setHours(23, 59, 59, 999);
+        return sourceVitals.filter(v => {
+            if (!v.date) return false;
+            const d = new Date(v.date);
+            return d >= start && d <= end;
+        }).sort((a, b) => new Date(a.date) - new Date(b.date));
+    }, [sourceVitals, startDate, endDate]);
+
+    // For a single day range, derive time-of-day chart points using created_at timestamp
+    const singleDayVitals = useMemo(() => {
+        if (!startDate || !endDate || startDate !== endDate) return null;
+        // Use created_at to show time granularity; fallback to date only
+        return filteredVitals.map(v => {
+            let timeLabel = v.created_at ? new Date(v.created_at) : new Date(v.date);
+            try {
+                timeLabel = timeLabel.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            } catch {
+                timeLabel = v.date;
+            }
+            return { ...v, time: timeLabel };
+        });
+    }, [filteredVitals, startDate, endDate]);
+
+    const isSingleDay = startDate && endDate && startDate === endDate;
+
+    // For multi-day ranges: compute daily statistics (avg/min/max) including systolic/diastolic
+    const aggregatedDailyStats = useMemo(() => {
+        if (isSingleDay) return null;
+        const byDate = new Map();
+        for (const v of filteredVitals) {
+            const key = v.date;
+            if (!key) continue;
+            const b = byDate.get(key) || {
+                sum: {}, cnt: {}, min: {}, max: {}
+            };
+            const consider = (k, val) => {
+                if (typeof val !== 'number' || Number.isNaN(val)) return;
+                b.sum[k] = (b.sum[k] || 0) + val;
+                b.cnt[k] = (b.cnt[k] || 0) + 1;
+                b.min[k] = (b.min[k] === undefined) ? val : Math.min(b.min[k], val);
+                b.max[k] = (b.max[k] === undefined) ? val : Math.max(b.max[k], val);
+            };
+            // Derived systolic series from API convenience field and raw
+            consider('systolic', (typeof v.blood_pressure_systolic === 'number') ? v.blood_pressure_systolic : (typeof v.bloodPressure === 'number' ? v.bloodPressure : NaN));
+            consider('diastolic', v.blood_pressure_diastolic);
+            consider('heartRate', v.heartRate);
+            consider('weight', v.weight);
+            consider('blood_sugar', v.blood_sugar);
+            consider('temperature', v.temperature);
+            byDate.set(key, b);
+        }
+        const out = [];
+        for (const [date, b] of byDate.entries()) {
+            const avg = (k, dp = 1) => {
+                if (!b.cnt[k]) return null;
+                const val = b.sum[k] / b.cnt[k];
+                const pow = Math.pow(10, dp);
+                return Math.round(val * pow) / pow;
+            };
+            out.push({
+                date,
+                // averages
+                avg_systolic: avg('systolic', 1),
+                avg_diastolic: avg('diastolic', 1),
+                heartRate: avg('heartRate', 1),
+                weight: avg('weight', 1),
+                blood_sugar: avg('blood_sugar', 0),
+                temperature: avg('temperature', 1),
+                // ranges
+                min_systolic: b.min['systolic'] ?? null,
+                max_systolic: b.max['systolic'] ?? null,
+                min_diastolic: b.min['diastolic'] ?? null,
+                max_diastolic: b.max['diastolic'] ?? null,
+                min_heartRate: b.min['heartRate'] ?? null,
+                max_heartRate: b.max['heartRate'] ?? null,
+                min_weight: b.min['weight'] ?? null,
+                max_weight: b.max['weight'] ?? null,
+                min_blood_sugar: b.min['blood_sugar'] ?? null,
+                max_blood_sugar: b.max['blood_sugar'] ?? null,
+                min_temperature: b.min['temperature'] ?? null,
+                max_temperature: b.max['temperature'] ?? null,
+                // precomputed ranges to aid shaded bands
+                range_systolic: (b.max['systolic'] ?? null) != null && (b.min['systolic'] ?? null) != null ? (b.max['systolic'] - b.min['systolic']) : null,
+                range_diastolic: (b.max['diastolic'] ?? null) != null && (b.min['diastolic'] ?? null) != null ? (b.max['diastolic'] - b.min['diastolic']) : null,
+                range_heartRate: (b.max['heartRate'] ?? null) != null && (b.min['heartRate'] ?? null) != null ? (b.max['heartRate'] - b.min['heartRate']) : null,
+                range_weight: (b.max['weight'] ?? null) != null && (b.min['weight'] ?? null) != null ? (b.max['weight'] - b.min['weight']) : null,
+                range_blood_sugar: (b.max['blood_sugar'] ?? null) != null && (b.min['blood_sugar'] ?? null) != null ? (b.max['blood_sugar'] - b.min['blood_sugar']) : null,
+                range_temperature: (b.max['temperature'] ?? null) != null && (b.min['temperature'] ?? null) != null ? (b.max['temperature'] - b.min['temperature']) : null,
+            });
+        }
+        return out.sort((a, b) => new Date(a.date) - new Date(b.date));
+    }, [filteredVitals, isSingleDay]);
+
+    // (Histograms removed per request)
+
+    // Detect if diastolic values are missing when systolic exists (to inform users)
+    const diastolicMissing = useMemo(() => {
+        if (!filteredVitals || filteredVitals.length === 0) return false;
+        if (isSingleDay) {
+            return filteredVitals.some(v => (typeof v.blood_pressure_systolic === 'number' || typeof v.bloodPressure === 'number') && (v.blood_pressure_diastolic === null || v.blood_pressure_diastolic === undefined));
+        }
+        if (!aggregatedDailyStats || aggregatedDailyStats.length === 0) return false;
+        return aggregatedDailyStats.some(d => d.avg_systolic != null && d.avg_diastolic == null);
+    }, [filteredVitals, aggregatedDailyStats, isSingleDay]);
+
+    // BP summary badges (overall min/avg/max across selected range)
+    const bpSummary = useMemo(() => {
+        const systolicVals = [];
+        const diastolicVals = [];
+        for (const v of filteredVitals) {
+            const s = (typeof v.blood_pressure_systolic === 'number') ? v.blood_pressure_systolic : (typeof v.bloodPressure === 'number' ? v.bloodPressure : null);
+            const d = (typeof v.blood_pressure_diastolic === 'number') ? v.blood_pressure_diastolic : null;
+            if (typeof s === 'number' && !Number.isNaN(s)) systolicVals.push(s);
+            if (typeof d === 'number' && !Number.isNaN(d)) diastolicVals.push(d);
+        }
+        const calc = (arr) => {
+            if (!arr.length) return { min: null, avg: null, max: null };
+            const min = Math.min(...arr);
+            const max = Math.max(...arr);
+            const avg = arr.reduce((a, b) => a + b, 0) / arr.length;
+            return { min: Math.round(min), avg: Math.round(avg), max: Math.round(max) };
+        };
+        return { systolic: calc(systolicVals), diastolic: calc(diastolicVals) };
+    }, [filteredVitals]);
 
     const showPatientSelector = userRole !== 'patient';
 
@@ -96,6 +284,14 @@ const PatientHealthDashboard = () => {
                     const list = await fetchPatientList();
                     if (!mounted) return;
                     setPatients(list);
+                }
+                // Fetch full vitals list to support single-day and range analytics
+                try {
+                    const allVitals = await fetchVitalsList(currentPatientId);
+                    if (mounted) setFullVitals(Array.isArray(allVitals) ? allVitals : []);
+                } catch (err) {
+                    console.warn('Failed to fetch full vitals list', err?.message);
+                    if (mounted) setFullVitals([]);
                 }
             } catch (e) {
                 if (mounted) setError(e.message || 'Failed to load metrics');
@@ -343,6 +539,13 @@ const PatientHealthDashboard = () => {
             console.log('Updated metrics:', updatedData);
             console.log('Updated vitals:', updatedData?.vitals);
             setMetrics(updatedData);
+            // Refresh full vitals list for accurate charts
+            try {
+                const allVitals = await fetchVitalsList(currentPatientId);
+                setFullVitals(Array.isArray(allVitals) ? allVitals : []);
+            } catch (_) {
+                // keep previous fullVitals on failure
+            }
 
             // Reset form after 2 seconds
             setTimeout(() => {
@@ -693,7 +896,7 @@ const PatientHealthDashboard = () => {
                                                 Add Vitals
                                             </Button>
                                         </div>
-                                        {!metrics?.vitals || metrics.vitals.length === 0 ? (
+                                        {(!sourceVitals || sourceVitals.length === 0) ? (
                                             <div className="text-center py-5 text-muted">
                                                 <FontAwesomeIcon icon="chart-line" size="3x" className="mb-3 opacity-50" />
                                                 <p className="mb-1">No vital signs data available</p>
@@ -725,27 +928,174 @@ const PatientHealthDashboard = () => {
                                                             <option value="temperature">Temperature</option>
                                                         </Form.Select>
                                                     </Form.Group>
+                                                    {/* Display mode toggle for multi-day views */}
+                                                    {!isSingleDay && (
+                                                        <Form.Group className="mb-3 d-flex align-items-center" controlId="displayMode">
+                                                            <Form.Label className="me-2 mb-0">Display:</Form.Label>
+                                                            <Form.Select style={{ maxWidth: 220 }}
+                                                                value={viewMode}
+                                                                onChange={e => setViewMode(e.target.value)}
+                                                            >
+                                                                <option value="avg">Average</option>
+                                                                <option value="range">Range (Min/Max)</option>
+                                                            </Form.Select>
+                                                        </Form.Group>
+                                                    )}
+                                                    {/* Date range & quick presets */}
+                                                    <div className="d-flex flex-wrap align-items-end gap-3 mb-3">
+                                                        <Form.Group controlId="preset" className="mb-0">
+                                                            <Form.Label className="small text-muted">Range Preset</Form.Label>
+                                                            <Form.Select
+                                                                value={rangePreset}
+                                                                onChange={e => setRangePreset(e.target.value)}
+                                                                style={{ minWidth: 140 }}
+                                                            >
+                                                                <option value="today">Today</option>
+                                                                <option value="yesterday">Yesterday</option>
+                                                                <option value="7d">Last 7 Days</option>
+                                                                <option value="30d">Last 30 Days</option>
+                                                                <option value="90d">Last 90 Days</option>
+                                                                <option value="all">All</option>
+                                                            </Form.Select>
+                                                        </Form.Group>
+                                                        <Form.Group className="mb-0">
+                                                            <Form.Label className="small text-muted">Start</Form.Label>
+                                                            <Form.Control
+                                                                type="date"
+                                                                value={startDate}
+                                                                max={endDate || undefined}
+                                                                onChange={e => setStartDate(e.target.value)}
+                                                                style={{ minWidth: 150 }}
+                                                            />
+                                                        </Form.Group>
+                                                        <Form.Group className="mb-0">
+                                                            <Form.Label className="small text-muted">End</Form.Label>
+                                                            <Form.Control
+                                                                type="date"
+                                                                value={endDate}
+                                                                min={startDate || undefined}
+                                                                onChange={e => setEndDate(e.target.value)}
+                                                                style={{ minWidth: 150 }}
+                                                            />
+                                                        </Form.Group>
+                                                        {isSingleDay && (
+                                                            <Badge bg="info" className="mb-2">
+                                                                Single Day View (Time Axis)
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+                                                    {/* No data message for selected range */}
+                                                    {(!isSingleDay && filteredVitals.length === 0) && (
+                                                        <Alert variant="info" className="w-100 mb-3">
+                                                            No vitals recorded in the selected date range.
+                                                        </Alert>
+                                                    )}
                                                     {selectedVital === 'bloodPressure' && (
                                                         <>
                                                             <h6>Blood Pressure</h6>
-                                                            <ResponsiveContainer width="100%" height={300}>
-                                                                <LineChart data={metrics.vitals}>
+                                                            <ResponsiveContainer width="100%" height={320}>
+                                                                <ComposedChart data={
+                                                                    isSingleDay
+                                                                        ? (singleDayVitals || [])
+                                                                        : (aggregatedDailyStats || [])
+                                                                }>
                                                                     <CartesianGrid strokeDasharray="3 3" />
-                                                                    <XAxis dataKey="date" /><YAxis /><Tooltip />
-                                                                    <Line type="monotone" dataKey="bloodPressure" stroke="#007bff" strokeWidth={3} />
-                                                                </LineChart>
+                                                                    <XAxis dataKey={isSingleDay ? 'time' : 'date'} />
+                                                                    <YAxis />
+                                                                    <Tooltip />
+                                                                    <Legend />
+                                                                    {!isSingleDay && (
+                                                                        <>
+                                                                            <ReferenceArea y1={90} y2={120} fill="#28a745" fillOpacity={0.05} strokeOpacity={0} />
+                                                                            <ReferenceArea y1={60} y2={80} fill="#20c997" fillOpacity={0.05} strokeOpacity={0} />
+                                                                        </>
+                                                                    )}
+                                                                    {isSingleDay ? (
+                                                                        <>
+                                                                            <Line type="monotone" dataKey="blood_pressure_systolic" name="Systolic" stroke="#007bff" strokeWidth={3} dot={false} />
+                                                                            <Line type="monotone" dataKey="blood_pressure_diastolic" name="Diastolic" stroke="#20c997" strokeWidth={3} dot={false} />
+                                                                        </>
+                                                                    ) : (
+                                                                        viewMode === 'avg' ? (
+                                                                            <>
+                                                                                <Line type="monotone" dataKey="avg_systolic" name="Avg Systolic" stroke="#007bff" strokeWidth={3} dot={false} />
+                                                                                <Line type="monotone" dataKey="avg_diastolic" name="Avg Diastolic" stroke="#20c997" strokeWidth={3} dot={false} />
+                                                                            </>
+                                                                        ) : (
+                                                                            <>
+                                                                                {/* Stacked band between min and max using min + range */}
+                                                                                <Area type="monotone" dataKey="min_systolic" stackId="s" stroke={false} fill="transparent" isAnimationActive={false} />
+                                                                                <Area type="monotone" dataKey="range_systolic" stackId="s" name="Systolic Range" fill="#007bff" fillOpacity={0.15} stroke={false} isAnimationActive={false} />
+                                                                                <Area type="monotone" dataKey="min_diastolic" stackId="d" stroke={false} fill="transparent" isAnimationActive={false} />
+                                                                                <Area type="monotone" dataKey="range_diastolic" stackId="d" name="Diastolic Range" fill="#20c997" fillOpacity={0.15} stroke={false} isAnimationActive={false} />
+                                                                                {/* Average line over the band */}
+                                                                                <Line type="monotone" dataKey="avg_systolic" name="Avg Systolic" stroke="#004bce" strokeWidth={2} dot={false} />
+                                                                                <Line type="monotone" dataKey="avg_diastolic" name="Avg Diastolic" stroke="#138f72" strokeWidth={2} dot={false} />
+                                                                            </>
+                                                                        )
+                                                                    )}
+                                                                </ComposedChart>
                                                             </ResponsiveContainer>
+                                                            {diastolicMissing && (
+                                                                <div className="mt-2 small text-muted">
+                                                                    Note: Some readings are missing diastolic values; only systolic was provided on those days.
+                                                                </div>
+                                                            )}
+                                                            {(bpSummary.systolic.min != null || bpSummary.diastolic.min != null) && (
+                                                                <div className="mt-2 d-flex flex-wrap gap-3">
+                                                                    {bpSummary.systolic.min != null && (
+                                                                        <div className="small">
+                                                                            <Badge bg="primary" className="me-2">Systolic</Badge>
+                                                                            <span className="text-muted">Min {bpSummary.systolic.min}</span>
+                                                                            <span className="mx-2">•</span>
+                                                                            <span className="text-muted">Avg {bpSummary.systolic.avg}</span>
+                                                                            <span className="mx-2">•</span>
+                                                                            <span className="text-muted">Max {bpSummary.systolic.max}</span>
+                                                                            <span className="ms-1 text-muted">mmHg</span>
+                                                                        </div>
+                                                                    )}
+                                                                    {bpSummary.diastolic.min != null && (
+                                                                        <div className="small">
+                                                                            <Badge bg="success" className="me-2">Diastolic</Badge>
+                                                                            <span className="text-muted">Min {bpSummary.diastolic.min}</span>
+                                                                            <span className="mx-2">•</span>
+                                                                            <span className="text-muted">Avg {bpSummary.diastolic.avg}</span>
+                                                                            <span className="mx-2">•</span>
+                                                                            <span className="text-muted">Max {bpSummary.diastolic.max}</span>
+                                                                            <span className="ms-1 text-muted">mmHg</span>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            )}
                                                         </>
                                                     )}
                                                     {selectedVital === 'heartRate' && (
                                                         <>
                                                             <h6>Heart Rate</h6>
                                                             <ResponsiveContainer width="100%" height={300}>
-                                                                <BarChart data={metrics.vitals}>
+                                                                <ComposedChart data={
+                                                                    isSingleDay ? (singleDayVitals || []) : (aggregatedDailyStats || [])
+                                                                }>
                                                                     <CartesianGrid strokeDasharray="3 3" />
-                                                                    <XAxis dataKey="date" /><YAxis /><Tooltip />
-                                                                    <Bar dataKey="heartRate" fill="#28a745" />
-                                                                </BarChart>
+                                                                    <XAxis dataKey={isSingleDay ? 'time' : 'date'} />
+                                                                    <YAxis />
+                                                                    <Tooltip />
+                                                                    <Legend />
+                                                                    {isSingleDay ? (
+                                                                        <Bar dataKey="heartRate" fill="#28a745" />
+                                                                    ) : (
+                                                                        viewMode === 'avg' ? (
+                                                                            <Line type="monotone" dataKey="heartRate" name="Avg Heart Rate" stroke="#28a745" strokeWidth={3} dot={false} />
+                                                                        ) : (
+                                                                            <>
+                                                                                <Area type="monotone" dataKey="max_heartRate" fill="#28a745" fillOpacity={0.12} stroke={false} isAnimationActive={false} />
+                                                                                <Area type="monotone" dataKey="min_heartRate" fill="#ffffff" fillOpacity={1} stroke={false} isAnimationActive={false} />
+                                                                                <Line type="monotone" dataKey="min_heartRate" name="Min Heart Rate" stroke="#28a745" strokeDasharray="4 4" dot={false} />
+                                                                                <Line type="monotone" dataKey="max_heartRate" name="Max Heart Rate" stroke="#28a745" dot={false} />
+                                                                            </>
+                                                                        )
+                                                                    )}
+                                                                </ComposedChart>
                                                             </ResponsiveContainer>
                                                         </>
                                                     )}
@@ -753,11 +1103,27 @@ const PatientHealthDashboard = () => {
                                                         <>
                                                             <h6>Weight</h6>
                                                             <ResponsiveContainer width="100%" height={300}>
-                                                                <LineChart data={metrics.vitals}>
+                                                                <ComposedChart data={isSingleDay ? (singleDayVitals || []) : (aggregatedDailyStats || [])}>
                                                                     <CartesianGrid strokeDasharray="3 3" />
-                                                                    <XAxis dataKey="date" /><YAxis /><Tooltip />
-                                                                    <Line type="monotone" dataKey="weight" stroke="#6c757d" strokeWidth={3} />
-                                                                </LineChart>
+                                                                    <XAxis dataKey={isSingleDay ? 'time' : 'date'} />
+                                                                    <YAxis />
+                                                                    <Tooltip />
+                                                                    <Legend />
+                                                                    {isSingleDay ? (
+                                                                        <Line type="monotone" dataKey="weight" stroke="#6c757d" strokeWidth={3} />
+                                                                    ) : (
+                                                                        viewMode === 'avg' ? (
+                                                                            <Line type="monotone" dataKey="weight" name="Avg Weight" stroke="#6c757d" strokeWidth={3} dot={false} />
+                                                                        ) : (
+                                                                            <>
+                                                                                <Area type="monotone" dataKey="max_weight" fill="#6c757d" fillOpacity={0.12} stroke={false} isAnimationActive={false} />
+                                                                                <Area type="monotone" dataKey="min_weight" fill="#ffffff" fillOpacity={1} stroke={false} isAnimationActive={false} />
+                                                                                <Line type="monotone" dataKey="min_weight" name="Min Weight" stroke="#6c757d" strokeDasharray="4 4" dot={false} />
+                                                                                <Line type="monotone" dataKey="max_weight" name="Max Weight" stroke="#6c757d" dot={false} />
+                                                                            </>
+                                                                        )
+                                                                    )}
+                                                                </ComposedChart>
                                                             </ResponsiveContainer>
                                                         </>
                                                     )}
@@ -765,11 +1131,27 @@ const PatientHealthDashboard = () => {
                                                         <>
                                                             <h6>Blood Sugar</h6>
                                                             <ResponsiveContainer width="100%" height={300}>
-                                                                <LineChart data={metrics.vitals}>
+                                                                <ComposedChart data={isSingleDay ? (singleDayVitals || []) : (aggregatedDailyStats || [])}>
                                                                     <CartesianGrid strokeDasharray="3 3" />
-                                                                    <XAxis dataKey="date" /><YAxis /><Tooltip />
-                                                                    <Line type="monotone" dataKey="blood_sugar" stroke="#e67e22" strokeWidth={3} />
-                                                                </LineChart>
+                                                                    <XAxis dataKey={isSingleDay ? 'time' : 'date'} />
+                                                                    <YAxis />
+                                                                    <Tooltip />
+                                                                    <Legend />
+                                                                    {isSingleDay ? (
+                                                                        <Line type="monotone" dataKey="blood_sugar" stroke="#e67e22" strokeWidth={3} />
+                                                                    ) : (
+                                                                        viewMode === 'avg' ? (
+                                                                            <Line type="monotone" dataKey="blood_sugar" name="Avg Blood Sugar" stroke="#e67e22" strokeWidth={3} dot={false} />
+                                                                        ) : (
+                                                                            <>
+                                                                                <Area type="monotone" dataKey="max_blood_sugar" fill="#e67e22" fillOpacity={0.12} stroke={false} isAnimationActive={false} />
+                                                                                <Area type="monotone" dataKey="min_blood_sugar" fill="#ffffff" fillOpacity={1} stroke={false} isAnimationActive={false} />
+                                                                                <Line type="monotone" dataKey="min_blood_sugar" name="Min Blood Sugar" stroke="#e67e22" strokeDasharray="4 4" dot={false} />
+                                                                                <Line type="monotone" dataKey="max_blood_sugar" name="Max Blood Sugar" stroke="#e67e22" dot={false} />
+                                                                            </>
+                                                                        )
+                                                                    )}
+                                                                </ComposedChart>
                                                             </ResponsiveContainer>
                                                         </>
                                                     )}
@@ -777,11 +1159,27 @@ const PatientHealthDashboard = () => {
                                                         <>
                                                             <h6>Temperature</h6>
                                                             <ResponsiveContainer width="100%" height={300}>
-                                                                <LineChart data={metrics.vitals}>
+                                                                <ComposedChart data={isSingleDay ? (singleDayVitals || []) : (aggregatedDailyStats || [])}>
                                                                     <CartesianGrid strokeDasharray="3 3" />
-                                                                    <XAxis dataKey="date" /><YAxis /><Tooltip />
-                                                                    <Line type="monotone" dataKey="temperature" stroke="#d35400" strokeWidth={3} />
-                                                                </LineChart>
+                                                                    <XAxis dataKey={isSingleDay ? 'time' : 'date'} />
+                                                                    <YAxis />
+                                                                    <Tooltip />
+                                                                    <Legend />
+                                                                    {isSingleDay ? (
+                                                                        <Line type="monotone" dataKey="temperature" stroke="#d35400" strokeWidth={3} />
+                                                                    ) : (
+                                                                        viewMode === 'avg' ? (
+                                                                            <Line type="monotone" dataKey="temperature" name="Avg Temperature" stroke="#d35400" strokeWidth={3} dot={false} />
+                                                                        ) : (
+                                                                            <>
+                                                                                <Area type="monotone" dataKey="max_temperature" fill="#d35400" fillOpacity={0.12} stroke={false} isAnimationActive={false} />
+                                                                                <Area type="monotone" dataKey="min_temperature" fill="#ffffff" fillOpacity={1} stroke={false} isAnimationActive={false} />
+                                                                                <Line type="monotone" dataKey="min_temperature" name="Min Temperature" stroke="#d35400" strokeDasharray="4 4" dot={false} />
+                                                                                <Line type="monotone" dataKey="max_temperature" name="Max Temperature" stroke="#d35400" dot={false} />
+                                                                            </>
+                                                                        )
+                                                                    )}
+                                                                </ComposedChart>
                                                             </ResponsiveContainer>
                                                         </>
                                                     )}
@@ -815,24 +1213,37 @@ const PatientHealthDashboard = () => {
                                                     <Button
                                                         variant="outline-primary"
                                                         size="sm"
-                                                        onClick={() => setShowMedicationModal(true)}
+                                                        onClick={() => {
+                                                            setShowMedicationModal(true);
+                                                            setMedicationError('');
+                                                            setMedicationSuccess('');
+                                                        }}
                                                     >
                                                         <FontAwesomeIcon icon="plus" className="me-1" />
-                                                        Prescribe First Medication
+                                                        Add Medication
                                                     </Button>
                                                 )}
                                             </div>
                                         ) : (
-                                            <Table responsive>
-                                                <thead><tr><th>Medication</th><th>Dosage</th><th>Frequency</th><th>Compliance</th><th>Next Due</th></tr></thead>
+                                            <Table responsive hover>
+                                                <thead>
+                                                    <tr>
+                                                        <th>Name</th>
+                                                        <th>Dosage</th>
+                                                        <th>Frequency</th>
+                                                        <th>Next Due</th>
+                                                        <th>Compliance</th>
+                                                    </tr>
+                                                </thead>
                                                 <tbody>
                                                     {metrics.medications.map((m, i) => (
                                                         <tr key={i}>
-                                                            <td><strong>{m.name || '—'}</strong></td>
+                                                            <td>{m.name || '—'}</td>
                                                             <td>{m.dosage || '—'}</td>
                                                             <td>{m.frequency || '—'}</td>
+                                                            <td>{(m.next_due || m.nextDue) ? new Date(m.next_due || m.nextDue).toLocaleDateString() : '—'}</td>
                                                             <td>
-                                                                {m.compliance !== undefined && m.compliance !== null ? (
+                                                                {typeof m.compliance === 'number' ? (
                                                                     <>
                                                                         <div className="mb-1">
                                                                             <ProgressBar
@@ -841,13 +1252,8 @@ const PatientHealthDashboard = () => {
                                                                                 style={{ height: '8px' }}
                                                                             />
                                                                         </div>
-                                                                        <small>{m.compliance}%</small>
+                                                                        <small>{Math.round(m.compliance)}%</small>
                                                                     </>
-                                                                ) : '—'}
-                                                            </td>
-                                                            <td>
-                                                                {m.nextDue ? (
-                                                                    new Date(m.nextDue).toLocaleDateString()
                                                                 ) : '—'}
                                                             </td>
                                                         </tr>

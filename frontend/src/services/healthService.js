@@ -15,6 +15,16 @@ export async function fetchPatientMetrics(patientId) {
     }
 }
 
+export async function fetchVitalsList(patientId) {
+    try {
+        const qs = patientId ? `?patient_id=${patientId}` : '';
+        return await api.get(`/health/vitals/${qs}`);
+    } catch (e) {
+        console.warn('Vitals list fetch failed', e.message);
+        return [];
+    }
+}
+
 export async function fetchPatientList(search) {
     try {
         // Get current user to check role

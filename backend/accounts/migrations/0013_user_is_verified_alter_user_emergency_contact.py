@@ -9,12 +9,25 @@ class Migration(migrations.Migration):
         ('accounts', '0012_user_personal_fields'),
     ]
 
+    def safe_add_is_verified(apps, schema_editor):
+        """Add is_verified only if it does not exist (idempotent)."""
+        connection = schema_editor.connection
+        User = apps.get_model('accounts', 'User')
+        table = User._meta.db_table
+        with connection.cursor() as cursor:
+            try:
+                description = connection.introspection.get_table_description(cursor, table)
+                existing = {col.name for col in description}
+            except Exception:
+                existing = set()
+        if 'is_verified' in existing:
+            return
+        field = models.BooleanField(default=False)
+        field.set_attributes_from_name('is_verified')
+        schema_editor.add_field(User, field)
+
     operations = [
-        migrations.AddField(
-            model_name='user',
-            name='is_verified',
-            field=models.BooleanField(default=False),
-        ),
+        migrations.RunPython(safe_add_is_verified, migrations.RunPython.noop),
         migrations.AlterField(
             model_name='user',
             name='emergency_contact',
