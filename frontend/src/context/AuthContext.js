@@ -2,6 +2,18 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 
 import API_BASE from '../config';
 
+// Helper: robust JSON parsing with clear errors when HTML is returned (e.g., SPA fallback)
+async function parseJsonResponse(res) {
+    const ct = res.headers.get('content-type') || '';
+    if (ct.includes('application/json')) {
+        return res.json();
+    }
+    // Not JSON: read a small preview to aid debugging
+    const text = await res.text();
+    const preview = text.slice(0, 120).replace(/\s+/g, ' ').trim();
+    throw new Error(`Expected JSON but received '${ct || 'unknown'}' (status ${res.status}). Preview: ${preview}`);
+}
+
 const AuthContext = createContext();
 
 export const useAuth = () => {
@@ -36,7 +48,7 @@ const AuthProvider = ({ children }) => {
     const fetchMe = async (access) => {
         const res = await fetch(`${API_BASE}/accounts/me/`, { headers: { Authorization: `Bearer ${access}` } });
         if (!res.ok) throw new Error('Failed to fetch profile');
-        return await res.json();
+        return await parseJsonResponse(res);
     };
 
     const refreshToken = useCallback(async () => {
@@ -50,7 +62,7 @@ const AuthProvider = ({ children }) => {
                 logout();
                 return null;
             }
-            const data = await res.json();
+            const data = await parseJsonResponse(res);
             const updated = { ...parsed, access: data.access };
             saveUser(updated);
             return updated.access;
@@ -80,10 +92,10 @@ const AuthProvider = ({ children }) => {
 
             if (!tokenRes.ok) {
                 let detail = 'Invalid credentials';
-                try { const errJson = await tokenRes.json(); detail = errJson.detail || detail; } catch { /* ignore */ }
+                try { const errJson = await parseJsonResponse(tokenRes); detail = errJson.detail || detail; } catch (e) { detail = e.message || detail; }
                 throw new Error(detail);
             }
-            const tokens = await tokenRes.json();
+            const tokens = await parseJsonResponse(tokenRes);
             const profile = await fetchMe(tokens.access);
             const authUser = { ...profile, access: tokens.access, refresh: tokens.refresh };
             saveUser(authUser);
@@ -116,7 +128,7 @@ const AuthProvider = ({ children }) => {
             });
             if (!res.ok) {
                 let msg = 'Registration failed';
-                try { const errJson = await res.json(); msg = errJson.detail || msg; } catch { /* ignore */ }
+                try { const errJson = await parseJsonResponse(res); msg = errJson.detail || msg; } catch (e) { msg = e.message || msg; }
                 throw new Error(msg);
             }
             setLoading(false);
@@ -144,11 +156,11 @@ const AuthProvider = ({ children }) => {
 
             if (!res.ok) {
                 let msg = 'Google authentication failed';
-                try { const errJson = await res.json(); msg = errJson.detail || msg; } catch { /* ignore */ }
+                try { const errJson = await parseJsonResponse(res); msg = errJson.detail || msg; } catch (e) { msg = e.message || msg; }
                 throw new Error(msg);
             }
 
-            const data = await res.json();
+            const data = await parseJsonResponse(res);
             const authUser = { ...data.user, access: data.access, refresh: data.refresh };
             saveUser(authUser);
             setLoading(false);
@@ -178,7 +190,7 @@ const AuthProvider = ({ children }) => {
                 let msg = 'Update failed';
                 let fieldErrors = null;
                 try {
-                    const errJson = await res.json();
+                    const errJson = await parseJsonResponse(res);
                     // DRF returns { field: ["error", ...], ... } or { detail: "..." }
                     if (errJson.detail) msg = errJson.detail;
                     fieldErrors = errJson;
@@ -187,7 +199,7 @@ const AuthProvider = ({ children }) => {
                 err.fieldErrors = fieldErrors;
                 throw err;
             }
-            const fresh = await res.json();
+            const fresh = await parseJsonResponse(res);
             const merged = { ...user, ...fresh };
             saveUser(merged);
             setLoading(false);
