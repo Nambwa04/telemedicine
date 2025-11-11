@@ -50,6 +50,11 @@ jobs:
           name: node-app
           path: build
 
+      - name: Show downloaded files
+        run: |
+          echo "Workspace contents:" && ls -la
+          echo "Build folder contents:" && ls -la build
+
       - name: Login to Azure
         uses: azure/login@v2
         with:
