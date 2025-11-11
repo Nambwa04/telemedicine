@@ -29,7 +29,7 @@ MIDDLEWARE = [
 ]
 
 CORS_ALLOWED_ORIGINS = [
-    "https://telemedplusfrontend.z1.web.core.windows.net/"
+    "https://telemedplusfrontend.z1.web.core.windows.net"
 ]
 
 STORAGES = {
