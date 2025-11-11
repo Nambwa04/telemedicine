@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Container, Row, Col, Card, Badge, Table, Tab, Nav, Alert, ProgressBar, Spinner, Form, Button, Modal } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, ComposedChart, Area, Legend, ReferenceArea } from 'recharts';
+import { Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Bar, ComposedChart, Area, Legend, ReferenceArea } from 'recharts';
 import { fetchPatientMetrics, fetchPatientList, mapTrendLabel, fetchVitalsList } from '../../services/healthService';
 import { useAuth } from '../../context/AuthContext';
 import { useSearchParams, useNavigate } from 'react-router-dom';

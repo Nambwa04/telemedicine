@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Container, Row, Col, Card, Table, Badge, Button, Form, Modal, Alert, Spinner } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { listCareRequests, updateCareRequest, getCareRequest } from '../services/caregiverService';
+import { listCareRequests, updateCareRequest } from '../services/caregiverService';
 
 const CaregiverClientsPage = () => {
     // Current Clients: get unique clients from accepted/in-progress service requests
@@ -12,8 +12,7 @@ const CaregiverClientsPage = () => {
     const [actionBusyId, setActionBusyId] = useState(null);
     const [alertMsg, setAlertMsg] = useState(null);
     const [details, setDetails] = useState({ show: false, item: null, loading: false, extra: null });
-    const [endModal, setEndModal] = useState({ show: false, item: null, note: '' });
-    const isMessagingEnabled = false; // Flip to true when messaging module/routes exist
+    // End modal & messaging placeholders removed (unused)
 
     useEffect(() => {
         let mounted = true;

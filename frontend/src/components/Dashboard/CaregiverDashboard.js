@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Button, Table, Badge, ListGroup, Modal, Form } from 'react-bootstrap';
+import { Container, Row, Col, Card, Button, Table, Badge, Modal, Form } from 'react-bootstrap';
 import QuickActionTile from '../Common/QuickActionTile';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { useAuth } from '../../context/AuthContext';
@@ -7,7 +7,6 @@ import { useNavigate } from 'react-router-dom';
 // Patient list removed; caregivers should only see clients they serve
 import { listAppointments } from '../../services/appointmentService';
 import { listCareRequests, acceptCareRequest, declineCareRequest, updateMyLocation } from '../../services/caregiverService';
-import { uploadMyVerificationDocument } from '../../services/verificationService';
 
 const CaregiverDashboard = () => {
     const { user, refreshUserProfile, updateUser } = useAuth();
@@ -211,25 +210,10 @@ const CaregiverDashboard = () => {
         setShowRateClient(false);
     };
 
-    // --- Profile summary: fetch latest profile (to get computed availability) ---
-    const [profileLoading, setProfileLoading] = useState(false);
-    const [profileError, setProfileError] = useState(null);
+    // --- Profile summary: fetch latest profile once on mount ---
     useEffect(() => {
-        let mounted = true;
-        const run = async () => {
-            if (!user) return;
-            setProfileLoading(true);
-            setProfileError(null);
-            try {
-                await refreshUserProfile();
-            } catch (e) {
-                if (mounted) setProfileError(e?.message || 'Failed to load profile');
-            } finally {
-                if (mounted) setProfileLoading(false);
-            }
-        };
-        run();
-        return () => { mounted = false; };
+        if (!user) return;
+        refreshUserProfile().catch(() => { /* ignore refresh errors */ });
     }, [user, refreshUserProfile]);
 
     // Edit profile modal
@@ -260,7 +244,6 @@ const CaregiverDashboard = () => {
         });
     }, [user?.first_name, user?.last_name, user?.phone, user?.experience_years, user?.specializations, user?.hourly_rate, user?.bio]);
 
-    const handleOpenEdit = () => setShowEditProfile(true);
     const handleCloseEdit = () => { setShowEditProfile(false); setEditError(null); };
     const handleSaveEdit = async () => {
         try {
@@ -309,26 +292,7 @@ const CaregiverDashboard = () => {
     };
 
     // Verification document upload
-    const [docUploading, setDocUploading] = useState(false);
-    const [docUploadError, setDocUploadError] = useState(null);
-    const [docFile, setDocFile] = useState(null);
-    const [docType, setDocType] = useState('');
-    const [docNote, setDocNote] = useState('');
-    const handleUploadDoc = async () => {
-        if (!docFile) { setDocUploadError('Please choose a file.'); return; }
-        setDocUploading(true);
-        setDocUploadError(null);
-        try {
-            await uploadMyVerificationDocument({ file: docFile, doc_type: docType, note: docNote });
-            await refreshUserProfile();
-            setDocFile(null); setDocType(''); setDocNote('');
-            alert('Document uploaded successfully. Admin will review it.');
-        } catch (e) {
-            setDocUploadError(e?.message || 'Upload failed');
-        } finally {
-            setDocUploading(false);
-        }
-    };
+    // Verification document upload handlers removed (not used in UI)
 
     return (
         <Container fluid className="fade-in">
