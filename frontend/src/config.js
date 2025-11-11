@@ -14,10 +14,16 @@ export const IS_PROD = ENV === 'production';
 // Determine API base:
 // Use environment-specific variables for clarity:
 //   - REACT_APP_API_BASE_LOCAL for development/test
-//   - REACT_APP_API_BASE_PROD for production
-// Fallbacks remain the same-origin '/api' in production and local Django in dev.
+//   - REACT_APP_API_BASE_PROD for production (may be full origin or already include /api)
+// Robust normalization: if production env omits trailing '/api', append it automatically.
+function normalizeProdBase(raw) {
+    if (!raw) return '/api';
+    const trimmed = raw.replace(/\/+$/, '');
+    return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
+}
+
 const API_BASE = IS_PROD
-    ? (process.env.REACT_APP_API_BASE_PROD || '/api')
+    ? normalizeProdBase(process.env.REACT_APP_API_BASE_PROD)
     : (process.env.REACT_APP_API_BASE_LOCAL || 'http://127.0.0.1:8000/api');
 
 // Google OAuth Client ID
@@ -38,9 +44,18 @@ export const FEATURES = {
 };
 
 // Optional: warn in development if using fallback API base.
-if (IS_DEV && !process.env.REACT_APP_API_BASE_LOCAL) {
+if (!IS_PROD && !process.env.REACT_APP_API_BASE_LOCAL) {
     // eslint-disable-next-line no-console
     console.info('[config] Using default local API base:', API_BASE);
+}
+
+// Optional: surface normalization in production during development builds (not emitted in production bundle)
+if (IS_PROD && process.env.REACT_APP_API_BASE_PROD) {
+    const raw = process.env.REACT_APP_API_BASE_PROD;
+    if (!raw.replace(/\/+$/, '').endsWith('/api')) {
+        // eslint-disable-next-line no-console
+        console.log('[config] Normalized production API base by appending /api:', API_BASE);
+    }
 }
 
 export default API_BASE;
