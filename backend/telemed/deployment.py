@@ -79,3 +79,65 @@ DEFAULT_FROM_EMAIL = 'default from email'
 
 
 STATIC_ROOT = BASE_DIR/'staticfiles'
+
+# --- Redis cache (Azure) ---
+
+def _normalize_azure_redis(raw: str) -> str:
+    raw = raw.strip()
+    # If already a redis URL, return as-is
+    if raw.startswith("redis://") or raw.startswith("rediss://"):
+        return raw
+    # Azure style: host:port,password=...,ssl=True,abortConnect=False
+    parts = raw.split(",")
+    host_port = parts[0]
+    if ":" in host_port:
+        host, port = host_port.split(":", 1)
+    else:
+        host, port = host_port, "6379"
+    kv = {}
+    for p in parts[1:]:
+        if "=" in p:
+            k, v = p.split("=", 1)
+            kv[k.strip().lower()] = v.strip()
+    password = kv.get("password", "")
+    scheme = "rediss" if kv.get("ssl", "true").lower() == "true" else "redis"
+    # default db 0
+    return f"{scheme}://:{password}@{host}:{port}/0"
+
+RAW_REDIS = os.environ.get("AZURE_REDIS_CONNECTIONSTRING")
+
+if RAW_REDIS:
+    try:
+        REDIS_URL = _normalize_azure_redis(RAW_REDIS)
+        CACHES = {
+            "default": {
+                "BACKEND": "django_redis.cache.RedisCache",
+                "LOCATION": REDIS_URL,
+                "OPTIONS": {
+                    "CLIENT_CLASS": "django_redis.client.DefaultClient",
+                    # Azure Redis over TLS (6380) often needs relaxed cert checks in PaaS
+                    "CONNECTION_POOL_KWARGS": {"ssl_cert_reqs": None},
+                },
+                "KEY_PREFIX": "telemed",
+                "TIMEOUT": 300,
+            }
+        }
+        # Use cached DB sessions for speed with DB fallback
+        SESSION_ENGINE = "django.contrib.sessions.backends.cached_db"
+    except Exception:
+        # Fallback to in-memory cache if parsing fails
+        CACHES = {
+            "default": {
+                "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+                "LOCATION": "telemed",
+                "TIMEOUT": 300,
+            }
+        }
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "telemed",
+            "TIMEOUT": 300,
+        }
+    }
