@@ -5,6 +5,7 @@ from django.conf.urls.static import static
 from django.http import HttpResponse
 from pathlib import Path
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from .health_check import health_check, environment_check
 
 
 FRONTEND_BUILD_INDEX = Path(__file__).resolve().parent.parent.parent / 'frontend' / 'build' / 'index.html'
@@ -40,6 +41,9 @@ def favicon_view(request):
 urlpatterns = [
     path('', root_view, name='home'),
     path('favicon.ico', favicon_view, name='favicon'),
+    path('health/', health_check, name='health-check'),
+    path('api/health/', health_check, name='api-health-check'),
+    path('api/environment/', environment_check, name='environment-check'),
     path('admin/', admin.site.urls),
     path('api/auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),

@@ -7,10 +7,14 @@ _HOSTNAME = os.getenv('WEBSITE_HOSTNAME')
 if _HOSTNAME:
     ALLOWED_HOSTS = [_HOSTNAME]
     CSRF_TRUSTED_ORIGINS = [f'https://{_HOSTNAME}']
+    import sys
+    print(f"Production mode: ALLOWED_HOSTS={ALLOWED_HOSTS}", file=sys.stderr)
 else:
     # Safe defaults for non-Azure environments (CI/local build)
     ALLOWED_HOSTS = ['localhost', '127.0.0.1']
     CSRF_TRUSTED_ORIGINS = []
+    import sys
+    print("WARNING: WEBSITE_HOSTNAME not set, using localhost defaults", file=sys.stderr)
 
 DEBUG = False
 # Use MY_SECRET_KEY if provided, otherwise keep the base settings SECRET_KEY
@@ -26,6 +30,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'telemed.error_logging_middleware.ErrorLoggingMiddleware',
 ]
 
 CORS_ALLOWED_ORIGINS = [
@@ -45,21 +50,46 @@ STORAGES = {
 # inherit DATABASES from base settings (likely sqlite for local/CI)
 _CONNECTION = os.getenv('AZURE_POSTGRESQL_CONNECTIONSTRING')
 if _CONNECTION:
-    CONNECTION_STR = {pair.split('=')[0]: pair.split('=')[1] for pair in _CONNECTION.split(' ') if '=' in pair}
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.postgresql",
-            "NAME": CONNECTION_STR.get('dbname', ''),
-            "HOST": CONNECTION_STR.get('host', ''),
-            "USER": CONNECTION_STR.get('user', ''),
-            "PASSWORD": CONNECTION_STR.get('password', ''),
+    try:
+        CONNECTION_STR = {pair.split('=')[0]: pair.split('=')[1] for pair in _CONNECTION.split(' ') if '=' in pair}
+        DATABASES = {
+            "default": {
+                "ENGINE": "django.db.backends.postgresql",
+                "NAME": CONNECTION_STR.get('dbname', ''),
+                "HOST": CONNECTION_STR.get('host', ''),
+                "USER": CONNECTION_STR.get('user', ''),
+                "PASSWORD": CONNECTION_STR.get('password', ''),
+                "OPTIONS": {
+                    'connect_timeout': 10,
+                    'options': '-c statement_timeout=30000'
+                },
+            }
         }
-    }
+        # Validate that all required fields are present
+        if not all([CONNECTION_STR.get('dbname'), CONNECTION_STR.get('host'), 
+                   CONNECTION_STR.get('user'), CONNECTION_STR.get('password')]):
+            import sys
+            print("ERROR: Incomplete database connection string", file=sys.stderr)
+            print(f"Missing fields in connection string", file=sys.stderr)
+    except Exception as e:
+        import sys
+        print(f"ERROR: Failed to parse AZURE_POSTGRESQL_CONNECTIONSTRING: {e}", file=sys.stderr)
 
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+    },
     'handlers': {
+        'console': {
+            'level': 'ERROR',
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
         'mail_admins': {
             'level': 'ERROR',
             'class': 'django.utils.log.AdminEmailHandler',
@@ -67,9 +97,14 @@ LOGGING = {
     },
     'loggers': {
         'django': {
-            'handlers': ['mail_admins'],
+            'handlers': ['console', 'mail_admins'],
             'level': 'ERROR',
             'propagate': True,
+        },
+        'django.request': {
+            'handlers': ['console', 'mail_admins'],
+            'level': 'ERROR',
+            'propagate': False,
         },
     },
 }
