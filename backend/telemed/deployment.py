@@ -5,7 +5,8 @@ from .settings import BASE_DIR
 # Allow running in CI/local where Azure env vars are missing
 _HOSTNAME = os.getenv('WEBSITE_HOSTNAME')
 if _HOSTNAME:
-    ALLOWED_HOSTS = [_HOSTNAME]
+    # Allow the public hostname and common Azure internal probe IPs to avoid DisallowedHost noise
+    ALLOWED_HOSTS = [_HOSTNAME, '169.254.130.2', '169.254.130.1']
     CSRF_TRUSTED_ORIGINS = [f'https://{_HOSTNAME}']
     import sys
     print(f"✓ Production mode: ALLOWED_HOSTS={ALLOWED_HOSTS}", file=sys.stderr)
