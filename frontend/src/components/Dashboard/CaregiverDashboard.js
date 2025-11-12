@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Container, Row, Col, Card, Button, Table, Badge, Modal, Form } from 'react-bootstrap';
 import QuickActionTile from '../Common/QuickActionTile';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -55,17 +55,22 @@ const CaregiverDashboard = () => {
     }, []);
 
     // Auto-report caregiver location once on mount
+    // Report location only once per session to avoid update loops
+    const locationReportedRef = useRef(false);
     useEffect(() => {
         if (!user || user.role !== 'caregiver') return;
+        if (locationReportedRef.current) return;
         if (!('geolocation' in navigator)) return;
         navigator.geolocation.getCurrentPosition(
             (pos) => {
                 const { latitude, longitude } = pos.coords;
+                locationReportedRef.current = true;
                 updateMyLocation(latitude, longitude);
             },
             (err) => {
                 // silently ignore
                 console.debug('Geolocation error:', err?.message || err);
+                locationReportedRef.current = true; // prevent repeated prompts
             },
             { enableHighAccuracy: true, maximumAge: 60000, timeout: 8000 }
         );
@@ -116,11 +121,74 @@ const CaregiverDashboard = () => {
     };
 
 
-    // Placeholder for future backend messages integration
-    const [recentMessages] = useState([]);
-    const [messagesLoading] = useState(false);
-    const [messagesError] = useState(null);
-    // TODO: Integrate with backend messages API when available
+    // Recent Activity: synthesize from care requests and today's appointments
+    const [recentMessages, setRecentMessages] = useState([]);
+    const [messagesLoading, setMessagesLoading] = useState(false);
+    const [messagesError, setMessagesError] = useState(null);
+
+    useEffect(() => {
+        let mounted = true;
+        async function loadRecent() {
+            if (!user || user.role !== 'caregiver') return;
+            setMessagesLoading(true);
+            setMessagesError(null);
+            try {
+                // Build today (YYYY-MM-DD)
+                const today = new Date();
+                const yyyy = today.getFullYear();
+                const mm = String(today.getMonth() + 1).padStart(2, '0');
+                const dd = String(today.getDate()).padStart(2, '0');
+                const dateStr = `${yyyy}-${mm}-${dd}`;
+
+                // Fetch data in parallel
+                const [reqs, apptsResp] = await Promise.all([
+                    listCareRequests(),
+                    listAppointments({ date: dateStr })
+                ]);
+
+                const appts = Array.isArray(apptsResp?.items) ? apptsResp.items : (Array.isArray(apptsResp) ? apptsResp : []);
+
+                // Map care requests to activity items
+                const requestActivities = (Array.isArray(reqs) ? reqs : []).slice(0, 50).map(r => ({
+                    id: `req-${r.id}`,
+                    type: 'request',
+                    time: r.requestedDate || (r.created_at ? new Date(r.created_at) : new Date()),
+                    message: (() => {
+                        const who = r.family || r.patientEmail || 'Client';
+                        switch ((r.status || 'new')) {
+                            case 'accepted': return `Accepted service request for ${who}`;
+                            case 'in-progress': return `Started care for ${who}`;
+                            case 'completed': return `Completed care for ${who}`;
+                            case 'declined': return `Declined service request for ${who}`;
+                            default: return `New service request from ${who}`;
+                        }
+                    })()
+                }));
+
+                // Map today's appointments to activity items
+                const appointmentActivities = appts.map(a => ({
+                    id: `appt-${a.id}`,
+                    type: 'appointment',
+                    time: a.date ? new Date(a.date) : new Date(),
+                    message: `Appointment with ${a.patientName || 'patient'} at ${a.time || '—'}`
+                }));
+
+                // Combine and sort by time desc, limit to latest 10
+                const combined = [...requestActivities, ...appointmentActivities]
+                    .filter(Boolean)
+                    .sort((a, b) => (new Date(b.time)) - (new Date(a.time)))
+                    .slice(0, 10);
+
+                if (mounted) setRecentMessages(combined);
+            } catch (e) {
+                if (mounted) setMessagesError(e.message || 'Failed to load recent activity');
+            } finally {
+                if (mounted) setMessagesLoading(false);
+            }
+        }
+        loadRecent();
+        return () => { mounted = false; };
+    }, [user]);
 
     // Today's schedule fetched from backend
     const [todaySchedule, setTodaySchedule] = useState([]);
@@ -211,8 +279,12 @@ const CaregiverDashboard = () => {
     };
 
     // --- Profile summary: fetch latest profile once on mount ---
+    // Refresh profile only once when user becomes available to avoid infinite update loops
+    const didRefreshProfileRef = useRef(false);
     useEffect(() => {
         if (!user) return;
+        if (didRefreshProfileRef.current) return;
+        didRefreshProfileRef.current = true;
         refreshUserProfile().catch(() => { /* ignore refresh errors */ });
     }, [user, refreshUserProfile]);
 
@@ -293,6 +365,18 @@ const CaregiverDashboard = () => {
 
     // Verification document upload
     // Verification document upload handlers removed (not used in UI)
+
+    // Helper: format timestamps safely for display
+    const formatActivityTime = (t) => {
+        if (!t) return '—';
+        try {
+            const d = t instanceof Date ? t : new Date(t);
+            if (Number.isNaN(d.getTime())) return String(t);
+            return d.toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        } catch {
+            return String(t);
+        }
+    };
 
     return (
         <Container fluid className="fade-in">
@@ -413,7 +497,7 @@ const CaregiverDashboard = () => {
                                     <div className="flex-grow-1">
                                         <div className="fw-bold small">{message.from}</div>
                                         <p className="mb-1 small">{message.message}</p>
-                                        <small className="text-muted">{message.time}</small>
+                                        <small className="text-muted">{formatActivityTime(message.time)}</small>
                                     </div>
                                 </div>
                             ))}
