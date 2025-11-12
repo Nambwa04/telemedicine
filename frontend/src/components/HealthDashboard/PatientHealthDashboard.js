@@ -16,9 +16,11 @@ const PatientHealthDashboard = () => {
     const navigate = useNavigate();
     const userRole = user?.role || 'patient';
 
-    // Get patientId from URL query params, or use logged-in user's ID
+    // For patients: default to their own ID. For doctor/caregiver: require explicit selection (patientId in URL) or we will prompt.
     const urlPatientId = searchParams.get('patientId');
-    const currentPatientId = urlPatientId || user?.id || 'self';
+    const currentPatientId = (userRole === 'patient')
+        ? (urlPatientId || user?.id || null)
+        : (urlPatientId ? urlPatientId : null);
 
     const [loading, setLoading] = useState(true);
     const [metrics, setMetrics] = useState(null);
@@ -275,23 +277,36 @@ const PatientHealthDashboard = () => {
             setLoading(true);
             setError('');
             try {
-                const data = await fetchPatientMetrics(currentPatientId);
-                if (!mounted) return;
-                console.log('Fetched metrics data:', data);
-                console.log('Vitals array:', data?.vitals);
-                setMetrics(data);
-                if (showPatientSelector) {
+                // If non-patient and no patient selected, load the list and stop here
+                if (userRole !== 'patient' && !currentPatientId) {
                     const list = await fetchPatientList();
                     if (!mounted) return;
                     setPatients(list);
-                }
-                // Fetch full vitals list to support single-day and range analytics
-                try {
-                    const allVitals = await fetchVitalsList(currentPatientId);
-                    if (mounted) setFullVitals(Array.isArray(allVitals) ? allVitals : []);
-                } catch (err) {
-                    console.warn('Failed to fetch full vitals list', err?.message);
-                    if (mounted) setFullVitals([]);
+                    // Auto-select first patient for caregivers if available
+                    if (userRole === 'caregiver' && list && list.length > 0) {
+                        navigate(`/health-dashboard?patientId=${list[0].id}`);
+                    }
+                    setMetrics(null);
+                    setFullVitals([]);
+                } else {
+                    const data = await fetchPatientMetrics(currentPatientId);
+                    if (!mounted) return;
+                    console.log('Fetched metrics data:', data);
+                    console.log('Vitals array:', data?.vitals);
+                    setMetrics(data);
+                    if (showPatientSelector) {
+                        const list = await fetchPatientList();
+                        if (!mounted) return;
+                        setPatients(list);
+                    }
+                    // Fetch full vitals list to support single-day and range analytics
+                    try {
+                        const allVitals = await fetchVitalsList(currentPatientId);
+                        if (mounted) setFullVitals(Array.isArray(allVitals) ? allVitals : []);
+                    } catch (err) {
+                        console.warn('Failed to fetch full vitals list', err?.message);
+                        if (mounted) setFullVitals([]);
+                    }
                 }
             } catch (e) {
                 if (mounted) setError(e.message || 'Failed to load metrics');
@@ -301,7 +316,7 @@ const PatientHealthDashboard = () => {
         }
         load();
         return () => { mounted = false; };
-    }, [currentPatientId, showPatientSelector]);
+    }, [currentPatientId, showPatientSelector, userRole, navigate]);
 
     // Handle patient selection from dropdown
     const handlePatientChange = (e) => {

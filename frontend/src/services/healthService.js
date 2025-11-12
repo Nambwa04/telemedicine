@@ -42,20 +42,20 @@ export async function fetchPatientList(search) {
                 activeStatuses.includes(req.status)
             );
 
-            // Extract unique clients and map to expected format
-            const seen = new Set();
-            const clients = activeRequests
-                .filter(req => req.family)
-                .filter(req => {
-                    if (seen.has(req.family)) return false;
-                    seen.add(req.family);
-                    return true;
-                })
-                .map((req, index) => ({
-                    id: req.id || index,
-                    name: req.family,
-                    condition: null // Service requests don't have condition info
-                }));
+            // Extract unique patients by patientId; fallback to family label for display
+            const seenPatients = new Set();
+            const clients = [];
+            for (const req of activeRequests) {
+                const pid = req.patientId;
+                if (!pid) continue; // skip if we can't resolve patient ID
+                if (seenPatients.has(pid)) continue;
+                seenPatients.add(pid);
+                clients.push({
+                    id: pid,
+                    name: req.family || req.patientEmail || `Patient ${pid}`,
+                    condition: null
+                });
+            }
 
             return clients;
         }

@@ -103,6 +103,8 @@ export async function listCareRequests(params = {}) {
 
             return {
                 id: request.id,
+                patientId: request.patient || request.patient_id || null,
+                patientEmail: request.patient_email || null,
                 caregiverId: request.caregiver || request.caregiver_id || null,
                 caregiverName: request.caregiver_email || request.caregiver_name || null,
                 status,
@@ -165,6 +167,34 @@ export async function updateCareRequest(requestId, updateData) {
         return { success: true, data: response };
     } catch (error) {
         console.error('Failed to update care request:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Start a care request (transition accepted -> in-progress)
+ * @param {number} requestId
+ */
+export async function startCareRequest(requestId) {
+    try {
+        const response = await api.post(`/requests/care/${requestId}/start/`, {});
+        return { success: true, data: response };
+    } catch (error) {
+        console.error('Failed to start care request:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Complete a care request (transition in-progress/accepted -> completed)
+ * @param {number} requestId
+ */
+export async function completeCareRequest(requestId) {
+    try {
+        const response = await api.post(`/requests/care/${requestId}/complete/`, {});
+        return { success: true, data: response };
+    } catch (error) {
+        console.error('Failed to complete care request:', error);
         return { success: false, error: error.message };
     }
 }

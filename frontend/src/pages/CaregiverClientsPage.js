@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Container, Row, Col, Card, Table, Badge, Button, Form, Modal, Alert, Spinner } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { listCareRequests, updateCareRequest } from '../services/caregiverService';
+import { listCareRequests, updateCareRequest, startCareRequest, completeCareRequest } from '../services/caregiverService';
 
 const CaregiverClientsPage = () => {
     // Current Clients: get unique clients from accepted/in-progress service requests
@@ -117,7 +117,15 @@ const CaregiverClientsPage = () => {
         setActionBusyId(client.id);
         setAlertMsg(null);
         try {
-            const res = await updateCareRequest(client.requestId, { status: newStatus });
+            let res;
+            if (newStatus === 'in-progress') {
+                res = await startCareRequest(client.requestId);
+            } else if (newStatus === 'completed') {
+                res = await completeCareRequest(client.requestId);
+            } else {
+                // Fallback to generic update for other fields/statuses
+                res = await updateCareRequest(client.requestId, { status: newStatus });
+            }
             if (!res.success) throw new Error(res.error || 'Update failed');
             await refreshList();
             setAlertMsg({ type: 'success', text: `Client marked as ${newStatus}.` });

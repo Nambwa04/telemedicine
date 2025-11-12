@@ -319,14 +319,10 @@ const CaregiverDashboard = () => {
                                 <FontAwesomeIcon icon="calendar" className="me-2" />
                                 Today's Schedule
                             </span>
-                            <Button size="sm" className="gradient-primary">
-                                <FontAwesomeIcon icon="route" className="me-1" />
-                                Route
-                            </Button>
                         </Card.Header>
                         <Card.Body>
                             {scheduleLoading && (
-                                <div className="text-center py-4">Loading today\'s schedule...</div>
+                                <div className="text-center py-4">Loading today 's schedule...</div>
                             )}
                             {scheduleError && (
                                 <div className="text-danger py-2">{scheduleError}</div>

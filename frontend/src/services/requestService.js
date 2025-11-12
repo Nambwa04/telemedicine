@@ -9,21 +9,30 @@ const api = createApiClient(
 
 export async function listRequests({ status } = {}) {
     const qs = status && status !== 'all' ? `?status=${encodeURIComponent(status)}` : '';
-    const data = await api.get(`/requests/${qs}`);
-    return Array.isArray(data) ? data : (data.results || []); // in case pagination added later
+    const data = await api.get(`/requests/care/${qs}`);
+    return Array.isArray(data) ? data : (data.results || []); // supports pagination shape
 }
 
 export async function updateRequestStatus(id, status) {
-    return await api.patch(`/requests/${id}/`, { status });
+    // Use explicit backend transitions where applicable
+    const actionMap = {
+        'accepted': () => api.post(`/requests/care/${id}/accept/`, {}),
+        'declined': () => api.post(`/requests/care/${id}/decline/`, {}),
+        'in-progress': () => api.post(`/requests/care/${id}/start/`, {}),
+        'completed': () => api.post(`/requests/care/${id}/complete/`, {}),
+    };
+    if (actionMap[status]) return await actionMap[status]();
+    // Fallback for non-status edits
+    return await api.patch(`/requests/care/${id}/`, { status });
 }
 
 export async function addRequest(req) {
-    // Ensure default status new unless provided
+    // Ensure default status new unless provided; backend sets created_by automatically
     const body = { status: 'new', urgent: false, ...req };
-    return await api.post('/requests/', body);
+    return await api.post('/requests/care/', body);
 }
 
 export async function deleteRequest(id) {
-    await api.del(`/requests/${id}/`);
+    await api.del(`/requests/care/${id}/`);
     return true;
 }

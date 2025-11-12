@@ -28,14 +28,29 @@ class CareRequestViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, IsCareRequestPermission]
 
     def get_queryset(self):
+        """
+        Role-aware query + optional filters:
+        - Patients: their own requests (as patient) or those they created
+        - Caregivers: requests assigned to them OR new requests (browseable pool)
+        - Doctors/Admins: all
+        Supports optional ?status= and ?ordering= query params layered on top.
+        """
         user = self.request.user
         qs = super().get_queryset()
-        # Role-based visibility
+        # Role-based visibility first
         if user.role == 'patient':
-            return qs.filter(models.Q(patient=user) | models.Q(created_by=user))
-        if user.role == 'caregiver':
-            return qs.filter(models.Q(caregiver=user) | models.Q(status='new'))
-        # doctors/admins see all
+            qs = qs.filter(models.Q(patient=user) | models.Q(created_by=user))
+        elif user.role == 'caregiver':
+            qs = qs.filter(models.Q(caregiver=user) | models.Q(status='new'))
+        # doctors/admins: leave qs as all
+
+        # Optional filters
+        status_param = self.request.query_params.get('status')
+        if status_param:
+            qs = qs.filter(status=status_param)
+        ordering = self.request.query_params.get('ordering')
+        if ordering:
+            qs = qs.order_by(ordering)
         return qs
 
     def perform_create(self, serializer):
@@ -50,15 +65,8 @@ class CareRequestViewSet(viewsets.ModelViewSet):
             caregiver = user
         serializer.save(created_by=user, patient=patient, caregiver=caregiver)
 
-    def get_queryset(self):
-        qs = super().get_queryset()
-        status_param = self.request.query_params.get('status')
-        if status_param:
-            qs = qs.filter(status=status_param)
-        ordering = self.request.query_params.get('ordering')
-        if ordering:
-            qs = qs.order_by(ordering)
-        return qs
+    # (Note) The role-aware get_queryset above supersedes the earlier version
+    # that only applied filters. Keep a single definition to avoid overrides.
 
     @action(detail=True, methods=['post'], url_path='accept')
     def accept(self, request, pk=None):
@@ -79,6 +87,49 @@ class CareRequestViewSet(viewsets.ModelViewSet):
             care_request.caregiver = user
         care_request.status = 'accepted'
         care_request.save(update_fields=['caregiver', 'status'])
+        return Response(CareRequestSerializer(care_request, context={'request': request}).data)
+
+    @action(detail=True, methods=['post'], url_path='start')
+    def start(self, request, pk=None):
+        """Assigned caregiver starts the engagement.
+        Rules:
+        - Current status must be 'accepted'.
+        - Acting user must be the assigned caregiver (or admin).
+        - Transition status to 'in-progress'.
+        """
+        care_request = self.get_object()
+        user = request.user
+        if care_request.status != 'accepted':
+            return Response({'detail': 'Only ACCEPTED requests can be started.'}, status=status.HTTP_400_BAD_REQUEST)
+        if user.role not in ['caregiver', 'admin']:
+            return Response({'detail': 'Only caregivers or admins can start a request.'}, status=status.HTTP_403_FORBIDDEN)
+        if user.role == 'caregiver' and care_request.caregiver_id not in (None, user.id):
+            return Response({'detail': 'You are not the assigned caregiver for this request.'}, status=status.HTTP_403_FORBIDDEN)
+        # If caregiver was not set (edge case), set to acting caregiver
+        if user.role == 'caregiver' and care_request.caregiver_id is None:
+            care_request.caregiver = user
+        care_request.status = 'in-progress'
+        care_request.save(update_fields=['caregiver', 'status'])
+        return Response(CareRequestSerializer(care_request, context={'request': request}).data)
+
+    @action(detail=True, methods=['post'], url_path='complete')
+    def complete(self, request, pk=None):
+        """Assigned caregiver marks the engagement completed.
+        Rules:
+        - Status must be 'in-progress' or 'accepted' (allow direct complete from accepted if needed).
+        - Acting user must be assigned caregiver (or admin).
+        - Transition status to 'completed'.
+        """
+        care_request = self.get_object()
+        user = request.user
+        if care_request.status not in ['in-progress', 'accepted']:
+            return Response({'detail': 'Only IN-PROGRESS or ACCEPTED requests can be completed.'}, status=status.HTTP_400_BAD_REQUEST)
+        if user.role not in ['caregiver', 'admin']:
+            return Response({'detail': 'Only caregivers or admins can complete a request.'}, status=status.HTTP_403_FORBIDDEN)
+        if user.role == 'caregiver' and care_request.caregiver_id != user.id:
+            return Response({'detail': 'You are not the assigned caregiver for this request.'}, status=status.HTTP_403_FORBIDDEN)
+        care_request.status = 'completed'
+        care_request.save(update_fields=['status'])
         return Response(CareRequestSerializer(care_request, context={'request': request}).data)
 
     @action(detail=True, methods=['post'], url_path='decline')
