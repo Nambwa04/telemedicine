@@ -37,13 +37,17 @@ const Login = () => {
         setLoading(false);
         if (result.success) {
             const userRole = result.user.role; // authoritative role from backend
+            console.log('Login successful:', result.user);
+            console.log('User role:', userRole);
             const dashboardMap = {
                 'patient': '/patient-dashboard',
                 'doctor': '/doctor-dashboard',
                 'caregiver': '/caregiver-dashboard',
                 'admin': '/admin-dashboard'
             };
-            navigate(dashboardMap[userRole] || '/');
+            const targetPath = dashboardMap[userRole] || '/';
+            console.log('Navigating to:', targetPath);
+            navigate(targetPath);
         } else {
             setError(result.error || 'Login failed. Please try again.');
         }

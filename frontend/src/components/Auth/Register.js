@@ -70,15 +70,19 @@ const Register = () => {
 
         setLoading(true);
 
+        // Split name into first and last name
+        const nameParts = formData.name.trim().split(/\s+/);
+        const first_name = nameParts[0] || '';
+        const last_name = nameParts.slice(1).join(' ') || '';
+
         const result = await register({
-            name: formData.name,
+            first_name,
+            last_name,
             email: formData.email,
             password: formData.password,
             role: formData.role,
             phone: formData.phone,
-            specialization: formData.specialization,
-            experience: formData.experience,
-            licenseNumber: formData.licenseNumber
+            primary_condition: formData.specialization || '', // For patients
         });
 
         if (result.success) {
