@@ -2,10 +2,25 @@ from django.contrib import admin
 from django.urls import path, include, re_path
 from django.conf import settings
 from django.conf.urls.static import static
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from pathlib import Path
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from .health_check import health_check, environment_check
+import sys
+import traceback
+
+
+# Wrapper to debug JWT token errors
+class DebugTokenObtainPairView(TokenObtainPairView):
+    def post(self, request, *args, **kwargs):
+        try:
+            return super().post(request, *args, **kwargs)
+        except Exception as e:
+            # Log the full error
+            print(f"JWT Token Error: {e.__class__.__name__}: {str(e)}", file=sys.stderr)
+            print(traceback.format_exc(), file=sys.stderr)
+            # Re-raise to let middleware handle it
+            raise
 
 
 FRONTEND_BUILD_INDEX = Path(__file__).resolve().parent.parent.parent / 'frontend' / 'build' / 'index.html'
@@ -45,7 +60,7 @@ urlpatterns = [
     path('api/health/', health_check, name='api-health-check'),
     path('api/environment/', environment_check, name='environment-check'),
     path('admin/', admin.site.urls),
-    path('api/auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/auth/token/', DebugTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/accounts/', include('accounts.urls')),
     path('api/appointments/', include('appointments.urls')),

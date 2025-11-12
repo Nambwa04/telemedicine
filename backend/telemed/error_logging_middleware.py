@@ -24,19 +24,26 @@ class ErrorLoggingMiddleware:
         """
         Log the exception and return a JSON response for API requests.
         """
-        # Log the full exception
+        # Log the full exception with more details
+        import sys
         logger.error(
             f"Exception occurred: {exception.__class__.__name__}: {str(exception)}\n"
             f"Path: {request.path}\n"
             f"Method: {request.method}\n"
+            f"User: {getattr(request, 'user', 'Anonymous')}\n"
+            f"Request Body: {getattr(request, 'body', b'')[:500]}\n"
             f"Traceback:\n{traceback.format_exc()}"
         )
+        
+        # Also print to stderr for immediate visibility in Azure logs
+        print(f"ERROR: {exception.__class__.__name__}: {str(exception)}", file=sys.stderr)
+        print(traceback.format_exc(), file=sys.stderr)
         
         # For API requests, return JSON instead of HTML
         if request.path.startswith('/api/'):
             return JsonResponse({
                 'error': 'Internal server error',
-                'detail': str(exception) if request.user.is_staff else 'An error occurred processing your request',
+                'detail': str(exception),
                 'type': exception.__class__.__name__
             }, status=500)
         
