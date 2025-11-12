@@ -8,13 +8,16 @@ if _HOSTNAME:
     ALLOWED_HOSTS = [_HOSTNAME]
     CSRF_TRUSTED_ORIGINS = [f'https://{_HOSTNAME}']
     import sys
-    print(f"Production mode: ALLOWED_HOSTS={ALLOWED_HOSTS}", file=sys.stderr)
+    print(f"✓ Production mode: ALLOWED_HOSTS={ALLOWED_HOSTS}", file=sys.stderr)
 else:
     # Safe defaults for non-Azure environments (CI/local build)
     ALLOWED_HOSTS = ['localhost', '127.0.0.1']
     CSRF_TRUSTED_ORIGINS = []
     import sys
-    print("WARNING: WEBSITE_HOSTNAME not set, using localhost defaults", file=sys.stderr)
+    print("⚠ WARNING: WEBSITE_HOSTNAME not set! Using localhost defaults.", file=sys.stderr)
+    print("⚠ This will cause connection errors in production.", file=sys.stderr)
+    print("⚠ Set WEBSITE_HOSTNAME in Azure App Service Configuration.", file=sys.stderr)
+    print("⚠ Example: WEBSITE_HOSTNAME=your-app-name.azurewebsites.net", file=sys.stderr)
 
 DEBUG = False
 # Use MY_SECRET_KEY if provided, otherwise keep the base settings SECRET_KEY
