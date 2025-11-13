@@ -26,7 +26,7 @@
 .app-sidebar .collapse-btn {
   position: absolute;
   top: 8px;
-  right: -14px;
+  right: 8px;
   background: #ffffff;
   border: 1px solid var(--neutral-200);
   width: 28px;
@@ -38,6 +38,7 @@
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
   cursor: pointer;
   transition: background 0.25s;
+  z-index: 1060;
 }
 body.dark-mode .app-sidebar .collapse-btn {
   background: #1e293b;
@@ -48,6 +49,11 @@ body.dark-mode .app-sidebar .collapse-btn {
 }
 body.dark-mode .app-sidebar .collapse-btn:hover {
   background: #24324a;
+}
+
+/* Position close button slightly left of the collapse toggle on mobile */
+.app-sidebar .collapse-btn.mobile-close {
+  right: 44px;
 }
 
 .app-sidebar.collapsed .nav-label,

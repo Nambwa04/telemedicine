@@ -69,8 +69,8 @@ urlpatterns = [
     path('api/medications/', include('medications.urls')),
     path('api/timesheet/', include('timesheet.urls')),
     path('api/payments/', include('payments.urls')),
-    # Optional: catch-all for client-side routing (uncomment if you want Django to serve SPA for any non-API path)
-    # re_path(r'^(?!api/|admin/).*$' , root_view),
+    # Enable catch-all for client-side routes so deep links like /password-reset work when serving the built SPA via Django
+    re_path(r'^(?!api/|admin/).*$' , root_view),
 ]
 
 if settings.DEBUG:

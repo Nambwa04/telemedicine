@@ -145,6 +145,7 @@ const Login = () => {
                         <div className="text-end mt-2">
                             <Button
                                 variant="link"
+                                type="button"
                                 className="text-decoration-none p-0 text-muted"
                                 onClick={() => navigate('/password-reset')}
                                 style={{ fontSize: '0.9rem' }}
@@ -191,7 +192,7 @@ const Login = () => {
 
                 <div className="text-center">
                     <p className="mb-2">
-                        <Link to="/forgot-password" className="text-primary text-decoration-none">
+                        <Link to="/password-reset" className="text-primary text-decoration-none">
                             Forgot your password?
                         </Link>
                     </p>

@@ -60,7 +60,21 @@ export async function createAppointment({ date, time, patientId, doctorId, type,
 }
 
 export async function updateAppointment(id, patch) {
-    const updated = await api.patch(`/appointments/${id}/`, patch);
+    // Normalize camelCase to snake_case for backend serializer
+    const norm = { ...patch };
+    if (Object.prototype.hasOwnProperty.call(norm, 'patientId')) {
+        norm.patient_id = norm.patientId;
+        delete norm.patientId;
+    }
+    if (Object.prototype.hasOwnProperty.call(norm, 'doctorId')) {
+        norm.doctor_id = norm.doctorId;
+        delete norm.doctorId;
+    }
+    // Ensure time is in HH:MM (drop seconds if present)
+    if (typeof norm.time === 'string') {
+        norm.time = norm.time.slice(0, 5);
+    }
+    const updated = await api.patch(`/appointments/${id}/`, norm);
     return mapAppointment(updated);
 }
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -16,12 +16,37 @@ const Sidebar = ({ mobileOpen = false, onMobileClose }) => {
         } catch { return false; }
     });
 
+    // Auto-collapse on small screens without overriding user preference
+    const [autoCollapsed, setAutoCollapsed] = useState(false);
+    useEffect(() => {
+        const compute = () => setAutoCollapsed(window.innerWidth < 992); // match bootstrap lg breakpoint
+        compute();
+        window.addEventListener('resize', compute);
+        return () => window.removeEventListener('resize', compute);
+    }, []);
+
     // Persist & body class toggle
     useEffect(() => {
         try { localStorage.setItem('sidebar-collapsed', String(collapsed)); } catch { }
-        document.body.classList.toggle('sidebar-collapsed', collapsed);
-        return () => { document.body.classList.remove('sidebar-collapsed'); };
-    }, [collapsed]);
+        const effective = collapsed || autoCollapsed;
+        document.body.classList.toggle('sidebar-collapsed', effective);
+        document.body.classList.toggle('sidebar-auto-collapsed', autoCollapsed);
+        return () => {
+            document.body.classList.remove('sidebar-collapsed');
+            document.body.classList.remove('sidebar-auto-collapsed');
+        };
+    }, [collapsed, autoCollapsed]);
+
+    // Close mobile sidebar on route change automatically
+    const location = useLocation();
+    useEffect(() => {
+        if (mobileOpen && typeof onMobileClose === 'function') {
+            onMobileClose();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [location.pathname]);
+
+    const isCollapsed = collapsed || autoCollapsed;
 
     if (!user) return null;
 
@@ -38,7 +63,7 @@ const Sidebar = ({ mobileOpen = false, onMobileClose }) => {
             { to: '/medications', icon: 'pills', label: 'Medications' },
             { to: '/follow-ups', icon: 'bell', label: 'Follow-Ups' },
             { to: '/doctors', icon: 'user-md', label: 'Find a Doctor' },
-            { to: '/caregivers', icon: 'user-nurse', label: 'Caregivers' },
+            { to: '/caregivers', icon: 'user-nurse', label: 'Find a Caregiver' },
             { to: '/health-dashboard', icon: 'chart-line', label: 'Health' }
         ],
         doctor: [
@@ -66,6 +91,8 @@ const Sidebar = ({ mobileOpen = false, onMobileClose }) => {
 
     const toggleCollapse = () => setCollapsed(c => !c);
 
+
+
     const mobileClass = mobileOpen ? ' open' : '';
     // Build a robust display name and details for footer
     const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ').trim();
@@ -74,50 +101,58 @@ const Sidebar = ({ mobileOpen = false, onMobileClose }) => {
     const displayRole = (user.role || '').charAt(0).toUpperCase() + (user.role || '').slice(1);
 
     return (
-        <aside className={"app-sidebar" + (collapsed ? ' collapsed' : '') + mobileClass} aria-label="Primary">
+        <aside className={"app-sidebar" + (isCollapsed ? ' collapsed' : '') + (autoCollapsed ? ' auto-collapsed' : '') + mobileClass} aria-label="Primary">
             <div className="sidebar-header">
                 <div className="brand" onClick={() => navigate(`/${role}-dashboard`)} role="button" tabIndex={0}>
                     <FontAwesomeIcon icon="heartbeat" className="me-2" />
-                    <span>TeleMed+</span>
+                    <span aria-hidden={isCollapsed}>TeleMed+</span>
                 </div>
-                <button type="button" className="collapse-btn" onClick={toggleCollapse} aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} aria-expanded={!collapsed}>
-                    <FontAwesomeIcon icon={collapsed ? 'angle-right' : 'angle-left'} />
+                <button type="button" className="collapse-btn" onClick={toggleCollapse} aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} aria-expanded={!isCollapsed}>
+                    <FontAwesomeIcon icon={isCollapsed ? 'angle-right' : 'angle-left'} />
                 </button>
                 {mobileOpen && (
-                    <button type="button" className="collapse-btn" style={{ right: '-48px' }} onClick={onMobileClose} aria-label="Close menu">
+                    <button type="button" className="collapse-btn mobile-close" onClick={onMobileClose} aria-label="Close menu">
                         <FontAwesomeIcon icon="times" />
                     </button>
                 )}
             </div>
-            <nav className="sidebar-nav">
+            <nav className="sidebar-nav" role="navigation" aria-label="Sidebar">
                 {items.map(it => (
-                    <NavLink key={it.to} to={it.to} className={({ isActive }) => 'nav-item' + (isActive ? ' active' : '')} end>
+                    <NavLink
+                        key={it.to}
+                        to={it.to}
+                        className={({ isActive }) => 'nav-item' + (isActive ? ' active' : '')}
+                        end
+                        onClick={() => { if (mobileOpen && typeof onMobileClose === 'function') onMobileClose(); }}
+                        aria-label={it.label}
+                        title={isCollapsed ? it.label : undefined}
+                    >
                         <FontAwesomeIcon icon={it.icon} className="me-2" />
-                        <span className="nav-label">{it.label}</span>
+                        <span className="nav-label" aria-hidden={isCollapsed}>{it.label}</span>
                     </NavLink>
                 ))}
-                <div className="sidebar-section-title mt-3">Account</div>
-                <NavLink to="/profile" className={({ isActive }) => 'nav-item' + (isActive ? ' active' : '')}>
+                <div className="sidebar-section-title mt-3" title={isCollapsed ? 'Account' : undefined} aria-hidden={isCollapsed}>Account</div>
+                <NavLink to="/profile" className={({ isActive }) => 'nav-item' + (isActive ? ' active' : '')} onClick={() => { if (mobileOpen && typeof onMobileClose === 'function') onMobileClose(); }} aria-label="Profile" title={isCollapsed ? 'Profile' : undefined}>
                     <FontAwesomeIcon icon="user-circle" className="me-2" />
-                    <span className="nav-label">Profile</span>
+                    <span className="nav-label" aria-hidden={isCollapsed}>Profile</span>
                 </NavLink>
-                <button type="button" className="nav-item btn-reset" onClick={toggle} aria-label="Toggle dark mode">
+                <button type="button" className="nav-item btn-reset" onClick={toggle} aria-label="Toggle dark mode" title={isCollapsed ? (dark ? 'Light Mode' : 'Dark Mode') : undefined}>
                     <FontAwesomeIcon icon={dark ? 'sun' : 'moon'} className="me-2" />
-                    <span className="nav-label">{dark ? 'Light Mode' : 'Dark Mode'}</span>
+                    <span className="nav-label" aria-hidden={isCollapsed}>{dark ? 'Light Mode' : 'Dark Mode'}</span>
                 </button>
-                <button type="button" className="nav-item btn-reset text-danger" onClick={handleLogout} aria-label="Logout">
+                <button type="button" className="nav-item btn-reset text-danger" onClick={handleLogout} aria-label="Logout" title={isCollapsed ? 'Logout' : undefined}>
                     <FontAwesomeIcon icon="sign-out-alt" className="me-2" />
-                    <span className="nav-label">Logout</span>
+                    <span className="nav-label" aria-hidden={isCollapsed}>Logout</span>
                 </button>
             </nav>
             <div className="sidebar-footer small text-muted px-3 py-2">
                 <div className="d-flex align-items-start gap-2">
                     <span aria-hidden="true" className="mt-1"><FontAwesomeIcon icon="user-circle" /></span>
                     <div>
-                        <div className="nav-label">Signed in as</div>
-                        <strong className="d-block">{displayName}</strong>
-                        {displayEmail && <span className="d-block" aria-label="Email">{displayEmail}</span>}
-                        {displayRole && <span className="d-block" aria-label="Role">Role: {displayRole}</span>}
+                        <div className="nav-label" aria-hidden={isCollapsed}>Signed in as</div>
+                        <strong className="d-block" aria-hidden={isCollapsed} title={isCollapsed ? displayName : undefined}>{displayName}</strong>
+                        {displayEmail && <span className="d-block" aria-label="Email" aria-hidden={isCollapsed} title={isCollapsed ? displayEmail : undefined}>{displayEmail}</span>}
+                        {displayRole && <span className="d-block" aria-label="Role" aria-hidden={isCollapsed} title={isCollapsed ? `Role: ${displayRole}` : undefined}>Role: {displayRole}</span>}
                     </div>
                 </div>
             </div>

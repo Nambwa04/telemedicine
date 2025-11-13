@@ -127,11 +127,11 @@ const PasswordReset = () => {
     };
 
     return (
-        <div className="min-vh-100 d-flex align-items-center" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+        <div className="auth-container">
             <Container>
                 <Row className="justify-content-center">
                     <Col md={6} lg={5}>
-                        <Card className="shadow-lg border-0">
+                        <Card className="auth-card fade-in">
                             <Card.Body className="p-5">
                                 <div className="text-center mb-4">
                                     <div className="mb-3">
@@ -190,7 +190,7 @@ const PasswordReset = () => {
                                             <Button
                                                 variant="primary"
                                                 type="submit"
-                                                className="w-100 mb-3"
+                                                className="w-100 mb-3 btn-gradient-primary"
                                                 disabled={requestLoading}
                                             >
                                                 {requestLoading ? (
@@ -282,7 +282,7 @@ const PasswordReset = () => {
                                             <Button
                                                 variant="primary"
                                                 type="submit"
-                                                className="w-100 mb-3"
+                                                className="w-100 mb-3 btn-gradient-primary"
                                                 disabled={resetLoading || resetSuccess}
                                             >
                                                 {resetLoading ? (

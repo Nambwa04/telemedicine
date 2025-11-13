@@ -5,8 +5,10 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 import '../../styles/PatientAppointments.css';
+import { useAuth } from '../../context/AuthContext';
 
 const PatientAppointments = () => {
+    const { user } = useAuth();
     const [appointments, setAppointments] = useState([]);
     const [page, setPage] = useState(1);
     const [meta, setMeta] = useState({ count: 0, next: null, previous: null });
@@ -26,10 +28,7 @@ const PatientAppointments = () => {
         reason: ''
     });
 
-    const [availableTimes] = useState([
-        '09:00 AM', '09:30 AM', '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM',
-        '02:00 PM', '02:30 PM', '03:00 PM', '03:30 PM', '04:00 PM', '04:30 PM'
-    ]);
+    // We now use a native time picker (type="time") instead of a fixed list.
 
     const [doctors, setDoctors] = useState([]);
     const [doctorsLoading, setDoctorsLoading] = useState(false);
@@ -93,7 +92,8 @@ const PatientAppointments = () => {
         setSelectedAppointment(appointment);
         setFormData({
             date: appointment.date,
-            time: appointment.time,
+            // Normalize backend time like "HH:MM[:SS]" to "HH:MM" for the time input
+            time: (appointment.time || '').toString().slice(0, 5),
             doctor: appointment.doctor_id || appointment.doctor?.id || '',
             type: appointment.type,
             reason: appointment.reason || ''
@@ -120,6 +120,19 @@ const PatientAppointments = () => {
         }
     };
 
+    // Build a combined Date object from separate date (Date) and time ("HH:MM[:SS]")
+    const getAppointmentDateTime = (apt) => {
+        try {
+            const d = new Date(apt.date);
+            const [hh = '00', mm = '00'] = (apt.time || '').toString().split(':');
+            const dt = new Date(d);
+            dt.setHours(parseInt(hh, 10), parseInt(mm, 10), 0, 0);
+            return dt;
+        } catch {
+            return new Date(apt.date);
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (modalType === 'cancel') {
@@ -134,11 +147,14 @@ const PatientAppointments = () => {
         }
         // Book or reschedule appointment using backend
         try {
-            const doctorId = formData.doctor;
+            const doctorId = formData.doctor ? Number(formData.doctor) : null;
+            // TimeField expects 24h format "HH:MM" or "HH:MM:SS"; ensure HH:MM
+            const time24 = (formData.time || '').slice(0, 5);
             const appointmentData = {
                 date: formData.date.toISOString().split('T')[0],
-                time: formData.time,
+                time: time24,
                 doctorId,
+                patientId: user?.id, // required by backend serializer
                 type: formData.type,
                 notes: formData.reason
             };
@@ -147,8 +163,15 @@ const PatientAppointments = () => {
                     createAppointment(appointmentData)
                 );
             } else if (modalType === 'reschedule' && selectedAppointment) {
+                // For reschedule, only send fields that may change; ensure snake_case handled by service
                 await import('../../services/appointmentService').then(({ updateAppointment }) =>
-                    updateAppointment(selectedAppointment.id, appointmentData)
+                    updateAppointment(selectedAppointment.id, {
+                        date: appointmentData.date,
+                        time: appointmentData.time,
+                        doctorId: appointmentData.doctorId || undefined,
+                        type: appointmentData.type,
+                        notes: appointmentData.notes
+                    })
                 );
             }
             fetchData();
@@ -184,9 +207,15 @@ const PatientAppointments = () => {
     const filterAppointments = () => {
         const now = new Date();
         if (viewMode === 'upcoming') {
-            return appointments.filter(a => a.date >= now && a.status === 'scheduled');
+            return appointments.filter(a => {
+                const dt = getAppointmentDateTime(a);
+                return dt >= now && a.status !== 'cancelled';
+            });
         } else if (viewMode === 'past') {
-            return appointments.filter(a => a.date < now || a.status === 'completed' || a.status === 'cancelled');
+            return appointments.filter(a => {
+                const dt = getAppointmentDateTime(a);
+                return dt < now || a.status === 'completed' || a.status === 'cancelled';
+            });
         }
         return appointments;
     };
@@ -220,6 +249,38 @@ const PatientAppointments = () => {
         } else {
             return date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
         }
+    };
+
+    // Helper: format time from "HH:MM[:SS]" to user-friendly e.g., "10:30 AM"
+    const formatTime = (t) => {
+        if (!t) return '';
+        const [hh, mm] = t.toString().split(':');
+        const h = parseInt(hh, 10);
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        const hour12 = ((h + 11) % 12) + 1;
+        return `${hour12}:${mm} ${ampm}`;
+    };
+
+    // Generate 15-minute time slots between working hours; exclude past times for today
+    const generateTimeSlots = (dateObj, start = '08:00', end = '17:45', step = 15) => {
+        const slots = [];
+        const [sh, sm] = start.split(':').map(n => parseInt(n, 10));
+        const [eh, em] = end.split(':').map(n => parseInt(n, 10));
+        const d = new Date(dateObj);
+        const startDt = new Date(d);
+        startDt.setHours(sh, sm, 0, 0);
+        const endDt = new Date(d);
+        endDt.setHours(eh, em, 0, 0);
+
+        const now = new Date();
+        for (let cur = new Date(startDt); cur <= endDt; cur = new Date(cur.getTime() + step * 60000)) {
+            // Skip times in the past if selected date is today
+            if (cur.toDateString() === now.toDateString() && cur <= now) continue;
+            const hh = String(cur.getHours()).padStart(2, '0');
+            const mm = String(cur.getMinutes()).padStart(2, '0');
+            slots.push(`${hh}:${mm}`);
+        }
+        return slots;
     };
 
     return (
@@ -351,7 +412,7 @@ const PatientAppointments = () => {
                                                     </div>
                                                     <div className="date-time text-muted">
                                                         <FontAwesomeIcon icon="clock" className="me-1" />
-                                                        {appointment.time}
+                                                        {formatTime(appointment.time)}
                                                     </div>
                                                     <div className="mt-2">
                                                         <Badge bg="light" text="dark" className="text-uppercase">
@@ -543,9 +604,9 @@ const PatientAppointments = () => {
                                             onChange={(e) => setFormData({ ...formData, time: e.target.value })}
                                             required
                                         >
-                                            <option value="">Select time</option>
-                                            {availableTimes.map(time => (
-                                                <option key={time} value={time}>{time}</option>
+                                            <option value="">Select a time</option>
+                                            {generateTimeSlots(formData.date).map(t => (
+                                                <option key={t} value={t}>{formatTime(t)}</option>
                                             ))}
                                         </Form.Select>
                                     </Form.Group>

@@ -1,5 +1,6 @@
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework import status
+from rest_framework import serializers as drf_serializers
 from rest_framework.views import APIView
 from django.contrib.auth import get_user_model
 from .models import LabResult
@@ -63,17 +64,39 @@ class LabResultUploadView(APIView):
 # Mixin to automatically set patient field to current user
 class PatientOwnedMixin:
     def perform_create(self, serializer):
-        serializer.save(patient=self.request.user)
+        """Assign the patient for created records.
+        - If the requester is a patient, always assign to themselves.
+        - If the requester is a doctor or caregiver (or staff), allow passing `patient_id` (or `patient`) in the request body.
+        """
+        user = self.request.user
+        # Patients can only create for themselves
+        if getattr(user, 'role', None) == 'patient':
+            return serializer.save(patient=user)
+
+        # Non-patients must specify which patient the record belongs to
+        patient_id = self.request.data.get('patient_id') or self.request.data.get('patient')
+        if not patient_id:
+            raise drf_serializers.ValidationError({'patient_id': 'This field is required for non-patient users.'})
+
+        try:
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            patient = User.objects.get(id=patient_id, role='patient')
+        except User.DoesNotExist:
+            raise drf_serializers.ValidationError({'patient_id': 'Patient not found.'})
+
+        return serializer.save(patient=patient)
 
     def get_queryset(self):
         user = self.request.user
-        if user.role == 'patient':
+        if getattr(user, 'role', None) == 'patient':
             return self.queryset.filter(patient=user)
         # For doctors/caregivers, allow querying by patient_id
-        patient_id = self.request.query_params.get('patient_id')
+        patient_id = self.request.query_params.get('patient_id') or self.request.query_params.get('patient')
         if patient_id:
             return self.queryset.filter(patient_id=patient_id)
-        return self.queryset.filter(patient=user)
+        # Default: show nothing for non-patients if no patient specified
+        return self.queryset.none()
 
 
 class VitalReadingViewSet(PatientOwnedMixin, viewsets.ModelViewSet):

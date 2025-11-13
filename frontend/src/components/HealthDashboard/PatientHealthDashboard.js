@@ -535,6 +535,11 @@ const PatientHealthDashboard = () => {
                 notes: vitalsFormData.notes || ''
             };
 
+            // When adding vitals as a non-patient (e.g., caregiver/doctor), include patient_id
+            if (userRole !== 'patient' && currentPatientId) {
+                payload.patient_id = currentPatientId;
+            }
+
             const res = await fetch(`${API_BASE}/health/vitals/`, {
                 method: 'POST',
                 headers,

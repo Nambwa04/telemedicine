@@ -863,9 +863,18 @@ class PasswordResetRequestView(APIView):
         user = User.objects.get(email=serializer.validated_data['email'])
         token = PasswordResetToken.objects.create(user=user)
         
-        # Build reset URL (use frontend URL)
-        frontend_url = request.META.get('HTTP_ORIGIN', 'http://localhost:3000')
-        reset_url = f"{frontend_url}/password-reset?token={token.token}"
+        # Build reset URL (use frontend URL). Prefer Origin; otherwise derive from current host.
+        origin = request.META.get('HTTP_ORIGIN')
+        if origin:
+            frontend_base = origin.rstrip('/')
+        else:
+            try:
+                # e.g., http://127.0.0.1:8000/
+                base = request.build_absolute_uri('/')
+                frontend_base = base.rstrip('/')
+            except Exception:
+                frontend_base = 'http://localhost:3000'
+        reset_url = f"{frontend_base}/password-reset?token={token.token}"
         
         # Send email
         subject = 'Password Reset Request - TeleMed+'
@@ -899,7 +908,8 @@ The TeleMed+ Team
         
         return Response({
             'detail': 'Password reset email sent. Check your inbox.',
-            'token': str(token.token)  # Include token for development/testing
+            'token': str(token.token),  # Include token for development/testing
+            'reset_url': reset_url
         })
 
 
