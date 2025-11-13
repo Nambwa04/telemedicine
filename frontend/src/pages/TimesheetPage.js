@@ -8,6 +8,7 @@ import {
     deleteTimesheetEntry,
     submitTimesheetWeek
 } from '../services/timesheetService';
+import { fetchPatientList } from '../services/healthService';
 
 const TimesheetPage = () => {
     const [entries, setEntries] = useState([]);
@@ -16,6 +17,9 @@ const TimesheetPage = () => {
     const [showModal, setShowModal] = useState(false);
     const [editEntry, setEditEntry] = useState(null);
     const [saving, setSaving] = useState(false);
+    const [clients, setClients] = useState([]);
+    const [clientsLoading, setClientsLoading] = useState(false);
+    const [clientsError, setClientsError] = useState(null);
 
     const fetchEntries = async () => {
         setLoading(true);
@@ -33,6 +37,34 @@ const TimesheetPage = () => {
     useEffect(() => {
         fetchEntries();
     }, []);
+
+    // Load clients when the modal opens (or once on first open)
+    useEffect(() => {
+        const loadClients = async () => {
+            setClientsLoading(true);
+            setClientsError(null);
+            try {
+                const list = await fetchPatientList();
+                // Deduplicate by name to be safe and sort alphabetically
+                const mapByName = new Map();
+                for (const c of list) {
+                    const name = (c.name || '').trim();
+                    if (!name) continue;
+                    if (!mapByName.has(name)) mapByName.set(name, { label: name, value: name, id: c.id });
+                }
+                const options = Array.from(mapByName.values()).sort((a, b) => a.label.localeCompare(b.label));
+                setClients(options);
+            } catch (e) {
+                setClientsError(e.message || 'Failed to load clients');
+            } finally {
+                setClientsLoading(false);
+            }
+        };
+
+        if (showModal && clients.length === 0 && !clientsLoading && !clientsError) {
+            loadClients();
+        }
+    }, [showModal]);
 
     const handleAdd = () => {
         const today = new Date().toISOString().split('T')[0];
@@ -250,13 +282,21 @@ const TimesheetPage = () => {
                         </Form.Group>
                         <Form.Group className="mb-3">
                             <Form.Label>Client *</Form.Label>
-                            <Form.Control
-                                type="text"
+                            <Form.Select
                                 value={editEntry?.client || ''}
                                 onChange={e => setEditEntry(prev => ({ ...prev, client: e.target.value }))}
-                                placeholder="Client name"
                                 required
-                            />
+                            >
+                                <option value="" disabled>
+                                    {clientsLoading ? 'Loading clients…' : 'Select a client'}
+                                </option>
+                                {clients.map(opt => (
+                                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                ))}
+                            </Form.Select>
+                            {clientsError && (
+                                <div className="text-danger small mt-1">{clientsError}</div>
+                            )}
                         </Form.Group>
                         <Row>
                             <Col md={6}>

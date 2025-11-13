@@ -12,7 +12,11 @@ class TimesheetEntrySerializer(serializers.ModelSerializer):
             'start_time', 'end_time', 'break_minutes', 'hours', 
             'rate', 'subtotal', 'status', 'notes', 'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'hours', 'subtotal', 'created_at', 'updated_at']
+        # Caregiver is set from request user; not required in payload
+        read_only_fields = ['id', 'caregiver', 'hours', 'subtotal', 'created_at', 'updated_at']
+        extra_kwargs = {
+            'caregiver': { 'required': False },
+        }
     
     def get_caregiver_name(self, obj):
         return f"{obj.caregiver.first_name} {obj.caregiver.last_name}".strip() or obj.caregiver.email
