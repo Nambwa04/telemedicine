@@ -27,6 +27,8 @@ INSTALLED_APPS = [
     'corsheaders',
     'accounts',
     'appointments',
+    'availability',
+    'carenotes',
     'health',
     'requestsapp',
     'medications',

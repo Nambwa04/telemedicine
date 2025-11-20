@@ -7,6 +7,8 @@ import { useNavigate } from 'react-router-dom';
 // Patient list removed; caregivers should only see clients they serve
 import { listAppointments } from '../../services/appointmentService';
 import { listCareRequests, acceptCareRequest, declineCareRequest, updateMyLocation } from '../../services/caregiverService';
+import { getMySchedule, bulkCreateWeeklySlots } from '../../services/availabilityService';
+import { getUnreadCareNotes } from '../../services/careNotesService';
 
 const CaregiverDashboard = () => {
     const { user, refreshUserProfile, updateUser } = useAuth();
@@ -126,6 +128,10 @@ const CaregiverDashboard = () => {
     const [messagesLoading, setMessagesLoading] = useState(false);
     const [messagesError, setMessagesError] = useState(null);
 
+    // Unread care notes state
+    const [unreadNotes, setUnreadNotes] = useState([]);
+    const [notesLoading, setNotesLoading] = useState(false);
+
     useEffect(() => {
         let mounted = true;
         async function loadRecent() {
@@ -208,8 +214,9 @@ const CaregiverDashboard = () => {
                 const dd = String(today.getDate()).padStart(2, '0');
                 const dateStr = `${yyyy}-${mm}-${dd}`;
 
-                const appts = await listAppointments({ date: dateStr });
-                const normalized = (Array.isArray(appts) ? appts : []).map(a => ({
+                const apptsResp = await listAppointments({ date: dateStr });
+                const appts = Array.isArray(apptsResp?.items) ? apptsResp.items : (Array.isArray(apptsResp) ? apptsResp : []);
+                const normalized = appts.map(a => ({
                     id: a.id,
                     // Prefer explicit time fields; fallback to building from date
                     time: a.time || a.start_time || a.startTime || (a.date ? new Date(a.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'),
@@ -229,6 +236,24 @@ const CaregiverDashboard = () => {
         return () => { mounted = false; };
     }, [user]);
 
+    // Fetch unread care notes
+    useEffect(() => {
+        let mounted = true;
+        const fetchUnreadNotes = async () => {
+            setNotesLoading(true);
+            try {
+                const notes = await getUnreadCareNotes();
+                if (mounted) setUnreadNotes(notes.slice(0, 5)); // Show only 5 most recent
+            } catch (err) {
+                console.error('Failed to fetch unread notes:', err);
+            } finally {
+                if (mounted) setNotesLoading(false);
+            }
+        };
+        fetchUnreadNotes();
+        return () => { mounted = false; };
+    }, []);
+
     const getStatusBadge = (status) => {
         const map = {
             completed: { label: 'Completed', className: 'soft-badge bg-success-subtle text-success-emphasis' },
@@ -246,17 +271,79 @@ const CaregiverDashboard = () => {
         setClockedIn(v => !v);
     };
 
-    // Availability modal
+    // Availability modal - each day can have different times
     const [showAvailability, setShowAvailability] = useState(false);
-    const [availability, setAvailability] = useState({
-        days: [],
-        notes: ''
+    const [availabilityByDay, setAvailabilityByDay] = useState({
+        monday: { enabled: false, startTime: '09:00', endTime: '17:00' },
+        tuesday: { enabled: false, startTime: '09:00', endTime: '17:00' },
+        wednesday: { enabled: false, startTime: '09:00', endTime: '17:00' },
+        thursday: { enabled: false, startTime: '09:00', endTime: '17:00' },
+        friday: { enabled: false, startTime: '09:00', endTime: '17:00' },
+        saturday: { enabled: false, startTime: '09:00', endTime: '17:00' },
+        sunday: { enabled: false, startTime: '09:00', endTime: '17:00' }
     });
-    const handleOpenAvailability = () => setShowAvailability(true);
-    const handleCloseAvailability = () => setShowAvailability(false);
-    const handleSaveAvailability = () => {
-        // TODO: integrate with backend endpoint to save caregiver availability
+    const [loadingSlots, setLoadingSlots] = useState(false);
+    const [savingAvailability, setSavingAvailability] = useState(false);
+    
+    const handleOpenAvailability = async () => {
+        setShowAvailability(true);
+        setLoadingSlots(true);
+        try {
+            const slots = await getMySchedule();
+            // Populate availabilityByDay from existing slots
+            const dayData = {
+                monday: { enabled: false, startTime: '09:00', endTime: '17:00' },
+                tuesday: { enabled: false, startTime: '09:00', endTime: '17:00' },
+                wednesday: { enabled: false, startTime: '09:00', endTime: '17:00' },
+                thursday: { enabled: false, startTime: '09:00', endTime: '17:00' },
+                friday: { enabled: false, startTime: '09:00', endTime: '17:00' },
+                saturday: { enabled: false, startTime: '09:00', endTime: '17:00' },
+                sunday: { enabled: false, startTime: '09:00', endTime: '17:00' }
+            };
+            slots.forEach(slot => {
+                if (dayData[slot.dayOfWeek]) {
+                    dayData[slot.dayOfWeek] = {
+                        enabled: slot.isAvailable,
+                        startTime: slot.startTime,
+                        endTime: slot.endTime,
+                        slotId: slot.id
+                    };
+                }
+            });
+            setAvailabilityByDay(dayData);
+        } catch (err) {
+            console.error('Failed to load availability:', err);
+        } finally {
+            setLoadingSlots(false);
+        }
+    };
+    
+    const handleCloseAvailability = () => {
         setShowAvailability(false);
+    };
+    
+    const handleSaveAvailability = async () => {
+        setSavingAvailability(true);
+        try {
+            // Create new slots for each enabled day
+            for (const [day, config] of Object.entries(availabilityByDay)) {
+                if (config.enabled && config.startTime && config.endTime) {
+                    await bulkCreateWeeklySlots({
+                        days: [day],
+                        startTime: config.startTime,
+                        endTime: config.endTime,
+                        notes: ''
+                    });
+                }
+            }
+            
+            alert('Availability saved successfully!');
+            setShowAvailability(false);
+        } catch (err) {
+            alert('Failed to save availability: ' + (err.message || 'Unknown error'));
+        } finally {
+            setSavingAvailability(false);
+        }
     };
 
     // Rate Client modal
@@ -510,6 +597,71 @@ const CaregiverDashboard = () => {
                 </Col>
             </Row>
 
+            {/* Care Notes Section */}
+            <Row>
+                <Col lg={12} className="mb-4">
+                    <Card className="medical-card">
+                        <Card.Header className="d-flex justify-content-between align-items-center fw-bold text-dark">
+                            <span>
+                                <FontAwesomeIcon icon="notes-medical" className="me-2" />
+                                Recent Care Notes
+                            </span>
+                            <Button
+                                size="sm"
+                                variant="outline-primary"
+                                onClick={() => navigate('/health-dashboard')}
+                            >
+                                View All Notes
+                            </Button>
+                        </Card.Header>
+                        <Card.Body>
+                            {notesLoading ? (
+                                <div className="text-center py-4">Loading notes...</div>
+                            ) : unreadNotes.length === 0 ? (
+                                <div className="text-center py-4 text-muted">
+                                    <FontAwesomeIcon icon="notes-medical" size="2x" className="mb-2 opacity-50" />
+                                    <p className="mb-0">No unread care notes</p>
+                                </div>
+                            ) : (
+                                <>
+                                    {unreadNotes.map((note) => (
+                                        <Card key={note.id} className="mb-3 border-start border-primary border-3">
+                                            <Card.Body>
+                                                <div className="d-flex justify-content-between align-items-start mb-2">
+                                                    <div>
+                                                        <Badge bg="primary" className="me-2">{note.note_type}</Badge>
+                                                        <Badge bg={note.priority === 'urgent' ? 'danger' : note.priority === 'high' ? 'warning' : 'secondary'}>
+                                                            {note.priority}
+                                                        </Badge>
+                                                        {note.is_pinned && <Badge bg="warning" className="ms-2">📌 Pinned</Badge>}
+                                                    </div>
+                                                    <small className="text-muted">
+                                                        {new Date(note.created_at).toLocaleDateString()}
+                                                    </small>
+                                                </div>
+                                                <p className="mb-2" style={{ whiteSpace: 'pre-wrap' }}>
+                                                    {note.content.length > 150 ? note.content.substring(0, 150) + '...' : note.content}
+                                                </p>
+                                                <small className="text-muted">
+                                                    By {note.author_name} • For patient ID: {note.patient}
+                                                </small>
+                                            </Card.Body>
+                                        </Card>
+                                    ))}
+                                    <Button
+                                        variant="link"
+                                        className="p-0 text-primary"
+                                        onClick={() => navigate('/health-dashboard')}
+                                    >
+                                        View all notes <FontAwesomeIcon icon="arrow-right" className="ms-1" />
+                                    </Button>
+                                </>
+                            )}
+                        </Card.Body>
+                    </Card>
+                </Col>
+            </Row>
+
             {/* Service Requests and Quick Actions/Profile */}
             <Row className="equal-cols">
                 {/* Service Requests */}
@@ -608,49 +760,187 @@ const CaregiverDashboard = () => {
                             </div>
                         </Card.Body>
                     </Card>
+                </Col>
+            </Row>
 
+            {/* Care Notes Section */}
+            <Row>
+                <Col lg={12} className="mb-4">
+                    <Card className="medical-card">
+                        <Card.Header className="d-flex justify-content-between align-items-center fw-bold text-dark">
+                            <span>
+                                <FontAwesomeIcon icon="notes-medical" className="me-2" />
+                                Recent Care Notes
+                            </span>
+                            <Button
+                                size="sm"
+                                variant="outline-primary"
+                                onClick={() => navigate('/health-dashboard')}
+                            >
+                                View All Notes
+                            </Button>
+                        </Card.Header>
+                        <Card.Body>
+                            {notesLoading ? (
+                                <div className="text-center py-4">Loading notes...</div>
+                            ) : unreadNotes.length === 0 ? (
+                                <div className="text-center py-4 text-muted">
+                                    <FontAwesomeIcon icon="notes-medical" size="2x" className="mb-2 opacity-50" />
+                                    <p className="mb-0">No unread care notes</p>
+                                </div>
+                            ) : (
+                                <>
+                                    {unreadNotes.map((note) => (
+                                        <Card key={note.id} className="mb-3 border-start border-primary border-3">
+                                            <Card.Body>
+                                                <div className="d-flex justify-content-between align-items-start mb-2">
+                                                    <div>
+                                                        <Badge bg="primary" className="me-2">{note.note_type}</Badge>
+                                                        <Badge bg={note.priority === 'urgent' ? 'danger' : note.priority === 'high' ? 'warning' : 'secondary'}>
+                                                            {note.priority}
+                                                        </Badge>
+                                                        {note.is_pinned && <Badge bg="warning" className="ms-2">📌 Pinned</Badge>}
+                                                    </div>
+                                                    <small className="text-muted">
+                                                        {new Date(note.created_at).toLocaleDateString()}
+                                                    </small>
+                                                </div>
+                                                <p className="mb-2" style={{ whiteSpace: 'pre-wrap' }}>
+                                                    {note.content.length > 150 ? note.content.substring(0, 150) + '...' : note.content}
+                                                </p>
+                                                <small className="text-muted">
+                                                    By {note.author_name} • For patient ID: {note.patient}
+                                                </small>
+                                            </Card.Body>
+                                        </Card>
+                                    ))}
+                                    <Button
+                                        variant="link"
+                                        className="p-0 text-primary"
+                                        onClick={() => navigate('/health-dashboard')}
+                                    >
+                                        View all notes <FontAwesomeIcon icon="arrow-right" className="ms-1" />
+                                    </Button>
+                                </>
+                            )}
+                        </Card.Body>
+                    </Card>
+                </Col>
+            </Row>
+
+            {/* Modals */}
+            <Row>
+                <Col>
                     {/* Availability Modal */}
-                    <Modal show={showAvailability} onHide={handleCloseAvailability} centered>
+                    <Modal show={showAvailability} onHide={handleCloseAvailability} centered size="lg">
                         <Modal.Header closeButton>
-                            <Modal.Title>Set Availability</Modal.Title>
+                            <Modal.Title>Manage Weekly Availability</Modal.Title>
                         </Modal.Header>
-                        <Modal.Body>
-                            <Form>
-                                <Form.Group className="mb-3">
-                                    <Form.Label>Available Days</Form.Label>
-                                    <div className="d-flex flex-wrap gap-2">
-                                        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
-                                            <Form.Check
-                                                key={day}
-                                                type="checkbox"
-                                                label={day}
-                                                checked={availability.days.includes(day)}
-                                                onChange={e => {
-                                                    setAvailability(prev => {
-                                                        const days = new Set(prev.days);
-                                                        if (e.target.checked) days.add(day); else days.delete(day);
-                                                        return { ...prev, days: Array.from(days) };
-                                                    });
-                                                }}
-                                            />
+                        <Modal.Body style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+                            {loadingSlots ? (
+                                <div className="text-center py-3">Loading availability...</div>
+                            ) : (
+                                <>
+                                    <p className="text-muted small mb-3">
+                                        Set your available hours for each day. You can set different times for each day.
+                                    </p>
+                                    
+                                    <Form>
+                                        {[
+                                            { value: 'monday', label: 'Monday' },
+                                            { value: 'tuesday', label: 'Tuesday' },
+                                            { value: 'wednesday', label: 'Wednesday' },
+                                            { value: 'thursday', label: 'Thursday' },
+                                            { value: 'friday', label: 'Friday' },
+                                            { value: 'saturday', label: 'Saturday' },
+                                            { value: 'sunday', label: 'Sunday' }
+                                        ].map(day => (
+                                            <Card key={day.value} className="mb-3 border">
+                                                <Card.Body className="py-2">
+                                                    <Row className="align-items-center">
+                                                        <Col xs={12} md={3}>
+                                                            <Form.Check
+                                                                type="checkbox"
+                                                                id={`day-${day.value}`}
+                                                                label={<strong>{day.label}</strong>}
+                                                                checked={availabilityByDay[day.value]?.enabled || false}
+                                                                onChange={e => {
+                                                                    setAvailabilityByDay(prev => ({
+                                                                        ...prev,
+                                                                        [day.value]: {
+                                                                            ...prev[day.value],
+                                                                            enabled: e.target.checked
+                                                                        }
+                                                                    }));
+                                                                }}
+                                                            />
+                                                        </Col>
+                                                        <Col xs={6} md={4}>
+                                                            <Form.Group className="mb-0">
+                                                                <Form.Label className="small mb-1">Start Time</Form.Label>
+                                                                <Form.Control
+                                                                    type="time"
+                                                                    size="sm"
+                                                                    value={availabilityByDay[day.value]?.startTime || '09:00'}
+                                                                    disabled={!availabilityByDay[day.value]?.enabled}
+                                                                    onChange={e => {
+                                                                        setAvailabilityByDay(prev => ({
+                                                                            ...prev,
+                                                                            [day.value]: {
+                                                                                ...prev[day.value],
+                                                                                startTime: e.target.value
+                                                                            }
+                                                                        }));
+                                                                    }}
+                                                                />
+                                                            </Form.Group>
+                                                        </Col>
+                                                        <Col xs={6} md={4}>
+                                                            <Form.Group className="mb-0">
+                                                                <Form.Label className="small mb-1">End Time</Form.Label>
+                                                                <Form.Control
+                                                                    type="time"
+                                                                    size="sm"
+                                                                    value={availabilityByDay[day.value]?.endTime || '17:00'}
+                                                                    disabled={!availabilityByDay[day.value]?.enabled}
+                                                                    onChange={e => {
+                                                                        setAvailabilityByDay(prev => ({
+                                                                            ...prev,
+                                                                            [day.value]: {
+                                                                                ...prev[day.value],
+                                                                                endTime: e.target.value
+                                                                            }
+                                                                        }));
+                                                                    }}
+                                                                />
+                                                            </Form.Group>
+                                                        </Col>
+                                                        {availabilityByDay[day.value]?.enabled && (
+                                                            <Col xs={12} md={1} className="text-center">
+                                                                <Badge bg="success" className="mt-2 mt-md-0">
+                                                                    <FontAwesomeIcon icon="check" />
+                                                                </Badge>
+                                                            </Col>
+                                                        )}
+                                                    </Row>
+                                                </Card.Body>
+                                            </Card>
                                         ))}
-                                    </div>
-                                </Form.Group>
-                                <Form.Group>
-                                    <Form.Label>Notes</Form.Label>
-                                    <Form.Control
-                                        as="textarea"
-                                        rows={3}
-                                        value={availability.notes}
-                                        onChange={e => setAvailability(prev => ({ ...prev, notes: e.target.value }))}
-                                        placeholder="Add any availability details..."
-                                    />
-                                </Form.Group>
-                            </Form>
+                                    </Form>
+                                </>
+                            )}
                         </Modal.Body>
                         <Modal.Footer>
-                            <Button variant="secondary" onClick={handleCloseAvailability}>Cancel</Button>
-                            <Button className="gradient-primary" onClick={handleSaveAvailability}>Save</Button>
+                            <Button variant="secondary" onClick={handleCloseAvailability} disabled={savingAvailability}>
+                                Cancel
+                            </Button>
+                            <Button 
+                                className="gradient-primary" 
+                                onClick={handleSaveAvailability}
+                                disabled={savingAvailability || loadingSlots}
+                            >
+                                {savingAvailability ? 'Saving...' : 'Save Availability'}
+                            </Button>
                         </Modal.Footer>
                     </Modal>
 

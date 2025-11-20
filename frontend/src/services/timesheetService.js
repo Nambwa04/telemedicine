@@ -58,13 +58,15 @@ export async function createTimesheetEntry(entryData) {
         const payload = {
             date: entryData.date,
             client: entryData.client,
-            start_time: entryData.start,
-            end_time: entryData.end,
             break_minutes: entryData.break || 0,
             rate: parseFloat(entryData.rate),
             notes: entryData.notes || '',
             status: entryData.status || 'draft'
         };
+        
+        // Only include times if provided (for backward compatibility)
+        if (entryData.start) payload.start_time = entryData.start;
+        if (entryData.end) payload.end_time = entryData.end;
 
         const response = await api.post('/timesheet/', payload);
 
@@ -100,13 +102,15 @@ export async function updateTimesheetEntry(id, entryData) {
         const payload = {
             date: entryData.date,
             client: entryData.client,
-            start_time: entryData.start,
-            end_time: entryData.end,
             break_minutes: entryData.break || 0,
             rate: parseFloat(entryData.rate),
             notes: entryData.notes || '',
             status: entryData.status || 'draft'
         };
+        
+        // Only include times if provided
+        if (entryData.start) payload.start_time = entryData.start;
+        if (entryData.end) payload.end_time = entryData.end;
 
         const response = await api.put(`/timesheet/${id}/`, payload);
 
@@ -163,6 +167,68 @@ export async function submitTimesheetWeek(entryIds) {
         };
     } catch (error) {
         console.error('Failed to submit timesheet week:', error);
+        throw error;
+    }
+}
+
+/**
+ * Clock in: start a new in-progress entry.
+ * @param {Object} data - { client, rate, notes }
+ * @returns {Promise<Object>} New in-progress entry
+ */
+export async function clockInTimesheetEntry(data = {}) {
+    try {
+        const response = await api.post('/timesheet/clock_in/', {
+            client: data.client || 'Client',
+            rate: parseFloat(data.rate || 0),
+            notes: data.notes || ''
+        });
+        return {
+            id: response.id,
+            caregiverId: response.caregiver,
+            caregiverName: response.caregiver_name,
+            date: response.date,
+            client: response.client,
+            start: response.start_time,
+            end: response.end_time,
+            break: response.break_minutes,
+            hours: parseFloat(response.hours),
+            rate: parseFloat(response.rate),
+            subtotal: parseFloat(response.subtotal),
+            status: response.status,
+            notes: response.notes || ''
+        };
+    } catch (error) {
+        console.error('Failed to clock in:', error);
+        throw error;
+    }
+}
+
+/**
+ * Clock out: finalize an in-progress entry.
+ * @param {number} id - Entry ID
+ * @returns {Promise<Object>} Updated entry now draft
+ */
+export async function clockOutTimesheetEntry(id) {
+    try {
+        const response = await api.post(`/timesheet/${id}/clock_out/`);
+        return {
+            id: response.id,
+            caregiverId: response.caregiver,
+            caregiverName: response.caregiver_name,
+            date: response.date,
+            client: response.client,
+            start: response.start_time,
+            end: response.end_time,
+            break: response.break_minutes,
+            hours: parseFloat(response.hours),
+            rate: parseFloat(response.rate),
+            subtotal: parseFloat(response.subtotal),
+            status: response.status,
+            notes: response.notes || ''
+        };
+    } catch (error) {
+        console.error('Failed to clock out:', error);
         throw error;
     }
 }

@@ -6,6 +6,7 @@ import { fetchPatientMetrics, fetchPatientList, mapTrendLabel, fetchVitalsList }
 import { useAuth } from '../../context/AuthContext';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import API_BASE from '../../config';
+import CareNotesPanel from '../CareNotes/CareNotesPanel';
 
 // PatientHealthDashboard: patient-specific dashboard that can also optionally show a patient list for doctor/caregiver roles.
 // This replaces the generic SharedHealthDashboard for patient view while preserving structure.
@@ -891,6 +892,9 @@ const PatientHealthDashboard = () => {
                                     <Nav.Item>
                                         <Nav.Link eventKey="appointments"><FontAwesomeIcon icon="calendar" className="me-1" />Appointments</Nav.Link>
                                     </Nav.Item>
+                                    <Nav.Item>
+                                        <Nav.Link eventKey="carenotes"><FontAwesomeIcon icon="notes-medical" className="me-1" />Care Notes</Nav.Link>
+                                    </Nav.Item>
                                     {showPatientSelector && (
                                         <Nav.Item>
                                             <Nav.Link eventKey="patients"><FontAwesomeIcon icon="users" className="me-1" />Patient List</Nav.Link>
@@ -1429,6 +1433,12 @@ const PatientHealthDashboard = () => {
                                                 </tbody>
                                             </Table>
                                         )}
+                                    </Tab.Pane>
+                                    <Tab.Pane eventKey="carenotes">
+                                        <CareNotesPanel 
+                                            patientId={selectedPatientId} 
+                                            currentUserRole={userRole}
+                                        />
                                     </Tab.Pane>
                                     {showPatientSelector && (
                                         <Tab.Pane eventKey="patients">

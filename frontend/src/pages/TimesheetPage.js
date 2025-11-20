@@ -3,10 +3,11 @@ import { Card, Table, Button, Row, Col, Spinner, Alert, Modal, Form } from 'reac
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
     listTimesheetEntries,
-    createTimesheetEntry,
-    updateTimesheetEntry,
     deleteTimesheetEntry,
-    submitTimesheetWeek
+    submitTimesheetWeek,
+    clockInTimesheetEntry,
+    clockOutTimesheetEntry,
+    updateTimesheetEntry
 } from '../services/timesheetService';
 import { fetchPatientList } from '../services/healthService';
 
@@ -14,12 +15,14 @@ const TimesheetPage = () => {
     const [entries, setEntries] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [showModal, setShowModal] = useState(false);
-    const [editEntry, setEditEntry] = useState(null);
     const [saving, setSaving] = useState(false);
     const [clients, setClients] = useState([]);
     const [clientsLoading, setClientsLoading] = useState(false);
     const [clientsError, setClientsError] = useState(null);
+    const [showClockInModal, setShowClockInModal] = useState(false);
+    const [clockInData, setClockInData] = useState({ client: '', rate: 2500 });
+    const [showBreakModal, setShowBreakModal] = useState(false);
+    const [breakEntry, setBreakEntry] = useState(null);
 
     const fetchEntries = async () => {
         setLoading(true);
@@ -38,7 +41,7 @@ const TimesheetPage = () => {
         fetchEntries();
     }, []);
 
-    // Load clients when the modal opens (or once on first open)
+    // Load clients when the clock-in modal opens
     useEffect(() => {
         const loadClients = async () => {
             setClientsLoading(true);
@@ -61,28 +64,14 @@ const TimesheetPage = () => {
             }
         };
 
-        if (showModal && clients.length === 0 && !clientsLoading && !clientsError) {
+        if (showClockInModal && clients.length === 0 && !clientsLoading && !clientsError) {
             loadClients();
         }
-    }, [showModal, clients.length, clientsLoading, clientsError]);
-
-    const handleAdd = () => {
-        const today = new Date().toISOString().split('T')[0];
-        setEditEntry({
-            date: today,
-            client: '',
-            start: '09:00',
-            end: '17:00',
-            break: 30,
-            rate: 2500,
-            status: 'draft'
-        });
-        setShowModal(true);
-    };
+    }, [showClockInModal, clients.length, clientsLoading, clientsError]);
 
     const handleEdit = (entry) => {
-        setEditEntry({ ...entry });
-        setShowModal(true);
+        // Editing draft entries could be added back if needed
+        alert('Please clock in/out to track time. Edit functionality coming soon.');
     };
 
     const handleDelete = async (id) => {
@@ -95,31 +84,7 @@ const TimesheetPage = () => {
         }
     };
 
-    const handleSave = async () => {
-        if (!editEntry.date || !editEntry.client || !editEntry.start || !editEntry.end) {
-            alert('Please fill in all required fields');
-            return;
-        }
 
-        setSaving(true);
-        try {
-            if (editEntry.id) {
-                // Update existing entry
-                const updated = await updateTimesheetEntry(editEntry.id, editEntry);
-                setEntries(prev => prev.map(e => e.id === updated.id ? updated : e));
-            } else {
-                // Create new entry
-                const created = await createTimesheetEntry(editEntry);
-                setEntries(prev => [...prev, created]);
-            }
-            setShowModal(false);
-            setEditEntry(null);
-        } catch (err) {
-            alert('Failed to save entry: ' + (err.message || 'Unknown error'));
-        } finally {
-            setSaving(false);
-        }
-    };
 
     const handleSubmitWeek = async () => {
         const draftEntries = entries.filter(e => e.status === 'draft');
@@ -142,6 +107,67 @@ const TimesheetPage = () => {
 
     const weekTotal = entries.reduce((sum, e) => sum + (e.subtotal || 0), 0);
     const draftCount = entries.filter(e => e.status === 'draft').length;
+    const activeEntry = entries.find(e => e.status === 'in-progress');
+
+    const handleClockIn = () => {
+        if (activeEntry) {
+            alert('You already have an active entry in progress.');
+            return;
+        }
+        setClockInData({ client: '', rate: 2500 });
+        setShowClockInModal(true);
+    };
+
+    const handleClockInSubmit = async () => {
+        if (!clockInData.client || !clockInData.rate) {
+            alert('Please fill in all required fields');
+            return;
+        }
+        setSaving(true);
+        try {
+            const entry = await clockInTimesheetEntry(clockInData);
+            setEntries(prev => [...prev, entry]);
+            setShowClockInModal(false);
+        } catch (err) {
+            alert('Failed to clock in: ' + (err.message || 'Unknown error'));
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleClockOut = async (entry) => {
+        if (!entry || entry.status !== 'in-progress') return;
+        if (!window.confirm('Clock out now and finalize this entry?')) return;
+        try {
+            const updated = await clockOutTimesheetEntry(entry.id);
+            setEntries(prev => prev.map(e => e.id === updated.id ? updated : e));
+        } catch (err) {
+            alert('Failed to clock out: ' + (err.message || 'Unknown error'));
+        }
+    };
+
+    const handleAddBreak = (entry) => {
+        setBreakEntry({ ...entry });
+        setShowBreakModal(true);
+    };
+
+    const handleSaveBreak = async () => {
+        if (!breakEntry) return;
+        setSaving(true);
+        try {
+            const updated = await updateTimesheetEntry(breakEntry.id, {
+                ...breakEntry,
+                status: 'in-progress'
+            });
+            setEntries(prev => prev.map(e => e.id === updated.id ? updated : e));
+            setShowBreakModal(false);
+            setBreakEntry(null);
+        } catch (err) {
+            alert('Failed to update break time: ' + (err.message || 'Unknown error'));
+        } finally {
+            setSaving(false);
+        }
+    };
 
     return (
         <div className="container-fluid py-4">
@@ -153,11 +179,14 @@ const TimesheetPage = () => {
                     </h2>
                 </Col>
                 <Col className="text-end">
-                    <Button variant="primary" onClick={handleAdd}>
-                        <FontAwesomeIcon icon="plus" className="me-1" />
-                        Add Entry
+                    <Button
+                        variant={activeEntry ? 'warning' : 'outline-success'}
+                        className="me-2"
+                        onClick={activeEntry ? () => handleClockOut(activeEntry) : handleClockIn}
+                    >
+                        <FontAwesomeIcon icon={activeEntry ? 'sign-out-alt' : 'sign-in-alt'} className="me-1" />
+                        {activeEntry ? 'Clock Out' : 'Clock In'}
                     </Button>
-                    {' '}
                     <Button
                         variant="success"
                         onClick={handleSubmitWeek}
@@ -207,15 +236,16 @@ const TimesheetPage = () => {
                                     <tr key={e.id}>
                                         <td>{e.date}</td>
                                         <td>{e.client}</td>
-                                        <td>{e.start}</td>
-                                        <td>{e.end}</td>
+                                        <td>{e.start || '--'}</td>
+                                        <td>{e.end || (e.status === 'in-progress' ? '⏳' : '--')}</td>
                                         <td>{e.break}</td>
-                                        <td>{e.hours}</td>
+                                        <td>{e.hours?.toFixed ? e.hours.toFixed(2) : e.hours}</td>
                                         <td>Ksh {e.rate}</td>
-                                        <td>Ksh {e.subtotal.toFixed(2)}</td>
+                                        <td>Ksh {e.subtotal?.toFixed ? e.subtotal.toFixed(2) : e.subtotal}</td>
                                         <td>
                                             <span className={`badge ${e.status === 'approved' ? 'bg-success' :
                                                 e.status === 'submitted' ? 'bg-info' :
+                                                    e.status === 'in-progress' ? 'bg-warning text-dark' :
                                                     e.status === 'rejected' ? 'bg-danger' :
                                                         'bg-secondary'
                                                 }`}>
@@ -223,23 +253,47 @@ const TimesheetPage = () => {
                                             </span>
                                         </td>
                                         <td>
-                                            <Button
-                                                size="sm"
-                                                variant="outline-primary"
-                                                className="me-1"
-                                                onClick={() => handleEdit(e)}
-                                                disabled={e.status !== 'draft'}
-                                            >
-                                                <FontAwesomeIcon icon="edit" />
-                                            </Button>
-                                            <Button
-                                                size="sm"
-                                                variant="outline-danger"
-                                                onClick={() => handleDelete(e.id)}
-                                                disabled={e.status !== 'draft'}
-                                            >
-                                                <FontAwesomeIcon icon="trash" />
-                                            </Button>
+                                            {e.status === 'in-progress' ? (
+                                                <>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline-info"
+                                                        className="me-1"
+                                                        onClick={() => handleAddBreak(e)}
+                                                        title="Add Break Time"
+                                                    >
+                                                        <FontAwesomeIcon icon="coffee" />
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline-warning"
+                                                        onClick={() => handleClockOut(e)}
+                                                        title="Clock Out"
+                                                    >
+                                                        <FontAwesomeIcon icon="sign-out-alt" />
+                                                    </Button>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline-primary"
+                                                        className="me-1"
+                                                        onClick={() => handleEdit(e)}
+                                                        disabled={e.status !== 'draft'}
+                                                    >
+                                                        <FontAwesomeIcon icon="edit" />
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline-danger"
+                                                        onClick={() => handleDelete(e.id)}
+                                                        disabled={e.status !== 'draft'}
+                                                    >
+                                                        <FontAwesomeIcon icon="trash" />
+                                                    </Button>
+                                                </>
+                                            )}
                                         </td>
                                     </tr>
                                 ))}
@@ -253,38 +307,22 @@ const TimesheetPage = () => {
                     )}
                 </Card.Body>
             </Card>
-            <Modal show={showModal} onHide={() => setShowModal(false)} centered>
+
+            {/* Clock In Modal */}
+            <Modal show={showClockInModal} onHide={() => setShowClockInModal(false)} centered>
                 <Modal.Header closeButton>
                     <Modal.Title>
-                        {editEntry?.id ? (
-                            <>
-                                <FontAwesomeIcon icon="edit" className="me-2" />
-                                Edit Entry
-                            </>
-                        ) : (
-                            <>
-                                <FontAwesomeIcon icon="plus" className="me-2" />
-                                Add Entry
-                            </>
-                        )}
+                        <FontAwesomeIcon icon="sign-in-alt" className="me-2" />
+                        Clock In
                     </Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
                     <Form>
                         <Form.Group className="mb-3">
-                            <Form.Label>Date *</Form.Label>
-                            <Form.Control
-                                type="date"
-                                value={editEntry?.date || ''}
-                                onChange={e => setEditEntry(prev => ({ ...prev, date: e.target.value }))}
-                                required
-                            />
-                        </Form.Group>
-                        <Form.Group className="mb-3">
                             <Form.Label>Client *</Form.Label>
                             <Form.Select
-                                value={editEntry?.client || ''}
-                                onChange={e => setEditEntry(prev => ({ ...prev, client: e.target.value }))}
+                                value={clockInData.client}
+                                onChange={e => setClockInData(prev => ({ ...prev, client: e.target.value }))}
                                 required
                             >
                                 <option value="" disabled>
@@ -298,63 +336,79 @@ const TimesheetPage = () => {
                                 <div className="text-danger small mt-1">{clientsError}</div>
                             )}
                         </Form.Group>
-                        <Row>
-                            <Col md={6}>
-                                <Form.Group className="mb-3">
-                                    <Form.Label>Start Time *</Form.Label>
-                                    <Form.Control
-                                        type="time"
-                                        value={editEntry?.start || ''}
-                                        onChange={e => setEditEntry(prev => ({ ...prev, start: e.target.value }))}
-                                        required
-                                    />
-                                </Form.Group>
-                            </Col>
-                            <Col md={6}>
-                                <Form.Group className="mb-3">
-                                    <Form.Label>End Time *</Form.Label>
-                                    <Form.Control
-                                        type="time"
-                                        value={editEntry?.end || ''}
-                                        onChange={e => setEditEntry(prev => ({ ...prev, end: e.target.value }))}
-                                        required
-                                    />
-                                </Form.Group>
-                            </Col>
-                        </Row>
-                        <Row>
-                            <Col md={6}>
-                                <Form.Group className="mb-3">
-                                    <Form.Label>Break (minutes)</Form.Label>
-                                    <Form.Control
-                                        type="number"
-                                        min={0}
-                                        value={editEntry?.break || 0}
-                                        onChange={e => setEditEntry(prev => ({ ...prev, break: Number(e.target.value) }))}
-                                    />
-                                </Form.Group>
-                            </Col>
-                            <Col md={6}>
-                                <Form.Group className="mb-3">
-                                    <Form.Label>Hourly Rate (Ksh) *</Form.Label>
-                                    <Form.Control
-                                        type="number"
-                                        min={0}
-                                        step="0.01"
-                                        value={editEntry?.rate || 0}
-                                        onChange={e => setEditEntry(prev => ({ ...prev, rate: Number(e.target.value) }))}
-                                        required
-                                    />
-                                </Form.Group>
-                            </Col>
-                        </Row>
+                        <Form.Group className="mb-3">
+                            <Form.Label>Hourly Rate (Ksh) *</Form.Label>
+                            <Form.Control
+                                type="number"
+                                min={0}
+                                step="0.01"
+                                value={clockInData.rate}
+                                onChange={e => setClockInData(prev => ({ ...prev, rate: Number(e.target.value) }))}
+                                required
+                            />
+                        </Form.Group>
+                        <Form.Group className="mb-3">
+                            <Form.Label>Start Time</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                                disabled
+                            />
+                            <Form.Text className="text-muted">
+                                Your shift will start at the current time
+                            </Form.Text>
+                        </Form.Group>
                     </Form>
                 </Modal.Body>
                 <Modal.Footer>
-                    <Button variant="secondary" onClick={() => setShowModal(false)} disabled={saving}>
+                    <Button variant="secondary" onClick={() => setShowClockInModal(false)} disabled={saving}>
                         Cancel
                     </Button>
-                    <Button variant="primary" onClick={handleSave} disabled={saving}>
+                    <Button variant="success" onClick={handleClockInSubmit} disabled={saving}>
+                        {saving ? (
+                            <>
+                                <Spinner animation="border" size="sm" className="me-2" />
+                                Clocking In...
+                            </>
+                        ) : (
+                            <>
+                                <FontAwesomeIcon icon="sign-in-alt" className="me-2" />
+                                Clock In
+                            </>
+                        )}
+                    </Button>
+                </Modal.Footer>
+            </Modal>
+
+            {/* Break Time Modal */}
+            <Modal show={showBreakModal} onHide={() => setShowBreakModal(false)} centered>
+                <Modal.Header closeButton>
+                    <Modal.Title>
+                        <FontAwesomeIcon icon="coffee" className="me-2" />
+                        Add Break Time
+                    </Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <Form>
+                        <Form.Group className="mb-3">
+                            <Form.Label>Break Duration (minutes)</Form.Label>
+                            <Form.Control
+                                type="number"
+                                min={0}
+                                value={breakEntry?.break || 0}
+                                onChange={e => setBreakEntry(prev => ({ ...prev, break: Number(e.target.value) }))}
+                            />
+                            <Form.Text className="text-muted">
+                                Total break time will be deducted from your hours
+                            </Form.Text>
+                        </Form.Group>
+                    </Form>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowBreakModal(false)} disabled={saving}>
+                        Cancel
+                    </Button>
+                    <Button variant="primary" onClick={handleSaveBreak} disabled={saving}>
                         {saving ? (
                             <>
                                 <Spinner animation="border" size="sm" className="me-2" />
@@ -363,7 +417,7 @@ const TimesheetPage = () => {
                         ) : (
                             <>
                                 <FontAwesomeIcon icon="save" className="me-2" />
-                                Save
+                                Save Break
                             </>
                         )}
                     </Button>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Form, Spinner, Alert } from 'react-bootstrap';
+import { Modal, Form, Spinner, Alert, Badge } from 'react-bootstrap';
 import { Container, Row, Col, Card, Button, Table } from 'react-bootstrap';
 import QuickActionTile from '../Common/QuickActionTile';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -12,6 +12,7 @@ import API_BASE from '../../config';
 import { useCallback } from 'react';
 import { listFollowUps } from '../../services/prescriptionService';
 import { listDoctorRequests, acceptDoctorRequest, declineDoctorRequest } from '../../services/doctorService';
+import { getUnreadCareNotes } from '../../services/careNotesService';
 
 const DoctorDashboard = () => {
     // Get time-based greeting
@@ -155,6 +156,10 @@ const DoctorDashboard = () => {
     const [patientsLoading, setPatientsLoading] = useState(true);
     const [patientsError, setPatientsError] = useState(null);
 
+    // Unread care notes state
+    const [unreadNotes, setUnreadNotes] = useState([]);
+    const [notesLoading, setNotesLoading] = useState(false);
+
     useEffect(() => {
         let mounted = true;
         (async () => {
@@ -187,6 +192,24 @@ const DoctorDashboard = () => {
         }
     }, []);
     useEffect(() => { loadFollowUps(); }, [loadFollowUps]);
+
+    // Fetch unread care notes
+    useEffect(() => {
+        let mounted = true;
+        const fetchUnreadNotes = async () => {
+            setNotesLoading(true);
+            try {
+                const notes = await getUnreadCareNotes();
+                if (mounted) setUnreadNotes(notes.slice(0, 5)); // Show only 5 most recent
+            } catch (err) {
+                console.error('Failed to fetch unread notes:', err);
+            } finally {
+                if (mounted) setNotesLoading(false);
+            }
+        };
+        fetchUnreadNotes();
+        return () => { mounted = false; };
+    }, []);
 
     // Build recent activity from schedule, doctor requests, and follow-ups
     // Moved below doctor requests state to avoid temporal dead zone when referencing requestsLoading
@@ -765,6 +788,71 @@ const DoctorDashboard = () => {
                 </Col>
 
 
+            </Row>
+
+            {/* Care Notes Section */}
+            <Row>
+                <Col lg={12} className="mb-4">
+                    <Card className="medical-card border-0 shadow-sm">
+                        <Card.Header className="d-flex justify-content-between align-items-center">
+                            <span>
+                                <FontAwesomeIcon icon="notes-medical" className="me-2" />
+                                Recent Care Notes
+                            </span>
+                            <Button
+                                size="sm"
+                                variant="outline-primary"
+                                onClick={() => navigate('/health-dashboard')}
+                            >
+                                View All Notes
+                            </Button>
+                        </Card.Header>
+                        <Card.Body>
+                            {notesLoading ? (
+                                <div className="text-center py-4">Loading notes...</div>
+                            ) : unreadNotes.length === 0 ? (
+                                <div className="text-center py-4 text-muted">
+                                    <FontAwesomeIcon icon="notes-medical" size="2x" className="mb-2 opacity-50" />
+                                    <p className="mb-0">No unread care notes</p>
+                                </div>
+                            ) : (
+                                <>
+                                    {unreadNotes.map((note) => (
+                                        <Card key={note.id} className="mb-3 border-start border-primary border-3">
+                                            <Card.Body>
+                                                <div className="d-flex justify-content-between align-items-start mb-2">
+                                                    <div>
+                                                        <Badge bg="primary" className="me-2">{note.note_type}</Badge>
+                                                        <Badge bg={note.priority === 'urgent' ? 'danger' : note.priority === 'high' ? 'warning' : 'secondary'}>
+                                                            {note.priority}
+                                                        </Badge>
+                                                        {note.is_pinned && <Badge bg="warning" className="ms-2">📌 Pinned</Badge>}
+                                                    </div>
+                                                    <small className="text-muted">
+                                                        {new Date(note.created_at).toLocaleDateString()}
+                                                    </small>
+                                                </div>
+                                                <p className="mb-2" style={{ whiteSpace: 'pre-wrap' }}>
+                                                    {note.content.length > 150 ? note.content.substring(0, 150) + '...' : note.content}
+                                                </p>
+                                                <small className="text-muted">
+                                                    By {note.author_name} • For patient ID: {note.patient}
+                                                </small>
+                                            </Card.Body>
+                                        </Card>
+                                    ))}
+                                    <Button
+                                        variant="link"
+                                        className="p-0 text-primary fw-semibold"
+                                        onClick={() => navigate('/health-dashboard')}
+                                    >
+                                        View all notes <FontAwesomeIcon icon="arrow-right" className="ms-1" />
+                                    </Button>
+                                </>
+                            )}
+                        </Card.Body>
+                    </Card>
+                </Col>
             </Row>
 
             {/* Modals moved to component root for global access */}

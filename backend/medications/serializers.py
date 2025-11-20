@@ -3,6 +3,7 @@ from .models import Medication, MedicationLog, ComplianceFollowUp
 from django.db.models import Count, Q
 from django.utils import timezone
 from datetime import timedelta
+import datetime as _datetime
 from .utils import compute_noncompliance_risk
 
 class MedicationLogSerializer(serializers.ModelSerializer):
@@ -86,6 +87,26 @@ class MedicationSerializer(serializers.ModelSerializer):
             return obj.followups.filter(status='pending').count()
         except Exception:
             return 0
+
+    def to_representation(self, instance):
+        """
+        Ensure DateField representations receive date objects/strings even if the
+        model attribute is a datetime (some defaults use timezone.now()).
+        """
+        ret = super().to_representation(instance)
+        # Normalize potential datetime values on commonly returned date fields
+        for fld in ('start_date', 'end_date'):
+            try:
+                val = getattr(instance, fld, None)
+                if isinstance(val, _datetime.datetime):
+                    # convert to date string (ISO) to satisfy DateField expectations
+                    ret[fld] = val.date().isoformat()
+                elif isinstance(val, _datetime.date):
+                    ret[fld] = val.isoformat()
+            except Exception:
+                # If anything goes wrong, leave the serializer output as-is
+                pass
+        return ret
 
 
 class ComplianceFollowUpSerializer(serializers.ModelSerializer):

@@ -1,0 +1,51 @@
+.care-notes-panel {
+  margin: 20px 0;
+}
+
+.notes-list {
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.note-card {
+  transition: all 0.2s ease;
+  border-left: 4px solid transparent;
+}
+
+.note-card.unread {
+  border-left-color: #0d6efd;
+  background-color: #f8f9fa;
+}
+
+.note-card.pinned {
+  border-left-color: #ffc107;
+  background-color: #fffbf0;
+}
+
+.note-card:hover {
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+}
+
+.note-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.note-actions .btn-link {
+  padding: 2px 6px;
+  font-size: 1.2em;
+  text-decoration: none;
+  line-height: 1;
+}
+
+.note-actions .btn-link:hover {
+  transform: scale(1.2);
+}
+
+@media (max-width: 768px) {
+  .note-actions {
+    flex-direction: row;
+  }
+}
