@@ -114,7 +114,8 @@ export async function listCareRequests(params = {}) {
                 hourlyRate: rateNum,
                 totalCost: rateNum * durationNum || 0,
                 notes: request.notes || '',
-                family: request.family || '',
+                // Prefer explicit family label from backend; if missing try to derive
+                family: request.family || (request.patient ? `${(request.patient.first_name || '').trim()} ${(request.patient.last_name || '').trim()}`.trim() : (request.patient_name || request.patient_email || '')),
                 urgent: request.urgent || false,
                 requestedBy: request.created_by_email || 'Unknown',
                 canAccept,
@@ -134,8 +135,11 @@ export async function listCareRequests(params = {}) {
  */
 export async function createCareRequest(requestData) {
     try {
+        const currentUser = JSON.parse(localStorage.getItem('user') || 'null');
+        const derivedFamily = (requestData.family && requestData.family.trim()) || (currentUser ? `${(currentUser.first_name || '').trim()} ${(currentUser.last_name || '').trim()}`.trim() || currentUser.email : '');
+
         const payload = {
-            family: requestData.family || 'Patient Family',
+            family: derivedFamily || 'Patient Family',
             service: requestData.services?.join(', ') || requestData.service || 'General Care',
             duration: requestData.duration?.toString() || '4 hours',
             rate: parseFloat(requestData.hourlyRate) || 2500,
@@ -146,6 +150,7 @@ export async function createCareRequest(requestData) {
 
         if (requestData.caregiverId) payload.caregiver = requestData.caregiverId;
         if (requestData.patientId) payload.patient = requestData.patientId; // optional explicit override
+        else if (currentUser?.id) payload.patient = currentUser.id; // associate request with logged-in patient when possible
 
         const response = await api.post('/requests/care/', payload);
         return { success: true, data: response };

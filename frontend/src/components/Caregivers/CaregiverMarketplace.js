@@ -138,8 +138,12 @@ const CaregiverMarketplace = ({ userRole = 'patient' }) => {
         e.preventDefault();
 
         try {
+            const currentUser = JSON.parse(localStorage.getItem('user') || 'null');
+            const derivedFamily = (currentUser ? `${(currentUser.first_name || '').trim()} ${(currentUser.last_name || '').trim()}`.trim() : '') || currentUser?.email || 'Patient Family';
+
             const requestData = {
-                family: 'Patient Family', // Could be derived from user context
+                family: derivedFamily,
+                patientId: currentUser?.id,
                 service: requestForm.services.join(', '),
                 services: requestForm.services,
                 duration: requestForm.duration,

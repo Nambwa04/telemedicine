@@ -64,7 +64,7 @@ const TimesheetPage = () => {
         if (showModal && clients.length === 0 && !clientsLoading && !clientsError) {
             loadClients();
         }
-    }, [showModal]);
+    }, [showModal, clients.length, clientsLoading, clientsError]);
 
     const handleAdd = () => {
         const today = new Date().toISOString().split('T')[0];
