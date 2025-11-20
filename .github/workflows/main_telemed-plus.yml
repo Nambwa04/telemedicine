@@ -88,3 +88,7 @@ jobs:
           app-name: "telemed-plus"
           slot-name: "Production"
           package: "release.zip"
+
+      - name: Run Database Migrations
+        run: |
+          az webapp ssh --name telemed-plus --resource-group telemed-plus_group --command "cd /home/site/wwwroot && python manage.py migrate --noinput"
