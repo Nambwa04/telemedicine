@@ -89,6 +89,11 @@ jobs:
           slot-name: "Production"
           package: "release.zip"
 
-      - name: Run Database Migrations
+      - name: Run Database Migrations via Azure CLI
         run: |
-          az webapp ssh --name telemed-plus --resource-group telemed-plus_group --command "cd /home/site/wwwroot && python manage.py migrate --noinput"
+          az webapp start --name telemed-plus --resource-group telemed-plus_group
+          sleep 30
+          curl -X POST https://telemed-plus.scm.azurewebsites.net/api/command \
+            -H "Authorization: Bearer $(az account get-access-token --resource https://management.azure.com --query accessToken -o tsv)" \
+            -H "Content-Type: application/json" \
+            -d '{"command": "python manage.py migrate --noinput", "dir": "/home/site/wwwroot"}'
