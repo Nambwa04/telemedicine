@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Button, Alert, Badge } from 'react-bootstrap';
 import QuickActionTile from '../Common/QuickActionTile';
+import EmergencyButton from '../Common/EmergencyButton';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { useAuth } from '../../context/AuthContext';
 import { fetchPatientMetrics } from '../../services/healthService';
@@ -240,6 +241,9 @@ const PatientDashboard = () => {
 
     return (
         <Container fluid className="fade-in">
+            {/* Floating Emergency Button */}
+            <EmergencyButton variant="floating" size="large" />
+            
             {/* Welcome Header */}
             <div className="dashboard-header text-center">
                 <Row>

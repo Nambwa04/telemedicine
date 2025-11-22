@@ -47,14 +47,31 @@ const NavigationBar = () => {
     }, [user]);
 
     return (
-        <Navbar bg={dark ? "dark" : "white"} variant={dark ? "dark" : "light"} expand="lg" fixed="top" className="shadow-sm">
+        <Navbar bg={dark ? "dark" : "white"} variant={dark ? "dark" : "light"} expand="false" fixed="top" className="shadow-sm">
             <Container>
                 <Navbar.Brand as={Link} to={user ? getDashboardLink() : '/'} className="fw-bold text-primary">
                     <FontAwesomeIcon icon="heartbeat" className="me-2" />
                     TeleMed+
                 </Navbar.Brand>
 
-                <Navbar.Toggle aria-controls="basic-navbar-nav" />
+                {/* Auth Buttons - Always Visible */}
+                {!user && (
+                    <div className="d-flex align-items-center gap-2 ms-auto">
+                        <Button as={Link} to="/login" variant="outline-primary" size="sm">
+                            Login
+                        </Button>
+                        <Button as={Link} to="/register" variant="primary" size="sm">
+                            Register
+                        </Button>
+                    </div>
+                )}
+
+                {/* Hamburger Toggle Button - After Auth Buttons */}
+                <Navbar.Toggle aria-controls="basic-navbar-nav" className="ms-2">
+                    <span className="navbar-toggler-icon"></span>
+                </Navbar.Toggle>
+
+                {/* Collapsible Menu Content */}
                 <Navbar.Collapse id="basic-navbar-nav">
                     {user ? (
                         <>
@@ -177,24 +194,17 @@ const NavigationBar = () => {
                             </Nav>
                         </>
                     ) : (
-                        <Nav className="ms-auto align-items-lg-center gap-2">
-                            <Nav.Link as={NavLink} to="/" end className={({ isActive }) => isActive ? 'active fw-semibold' : undefined}>Home</Nav.Link>
-                            <Button
-                                variant={dark ? 'outline-light' : 'outline-secondary'}
-                                size="sm"
-                                onClick={toggle}
-                                aria-label="Toggle dark mode"
-                                className="d-flex align-items-center"
-                            >
-                                <FontAwesomeIcon icon={dark ? 'sun' : 'moon'} className="me-1" />
-                                <span className="d-none d-md-inline">{dark ? 'Light' : 'Dark'}</span>
-                            </Button>
-                            <Button as={Link} to="/login" variant="outline-primary" className="me-2">
-                                Login
-                            </Button>
-                            <Button as={Link} to="/register" variant="primary">
-                                Register
-                            </Button>
+                        <Nav className="flex-column">
+                            <Nav.Link as={NavLink} to="/" end className={({ isActive }) => isActive ? 'active fw-semibold' : undefined}>
+                                <FontAwesomeIcon icon="home" className="me-2" />
+                                Home
+                            </Nav.Link>
+                            
+                            {/* Theme Toggle */}
+                            <div className="nav-link" style={{ cursor: 'pointer' }} onClick={toggle}>
+                                <FontAwesomeIcon icon={dark ? 'sun' : 'moon'} className="me-2" />
+                                <span>{dark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}</span>
+                            </div>
                         </Nav>
                     )}
                 </Navbar.Collapse>

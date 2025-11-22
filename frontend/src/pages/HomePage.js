@@ -2,6 +2,7 @@ import React from 'react';
 import { Container, Row, Col, Button, Card } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import EmergencyButton from '../components/Common/EmergencyButton';
 
 const features = [
     {
@@ -29,6 +30,9 @@ const features = [
 const HomePage = () => {
     return (
         <div className="home-landing">
+            {/* Floating Emergency Button */}
+            <EmergencyButton variant="floating" size="large" />
+            
             <section className="hero-section py-5">
                 <Container>
                     <Row className="align-items-center">

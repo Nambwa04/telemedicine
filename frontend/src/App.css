@@ -135,6 +135,7 @@ body {
     rgba(29, 78, 216, 0.4)
   );
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   pointer-events: none;
@@ -1004,6 +1005,7 @@ body.dark-mode .quick-action-tile .label {
 .text-gradient {
   background: linear-gradient(90deg, var(--primary-color), var(--medical-blue));
   -webkit-background-clip: text;
+  background-clip: text;
   color: transparent;
 }
 
@@ -1077,6 +1079,7 @@ body.dark-mode .quick-action-tile .label {
 .cta-section h2 {
   background: linear-gradient(90deg, var(--primary-color), var(--medical-blue));
   -webkit-background-clip: text;
+  background-clip: text;
   color: transparent;
 }
 
@@ -1443,4 +1446,348 @@ body.dark-mode .quick-action-tile.blue-theme:focus-visible {
 
 /* =============================================================
    END BLUE BUTTON SYSTEM
+   ============================================================= */
+
+/* =============================================================
+   EMERGENCY BUTTON STYLES
+   ============================================================= */
+
+/* Floating Emergency Button */
+.emergency-button-floating {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #dc3545, #c82333);
+  border: 4px solid #fff;
+  box-shadow: 0 6px 24px rgba(220, 53, 69, 0.5), 0 0 0 0 rgba(220, 53, 69, 0.7);
+  color: white;
+  font-size: 1.2rem;
+  font-weight: bold;
+  cursor: pointer;
+  z-index: 1050;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  animation: pulse-emergency 2s infinite;
+}
+
+.emergency-button-floating:hover {
+  transform: scale(1.1);
+  box-shadow: 0 8px 32px rgba(220, 53, 69, 0.6), 0 0 0 0 rgba(220, 53, 69, 0.8);
+  background: linear-gradient(135deg, #e55360, #dc3545);
+}
+
+.emergency-button-floating:active {
+  transform: scale(0.95);
+}
+
+.emergency-button-floating .emergency-icon {
+  font-size: 1.8rem;
+  margin-bottom: 4px;
+  animation: shake 0.5s infinite;
+}
+
+.emergency-button-floating .emergency-text {
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+/* Pulse Animation for Emergency Button */
+@keyframes pulse-emergency {
+  0% {
+    box-shadow: 0 6px 24px rgba(220, 53, 69, 0.5), 0 0 0 0 rgba(220, 53, 69, 0.7);
+  }
+  50% {
+    box-shadow: 0 6px 24px rgba(220, 53, 69, 0.5), 0 0 0 20px rgba(220, 53, 69, 0);
+  }
+  100% {
+    box-shadow: 0 6px 24px rgba(220, 53, 69, 0.5), 0 0 0 0 rgba(220, 53, 69, 0);
+  }
+}
+
+/* Shake Animation for Ambulance Icon */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-2px) rotate(-2deg); }
+  75% { transform: translateX(2px) rotate(2deg); }
+}
+
+/* Inline Emergency Button */
+.emergency-button-inline {
+  background: linear-gradient(135deg, #dc3545, #c82333);
+  border: none;
+  color: white;
+  font-weight: 700;
+  box-shadow: 0 4px 14px rgba(220, 53, 69, 0.4);
+  transition: all 0.3s ease;
+}
+
+.emergency-button-inline:hover {
+  background: linear-gradient(135deg, #e55360, #dc3545);
+  box-shadow: 0 6px 20px rgba(220, 53, 69, 0.5);
+  transform: translateY(-2px);
+  color: white;
+}
+
+.emergency-button-inline:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(220, 53, 69, 0.4);
+}
+
+/* Emergency Modal Styling */
+.modal-header.bg-danger {
+  background: linear-gradient(135deg, #dc3545, #c82333) !important;
+}
+
+.modal-header.bg-danger .btn-close {
+  filter: brightness(0) invert(1);
+}
+
+/* Responsive Design for Emergency Button */
+@media (max-width: 768px) {
+  .emergency-button-floating {
+    width: 70px;
+    height: 70px;
+    bottom: 20px;
+    right: 20px;
+  }
+
+  .emergency-button-floating .emergency-icon {
+    font-size: 1.5rem;
+  }
+
+  .emergency-button-floating .emergency-text {
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .emergency-button-floating {
+    width: 60px;
+    height: 60px;
+    bottom: 15px;
+    right: 15px;
+  }
+
+  .emergency-button-floating .emergency-icon {
+    font-size: 1.3rem;
+  }
+
+  .emergency-button-floating .emergency-text {
+    font-size: 0.8rem;
+  }
+}
+
+/* Dark Mode Support for Emergency Button */
+body.dark-mode .emergency-button-floating {
+  border-color: #1a1a1a;
+}
+
+body.dark-mode .modal-content {
+  background-color: #1a1a1a;
+  color: #e9ecef;
+}
+
+body.dark-mode .modal-header {
+  border-bottom-color: #343a40;
+}
+
+body.dark-mode .modal-footer {
+  border-top-color: #343a40;
+}
+
+body.dark-mode .list-group-item {
+  background-color: #212529;
+  border-color: #343a40;
+  color: #e9ecef;
+}
+
+body.dark-mode .bg-light {
+  background-color: #212529 !important;
+}
+
+/* =============================================================
+   END EMERGENCY BUTTON STYLES
+   ============================================================= */
+
+/* =============================================================
+   CLEAN HAMBURGER MENU STYLES
+   ============================================================= */
+
+/* Enhanced Navbar Toggle Button - Always visible */
+.navbar-toggler {
+  border: 2px solid var(--primary-color);
+  border-radius: 8px;
+  padding: 8px 12px;
+  transition: all 0.3s ease;
+}
+
+.navbar-toggler:hover {
+  background: rgba(44, 90, 160, 0.1);
+  transform: scale(1.05);
+}
+
+.navbar-toggler:focus {
+  box-shadow: 0 0 0 3px rgba(44, 90, 160, 0.25);
+  outline: none;
+}
+
+.navbar-toggler-icon {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba(44, 90, 160, 1)' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2.5' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+  width: 24px;
+  height: 24px;
+}
+
+body.dark-mode .navbar-toggler {
+  border-color: #60a5fa;
+}
+
+body.dark-mode .navbar-toggler:hover {
+  background: rgba(96, 165, 250, 0.15);
+}
+
+body.dark-mode .navbar-toggler-icon {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba(96, 165, 250, 1)' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2.5' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+}
+
+/* Menu Dropdown Styling - All screen sizes */
+.navbar-collapse {
+  margin-top: 1rem;
+  border-radius: 12px;
+  background: white;
+  padding: 1.25rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: auto;
+  width: 280px;
+  z-index: 1000;
+}
+
+body.dark-mode .navbar-collapse {
+  background: #1e293b;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+/* Navigation Links in Menu */
+.navbar-nav .nav-link {
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 6px;
+  transition: all 0.2s ease;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+}
+
+.navbar-nav .nav-link:hover {
+  background: rgba(44, 90, 160, 0.08);
+  transform: translateX(4px);
+}
+
+body.dark-mode .navbar-nav .nav-link:hover {
+  background: rgba(96, 165, 250, 0.12);
+}
+
+.navbar-nav .nav-link.active {
+  background: rgba(44, 90, 160, 0.12);
+  color: var(--primary-color) !important;
+  font-weight: 600;
+}
+
+body.dark-mode .navbar-nav .nav-link.active {
+  background: rgba(96, 165, 250, 0.2);
+  color: #60a5fa !important;
+}
+
+/* Remove active underline in dropdown */
+.navbar-nav .nav-link.active::after {
+  display: none;
+}
+
+/* Theme Toggle in Menu */
+.navbar-collapse .nav-link[style*="cursor"] {
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 6px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+}
+
+.navbar-collapse .nav-link[style*="cursor"]:hover {
+  background: rgba(44, 90, 160, 0.08);
+}
+
+body.dark-mode .navbar-collapse .nav-link[style*="cursor"]:hover {
+  background: rgba(96, 165, 250, 0.12);
+}
+
+/* Auth Buttons - Always Visible Outside Menu */
+.navbar .d-flex.gap-2 {
+  order: 2;
+}
+
+.navbar .navbar-toggler {
+  order: 3;
+  margin-left: 0.5rem;
+}
+
+.navbar-brand {
+  order: 1;
+}
+
+/* Mobile Adjustments */
+@media (max-width: 576px) {
+  .navbar-collapse {
+    width: calc(100vw - 2rem);
+    right: 1rem;
+  }
+  
+  .navbar .d-flex.gap-2 .btn {
+    padding: 6px 12px;
+    font-size: 0.875rem;
+  }
+}
+
+/* Brand Logo Enhancement */
+.navbar-brand {
+  font-size: 1.5rem;
+  font-weight: 700;
+  transition: transform 0.2s ease;
+  order: 1;
+}
+
+.navbar-brand:hover {
+  transform: scale(1.05);
+}
+
+/* Smooth Navbar Appearance */
+.navbar {
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+}
+
+body.dark-mode .navbar {
+  background-color: rgba(26, 32, 44, 0.95) !important;
+}
+
+/* Ensure proper layout */
+.navbar .container {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* =============================================================
+   END CLEAN HAMBURGER MENU STYLES
    ============================================================= */

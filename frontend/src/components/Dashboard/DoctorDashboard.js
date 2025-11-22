@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal, Form, Spinner, Alert, Badge } from 'react-bootstrap';
 import { Container, Row, Col, Card, Button, Table } from 'react-bootstrap';
 import QuickActionTile from '../Common/QuickActionTile';
+import EmergencyButton from '../Common/EmergencyButton';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { useAuth } from '../../context/AuthContext';
 import { getStatusMeta } from '../../utils/statusStyles';
@@ -545,6 +546,9 @@ const DoctorDashboard = () => {
 
     return (
         <Container fluid className="fade-in">
+            {/* Floating Emergency Button */}
+            <EmergencyButton variant="floating" size="large" />
+            
             {/* Welcome Header */}
             <div className="dashboard-header text-center">
                 <Row>
