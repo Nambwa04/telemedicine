@@ -1,3 +1,7 @@
+/**
+ * Service for managing care notes.
+ * Handles CRUD operations, comments, pinning, archiving, and read status.
+ */
 import { createApiClient } from './apiClient';
 import API_BASE from '../config';
 

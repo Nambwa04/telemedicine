@@ -1,3 +1,8 @@
+/**
+ * Button Ripple Effect Utility.
+ * Adds a material-design style ripple effect to buttons on click.
+ * Respects reduced motion preferences.
+ */
 // Lightweight ripple effect for buttons using event delegation
 // Applies to <button>, elements with role="button", and .btn
 

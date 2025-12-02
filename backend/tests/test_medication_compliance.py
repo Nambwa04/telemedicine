@@ -1,3 +1,7 @@
+"""
+Unit tests for medication compliance logic.
+Tests risk score calculation and automated follow-up creation rules.
+"""
 from django.test import TestCase
 from django.utils import timezone
 from django.contrib.auth import get_user_model

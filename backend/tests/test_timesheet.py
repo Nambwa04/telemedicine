@@ -1,3 +1,8 @@
+"""
+Integration tests for the Timesheet API.
+Covers timesheet entry creation, automatic calculations, weekly submission,
+and admin approval/rejection workflows.
+"""
 from rest_framework.test import APITestCase
 from rest_framework import status
 from datetime import date, time

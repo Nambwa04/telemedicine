@@ -1,3 +1,8 @@
+/**
+ * Theme Context Provider.
+ * Manages application theme (light/dark mode).
+ * Persists theme preference to local storage.
+ */
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
 const ThemeContext = createContext({ dark: false, toggle: () => { } });

@@ -1,3 +1,7 @@
+"""
+Production settings for Azure deployment.
+Overrides base settings with environment-specific configurations.
+"""
 import os 
 from .settings import *
 from .settings import BASE_DIR

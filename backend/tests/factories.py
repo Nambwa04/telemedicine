@@ -1,3 +1,7 @@
+"""
+Test data factories for creating user instances.
+Provides helpers for creating admins, doctors, patients, and caregivers.
+"""
 from django.contrib.auth import get_user_model
 
 

@@ -1,4 +1,8 @@
-// apiClient.js - centralized fetch wrapper with auto token refresh
+/**
+ * Centralized API Client.
+ * Wraps fetch with automatic token injection and refresh logic.
+ * Provides methods for GET, POST, PATCH, DELETE requests.
+ */
 import { useAuth } from '../context/AuthContext';
 
 export function createApiClient(getAuth, API_BASE = process.env.REACT_APP_API_BASE || 'http://127.0.0.1:8000/api', { onError } = {}) {

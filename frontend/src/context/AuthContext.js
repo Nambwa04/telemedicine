@@ -1,8 +1,20 @@
+/**
+ * Authentication Context Provider.
+ * Manages user authentication state, login, logout, registration, and token refreshing.
+ * Provides auth context to the entire application.
+ */
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
 import API_BASE from '../config';
 
-// Helper: robust JSON parsing with clear errors when HTML is returned (e.g., SPA fallback)
+/**
+ * Helper function to safely parse JSON responses.
+ * It handles cases where the response might be HTML (e.g., 404 or 500 errors from a web server)
+ * instead of JSON, providing a clearer error message.
+ * 
+ * @param {Response} res - The fetch API response object
+ * @returns {Promise<Object>} - The parsed JSON data
+ */
 async function parseJsonResponse(res) {
     const ct = res.headers.get('content-type') || '';
     if (ct.includes('application/json')) {
@@ -14,8 +26,13 @@ async function parseJsonResponse(res) {
     throw new Error(`Expected JSON but received '${ct || 'unknown'}' (status ${res.status}). Preview: ${preview}`);
 }
 
+// Create the Authentication Context
 const AuthContext = createContext();
 
+/**
+ * Custom hook to access the AuthContext.
+ * Must be used within an AuthProvider component.
+ */
 export const useAuth = () => {
     const context = useContext(AuthContext);
     if (!context) {
@@ -24,11 +41,17 @@ export const useAuth = () => {
     return context;
 };
 
+/**
+ * AuthProvider component that wraps the application.
+ * It manages the user's authentication state (login, logout, register, etc.)
+ * and provides this state to all child components.
+ */
 const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
     const [authError, setAuthError] = useState(null);
 
+    // Initialize auth state from local storage on mount
     useEffect(() => {
         const stored = localStorage.getItem('user');
         if (stored) {
@@ -40,17 +63,31 @@ const AuthProvider = ({ children }) => {
         setLoading(false);
     }, []);
 
+    /**
+     * Saves the user object to state and local storage.
+     * @param {Object} payload - The user object to save
+     */
     const saveUser = (payload) => {
         setUser(payload);
         localStorage.setItem('user', JSON.stringify(payload));
     };
 
+    /**
+     * Fetches the current user's profile from the backend.
+     * @param {string} access - The access token
+     * @returns {Promise<Object>} - The user profile data
+     */
     const fetchMe = async (access) => {
         const res = await fetch(`${API_BASE}/accounts/me/`, { headers: { Authorization: `Bearer ${access}` } });
         if (!res.ok) throw new Error('Failed to fetch profile');
         return await parseJsonResponse(res);
     };
 
+    /**
+     * Refreshes the access token using the refresh token.
+     * If successful, updates the user state with the new access token.
+     * If failed, logs the user out.
+     */
     const refreshToken = useCallback(async () => {
         try {
             const stored = localStorage.getItem('user');
@@ -78,6 +115,10 @@ const AuthProvider = ({ children }) => {
         return () => clearInterval(interval);
     }, [user, refreshToken]);
 
+    /**
+     * Logs in the user with email and password.
+     * @param {Object} credentials - { email, password }
+     */
     const login = async ({ email, password }) => {
         setAuthError(null);
         try {
@@ -109,7 +150,11 @@ const AuthProvider = ({ children }) => {
         }
     };
 
-    const register = async ({ email, role, password, username, first_name, last_name, primary_condition }) => {
+    /**
+     * Registers a new user.
+     * @param {Object} userData - User registration data
+     */
+    const register = async ({ email, role, password, username, first_name, last_name, primary_condition, phone }) => {
         setAuthError(null);
         try {
             setLoading(true);
@@ -120,10 +165,11 @@ const AuthProvider = ({ children }) => {
                     email,
                     role,
                     password,
-                    username: username || email.split('@')[0],
+                    username: username || undefined, // Let backend generate if undefined
                     first_name: first_name || '',
                     last_name: last_name || '',
-                    primary_condition: primary_condition || ''
+                    primary_condition: primary_condition || '',
+                    phone: phone || ''
                 })
             });
             if (!res.ok) {
@@ -141,6 +187,11 @@ const AuthProvider = ({ children }) => {
         }
     };
 
+    /**
+     * Logs in or registers a user using Google OAuth.
+     * @param {string} credential - The Google JWT credential
+     * @param {string} role - The role to assign if creating a new user
+     */
     const googleLogin = async (credential, role = 'patient') => {
         setAuthError(null);
         try {
@@ -173,11 +224,18 @@ const AuthProvider = ({ children }) => {
         }
     };
 
+    /**
+     * Logs out the current user by clearing state and local storage.
+     */
     const logout = () => {
         setUser(null);
         localStorage.removeItem('user');
     };
 
+    /**
+     * Updates the current user's profile data.
+     * @param {Object} updatedUserData - The data to update
+     */
     const updateUser = async (updatedUserData) => {
         try {
             setLoading(true);
@@ -210,6 +268,9 @@ const AuthProvider = ({ children }) => {
         }
     };
 
+    /**
+     * Refreshes the user profile from the backend to ensure local state is up to date.
+     */
     const refreshUserProfile = useCallback(async () => {
         try {
             if (!user || !user.access) return { success: false, error: 'Not authenticated' };

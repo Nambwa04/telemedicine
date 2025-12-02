@@ -1,3 +1,7 @@
+"""
+Integration tests for the Requests API.
+Covers care request workflows (accept/decline) and doctor assignment requests.
+"""
 from rest_framework.test import APITestCase
 from rest_framework import status
 from .factories import create_patient, create_doctor, create_caregiver

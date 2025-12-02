@@ -11,6 +11,19 @@ import CareNotesPanel from '../CareNotes/CareNotesPanel';
 // PatientHealthDashboard: patient-specific dashboard that can also optionally show a patient list for doctor/caregiver roles.
 // This replaces the generic SharedHealthDashboard for patient view while preserving structure.
 
+/**
+ * PatientHealthDashboard Component
+ * 
+ * A comprehensive dashboard for viewing and managing patient health data.
+ * 
+ * Features:
+ * - Displays health overview (vitals, medications, etc.)
+ * - Visualizes vital signs trends with charts
+ * - Manages medications, lab results, symptoms, and appointments
+ * - Integrates CareNotesPanel for care coordination
+ * - Supports different views based on user role (patient vs doctor/caregiver)
+ * - Allows uploading lab results and recording symptoms/vitals
+ */
 const PatientHealthDashboard = () => {
     const { user } = useAuth();
     const [searchParams] = useSearchParams();

@@ -23,6 +23,10 @@ class IsCareRequestPermission(permissions.BasePermission):
 
 
 class CareRequestViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing care requests.
+    Handles creation, listing, and status transitions (accept, start, complete, decline).
+    """
     queryset = CareRequest.objects.all()
     serializer_class = CareRequestSerializer
     permission_classes = [permissions.IsAuthenticated, IsCareRequestPermission]
@@ -196,6 +200,10 @@ class IsDoctorRequestPermission(permissions.BasePermission):
 
 
 class DoctorRequestViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing doctor assignment requests.
+    Allows patients to request doctors and doctors to accept/decline requests.
+    """
     queryset = DoctorRequest.objects.all()
     serializer_class = DoctorRequestSerializer
     permission_classes = [permissions.IsAuthenticated, IsDoctorRequestPermission]

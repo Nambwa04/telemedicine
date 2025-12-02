@@ -6,6 +6,11 @@ from .models import EmailVerificationToken, PasswordResetToken, VerificationDocu
 User = get_user_model()
 
 class UserSerializer(serializers.ModelSerializer):
+    """
+    Serializer for the User model.
+    Handles serialization of user profile data including role-specific fields
+    like doctor assignment, caregiver availability, and verification status.
+    """
     doctor_name = serializers.SerializerMethodField()
     distance = serializers.SerializerMethodField()
     availability = serializers.SerializerMethodField()
@@ -33,6 +38,10 @@ class UserSerializer(serializers.ModelSerializer):
         return None
 
     def get_distance(self, obj):
+        """
+        Return distance in meters if calculated by the view.
+        Used for caregiver proximity search.
+        """
         # If view attached a precomputed distance in meters
         d = getattr(obj, '_distance_meters', None)
         if d is None:
@@ -44,6 +53,12 @@ class UserSerializer(serializers.ModelSerializer):
             return None
 
     def get_availability(self, obj):
+        """
+        Determine caregiver availability based on recent location updates.
+        - 'Available Now': Location updated < 10 mins ago
+        - 'Recently Active': Location updated < 24 hours ago
+        - 'Contact for availability': Otherwise
+        """
         # Consider a caregiver "Available Now" if location updated within last 10 minutes
         from django.utils import timezone
         if getattr(obj, 'role', None) != 'caregiver':
@@ -58,6 +73,7 @@ class UserSerializer(serializers.ModelSerializer):
         return 'Contact for availability'
 
     def get_latest_verification_document_url(self, obj):
+        """Return the URL of the most recently uploaded verification document."""
         doc = obj.verification_documents.order_by('-uploaded_at').first()
         if not doc or not getattr(doc, 'file', None):
             return None
@@ -71,11 +87,16 @@ class UserSerializer(serializers.ModelSerializer):
             return None
 
     def get_latest_verification_document_uploaded_at(self, obj):
+        """Return the timestamp of the most recently uploaded verification document."""
         doc = obj.verification_documents.order_by('-uploaded_at').first()
         return doc.uploaded_at if doc else None
 
 
 class VerificationDocumentSerializer(serializers.ModelSerializer):
+    """
+    Serializer for VerificationDocument model.
+    Includes read-only fields for review status and reviewer details.
+    """
     url = serializers.SerializerMethodField()
     reviewed_by = serializers.SerializerMethodField()
 
@@ -109,14 +130,22 @@ class VerificationDocumentSerializer(serializers.ModelSerializer):
         }
 
 class RegisterSerializer(serializers.ModelSerializer):
+    """
+    Serializer for user registration.
+    Handles password hashing and automatic username generation.
+    """
     password = serializers.CharField(write_only=True)
 
     first_name = serializers.CharField(required=True, allow_blank=False)
     last_name = serializers.CharField(required=True, allow_blank=False)
+    phone = serializers.CharField(required=False, allow_blank=True)
 
     class Meta:
         model = User
-        fields = ['id', 'email', 'username', 'role', 'password', 'primary_condition', 'first_name', 'last_name']
+        fields = ['id', 'email', 'username', 'role', 'password', 'primary_condition', 'first_name', 'last_name', 'phone']
+        extra_kwargs = {
+            'username': {'required': False}
+        }
 
     def validate_password(self, value):
         validate_password(value)
@@ -126,15 +155,30 @@ class RegisterSerializer(serializers.ModelSerializer):
         password = validated_data.pop('password')
         first_name = validated_data.pop('first_name', '')
         last_name = validated_data.pop('last_name', '')
+        phone = validated_data.pop('phone', '')
+        
+        # Generate unique username if not provided
+        if 'username' not in validated_data:
+            email = validated_data.get('email')
+            base_username = email.split('@')[0]
+            username = base_username
+            counter = 1
+            while User.objects.filter(username=username).exists():
+                username = f"{base_username}{counter}"
+                counter += 1
+            validated_data['username'] = username
+
         user = User(**validated_data)
         user.set_password(password)
         user.first_name = first_name
         user.last_name = last_name
+        user.phone = phone
         user.save()
         return user
 
 
 class EmailVerificationRequestSerializer(serializers.Serializer):
+    """Serializer for requesting an email verification token."""
     email = serializers.EmailField()
 
     def validate_email(self, value):
@@ -144,6 +188,7 @@ class EmailVerificationRequestSerializer(serializers.Serializer):
 
 
 class EmailVerificationConfirmSerializer(serializers.Serializer):
+    """Serializer for confirming email verification with a token."""
     token = serializers.UUIDField()
 
     def validate_token(self, value):
@@ -153,6 +198,7 @@ class EmailVerificationConfirmSerializer(serializers.Serializer):
 
 
 class PasswordResetRequestSerializer(serializers.Serializer):
+    """Serializer for requesting a password reset token."""
     email = serializers.EmailField()
 
     def validate_email(self, value):
@@ -162,6 +208,7 @@ class PasswordResetRequestSerializer(serializers.Serializer):
 
 
 class PasswordResetConfirmSerializer(serializers.Serializer):
+    """Serializer for resetting password with a valid token."""
     token = serializers.UUIDField()
     new_password = serializers.CharField(write_only=True)
 

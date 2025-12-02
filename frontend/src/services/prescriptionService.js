@@ -1,5 +1,8 @@
-// prescriptionService.js
-// Handles API calls for prescriptions (medications)
+/**
+ * Service for medication and prescription management.
+ * Handles creating prescriptions, logging intake, refills, and compliance tracking.
+ * Also manages medication-related follow-ups and risk assessment.
+ */
 import { createApiClient } from './apiClient';
 import API_BASE from '../config';
 

@@ -1,3 +1,7 @@
+/**
+ * Service for user profile management.
+ * Handles fetching and updating user profile details.
+ */
 import { createApiClient } from './apiClient';
 import API_BASE from '../config';
 

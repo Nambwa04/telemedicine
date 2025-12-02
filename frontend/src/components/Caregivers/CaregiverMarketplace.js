@@ -1,3 +1,8 @@
+/**
+ * Caregiver Marketplace Component.
+ * Allows patients to search, filter, and view caregiver profiles.
+ * Enables sending service requests to caregivers.
+ */
 import React, { useState, useEffect, useCallback } from 'react';
 import { Container, Row, Col, Card, Button, Form, InputGroup, Badge, Modal, Table, ListGroup, Spinner, Alert } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';

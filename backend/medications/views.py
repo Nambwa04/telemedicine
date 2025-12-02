@@ -13,10 +13,17 @@ from datetime import datetime
 import re
 
 class IsCaregiverOrPatientOrDoctor(permissions.BasePermission):
+    """
+    Permission class allowing access to caregivers, patients, and doctors.
+    """
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.role in ['caregiver', 'patient', 'doctor']
 
 class MedicationViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing medications.
+    Supports creating, listing, logging intake, refilling, and risk analysis.
+    """
     queryset = Medication.objects.all()
     serializer_class = MedicationSerializer
     permission_classes = [permissions.IsAuthenticated, IsCaregiverOrPatientOrDoctor]
@@ -287,6 +294,9 @@ class MedicationViewSet(viewsets.ModelViewSet):
 
 
 class ComplianceFollowUpViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing compliance follow-ups.
+    """
     queryset = ComplianceFollowUp.objects.select_related('patient', 'medication')
     serializer_class = ComplianceFollowUpSerializer
     permission_classes = [permissions.IsAuthenticated, IsCaregiverOrPatientOrDoctor]
@@ -364,6 +374,9 @@ class ComplianceFollowUpViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='complete')
     def complete(self, request, pk=None):
+        """
+        Mark a follow-up as completed.
+        """
         f = self.get_object()
         f.status = ComplianceFollowUp.Status.COMPLETED
         f.completed_at = timezone.now()
@@ -372,6 +385,9 @@ class ComplianceFollowUpViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='cancel')
     def cancel(self, request, pk=None):
+        """
+        Cancel a follow-up.
+        """
         f = self.get_object()
         f.status = ComplianceFollowUp.Status.CANCELED
         f.completed_at = timezone.now()

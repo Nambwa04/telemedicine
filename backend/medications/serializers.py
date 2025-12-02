@@ -7,6 +7,9 @@ import datetime as _datetime
 from .utils import compute_noncompliance_risk
 
 class MedicationLogSerializer(serializers.ModelSerializer):
+    """
+    Serializer for MedicationLog model.
+    """
     class Meta:
         model = MedicationLog
         fields = ['id', 'medication', 'taken_at', 'doses_taken', 'notes']
@@ -14,6 +17,10 @@ class MedicationLogSerializer(serializers.ModelSerializer):
 
 
 class MedicationSerializer(serializers.ModelSerializer):
+    """
+    Serializer for Medication model.
+    Includes computed fields for compliance and risk.
+    """
     patient_id = serializers.IntegerField(write_only=True, required=False)
     needs_refill = serializers.ReadOnlyField()
     is_depleted = serializers.ReadOnlyField()
@@ -110,6 +117,9 @@ class MedicationSerializer(serializers.ModelSerializer):
 
 
 class ComplianceFollowUpSerializer(serializers.ModelSerializer):
+    """
+    Serializer for ComplianceFollowUp model.
+    """
     patient_email = serializers.EmailField(source='patient.email', read_only=True)
     medication_name = serializers.CharField(source='medication.name', read_only=True)
     appointment_id = serializers.IntegerField(source='appointment.id', read_only=True)

@@ -1,3 +1,8 @@
+/**
+ * Patient Appointments Component.
+ * Allows patients to view, book, reschedule, and cancel appointments.
+ * Includes a calendar view and list view of appointments.
+ */
 import React, { useState, useEffect, useCallback } from 'react';
 import { listAppointments, cancelAppointmentAction, joinVideoConsultation, listDoctors } from '../../services/appointmentService';
 import { Container, Row, Col, Card, Button, Modal, Form, Badge, Alert, OverlayTrigger, Tooltip } from 'react-bootstrap';

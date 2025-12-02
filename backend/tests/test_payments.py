@@ -1,3 +1,7 @@
+"""
+Integration tests for the Payments API.
+Covers B2C payout initiation via Safaricom Daraja and handling of callback results.
+"""
 from rest_framework.test import APITestCase
 from rest_framework import status
 from unittest.mock import patch

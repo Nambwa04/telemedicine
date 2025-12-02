@@ -1,21 +1,26 @@
-// src/config.js
-// Central API config & environment-aware helpers.
-// Implements Create React App's built-in NODE_ENV behavior:
-//   development: when running `npm start`
-//   test:        when running `npm test`
-//   production:  when running `npm run build`
-// NODE_ENV cannot be overridden manually (CRA safety feature).
+/**
+ * Configuration Module
+ * 
+ * Central API config & environment-aware helpers.
+ * Implements Create React App's built-in NODE_ENV behavior:
+ *   development: when running `npm start`
+ *   test:        when running `npm test`
+ *   production:  when running `npm run build`
+ * NODE_ENV cannot be overridden manually (CRA safety feature).
+ */
 
 const ENV = process.env.NODE_ENV; // 'development' | 'test' | 'production'
 export const IS_DEV = ENV === 'development';
 export const IS_TEST = ENV === 'test';
 export const IS_PROD = ENV === 'production';
 
-// Determine API base:
-// Use environment-specific variables for clarity:
-//   - REACT_APP_API_BASE_LOCAL for development/test
-//   - REACT_APP_API_BASE_PROD for production (may be full origin or already include /api)
-// Robust normalization: if production env omits trailing '/api', append it automatically.
+/**
+ * Normalizes the production API base URL.
+ * If the URL does not end with '/api', it appends it.
+ * 
+ * @param {string} raw - The raw API base URL.
+ * @returns {string} The normalized API base URL.
+ */
 function normalizeProdBase(raw) {
     if (!raw) return '/api';
     const trimmed = raw.replace(/\/+$/, '');
@@ -26,19 +31,29 @@ const API_BASE = IS_PROD
     ? normalizeProdBase(process.env.REACT_APP_API_BASE_PROD)
     : (process.env.REACT_APP_API_BASE_LOCAL || 'http://127.0.0.1:8000/api');
 
-// Google OAuth Client ID
-// Get this from Google Cloud Console: https://console.cloud.google.com/
-// Provide via REACT_APP_GOOGLE_CLIENT_ID for secure environments; fallback only for dev convenience.
+/**
+ * Google OAuth Client ID.
+ * Get this from Google Cloud Console: https://console.cloud.google.com/
+ * Provide via REACT_APP_GOOGLE_CLIENT_ID for secure environments; fallback only for dev convenience.
+ */
 export const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID || 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
 
-// Debug logging helper: stripped / no-op in production builds (tree-shaking friendly if minified).
+/**
+ * Debug logging helper.
+ * Stripped / no-op in production builds (tree-shaking friendly if minified).
+ * 
+ * @param {...any} args - Arguments to log.
+ */
 export function debugLog(...args) {
     if (IS_PROD) return; // avoid noisy logs in production
     // eslint-disable-next-line no-console
     console.log('[DEBUG]', ...args);
 }
 
-// Feature flags (extend as needed); these can be toggled via env vars at build time.
+/**
+ * Feature flags.
+ * These can be toggled via env vars at build time.
+ */
 export const FEATURES = {
     enableVitalsExperimental: process.env.REACT_APP_ENABLE_VITALS_EXPERIMENTAL === 'true' && !IS_PROD,
 };

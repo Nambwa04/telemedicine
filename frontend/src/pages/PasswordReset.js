@@ -4,6 +4,16 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import API_BASE from '../config';
 
+/**
+ * PasswordReset Component
+ * 
+ * Handles the password reset flow.
+ * Step 1: Request a password reset link via email.
+ * Step 2: Confirm the new password using the token from the email link.
+ * 
+ * @component
+ * @returns {JSX.Element} The rendered PasswordReset component.
+ */
 const PasswordReset = () => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
@@ -22,6 +32,12 @@ const PasswordReset = () => {
     const [resetSuccess, setResetSuccess] = useState(false);
     const [resetError, setResetError] = useState(null);
 
+    /**
+     * Handles the request for a password reset link.
+     * Sends the email to the backend.
+     * 
+     * @param {Event} e - The form submission event.
+     */
     const handleRequestReset = async (e) => {
         e.preventDefault();
         setRequestError(null);
@@ -65,6 +81,12 @@ const PasswordReset = () => {
         }
     };
 
+    /**
+     * Handles the confirmation of the new password.
+     * Sends the token and new password to the backend.
+     * 
+     * @param {Event} e - The form submission event.
+     */
     const handleConfirmReset = async (e) => {
         e.preventDefault();
         setResetError(null);

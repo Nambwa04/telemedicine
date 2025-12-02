@@ -1,3 +1,7 @@
+/**
+ * Application Entry Point.
+ * Initializes React root, global providers (Theme, Auth, Google OAuth), and styles.
+ */
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import 'bootstrap/dist/css/bootstrap.min.css';

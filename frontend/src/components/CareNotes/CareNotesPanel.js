@@ -38,6 +38,17 @@ const PRIORITY_LEVELS = [
   { value: 'urgent', label: 'Urgent', variant: 'danger' },
 ];
 
+/**
+ * CareNotesPanel Component
+ * 
+ * Displays and manages care notes for a specific patient.
+ * Allows creating, reading, updating (pin/archive), and deleting notes.
+ * Also supports adding comments to notes.
+ * 
+ * @param {Object} props - Component props
+ * @param {number} props.patientId - ID of the patient to display notes for
+ * @param {string} props.currentUserRole - Role of the current user (determines permissions)
+ */
 const CareNotesPanel = ({ patientId, currentUserRole }) => {
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(true);

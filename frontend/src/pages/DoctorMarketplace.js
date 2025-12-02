@@ -4,6 +4,17 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { listDoctors, createDoctorRequest } from '../services/doctorService';
 import '../styles/DoctorMarketplace.css';
 
+/**
+ * DoctorMarketplace Component
+ * 
+ * Allows patients to browse and request doctors.
+ * 
+ * Features:
+ * - Lists available doctors with their details (specialization, rating, bio, etc.)
+ * - Supports searching doctors by name or specialization
+ * - Allows patients to send assignment requests to doctors
+ * - Provides a modal form for submitting request details (reason, symptoms, preferred time)
+ */
 const DoctorMarketplace = () => {
     const [doctors, setDoctors] = useState([]);
     const [loading, setLoading] = useState(true);

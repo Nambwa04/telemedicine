@@ -3,6 +3,9 @@ from .models import CaregiverAvailability, SpecificDateAvailability
 
 
 class CaregiverAvailabilitySerializer(serializers.ModelSerializer):
+    """
+    Serializer for CaregiverAvailability model.
+    """
     caregiver_name = serializers.SerializerMethodField()
     day_display = serializers.CharField(source='get_day_of_week_display', read_only=True)
     
@@ -26,6 +29,9 @@ class CaregiverAvailabilitySerializer(serializers.ModelSerializer):
 
 
 class SpecificDateAvailabilitySerializer(serializers.ModelSerializer):
+    """
+    Serializer for SpecificDateAvailability model.
+    """
     caregiver_name = serializers.SerializerMethodField()
     appointment_details = serializers.SerializerMethodField()
     

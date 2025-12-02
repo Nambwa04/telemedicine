@@ -56,6 +56,10 @@ class CareNotePermission(permissions.BasePermission):
 
 
 class CareNoteViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing care notes.
+    Supports filtering by patient, note type, priority, and archive status.
+    """
     serializer_class = CareNoteSerializer
     permission_classes = [CareNotePermission]
     

@@ -1,3 +1,7 @@
+/**
+ * Service for user verification documents.
+ * Handles uploading, listing, and reviewing verification documents.
+ */
 import { createApiClient } from './apiClient';
 import API_BASE from '../config';
 

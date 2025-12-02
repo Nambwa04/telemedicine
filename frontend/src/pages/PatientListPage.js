@@ -7,10 +7,17 @@ import { getConditionTag } from '../utils/statusStyles';
 import { useAuth } from '../context/AuthContext';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 
-// Shared patient list page for doctor & caregiver roles.
-// Doctor sees heading "Patients"; Caregiver sees "Clients".
-// Provides search, simple condition badge, and action to open health dashboard.
-
+/**
+ * PatientListPage Component
+ * 
+ * Shared patient list page for doctor & caregiver roles.
+ * Doctor sees heading "Patients"; Caregiver sees "Clients".
+ * Provides search, simple condition badge, and action to open health dashboard.
+ * Allows adding new patients and updating existing patient information.
+ * 
+ * @component
+ * @returns {JSX.Element} The rendered PatientListPage component.
+ */
 const PatientListPage = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
@@ -89,13 +96,22 @@ const PatientListPage = () => {
         return patients.filter(p => p.name.toLowerCase().includes(q));
     }, [patients, query, serverQuery]);
 
+    /**
+     * Navigates to the health dashboard for a specific patient.
+     * @param {number} id - The patient's ID.
+     */
     const openDashboard = (id) => {
         navigate(`/health-dashboard?patientId=${id}`);
     };
 
     const heading = user?.role === 'caregiver' ? 'Clients' : 'Patients';
 
-    // Add Patient handler
+    /**
+     * Handles adding a new patient.
+     * Registers the patient via the backend.
+     * 
+     * @param {Event} e - The form submission event.
+     */
     const handleAddPatient = async (e) => {
         e.preventDefault();
         setAddPatientLoading(true);
@@ -150,7 +166,10 @@ const PatientListPage = () => {
         }
     };
 
-    // Handle edit patient - open modal with patient data
+    /**
+     * Opens the update modal with the selected patient's data.
+     * @param {Object} patient - The patient object to edit.
+     */
     const handleEditPatient = (patient) => {
         setSelectedPatient(patient);
         setUpdatedPatientData({
@@ -163,7 +182,12 @@ const PatientListPage = () => {
         setShowUpdateModal(true);
     };
 
-    // Handle update patient submission
+    /**
+     * Handles updating an existing patient's information.
+     * Sends a PATCH request to the backend.
+     * 
+     * @param {Event} e - The form submission event.
+     */
     const handleUpdatePatient = async (e) => {
         e.preventDefault();
         if (!selectedPatient) return;

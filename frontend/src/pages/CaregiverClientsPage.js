@@ -3,6 +3,17 @@ import { Container, Row, Col, Card, Table, Badge, Button, Form, Modal, Alert, Sp
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { listCareRequests, updateCareRequest, startCareRequest, completeCareRequest } from '../services/caregiverService';
 
+/**
+ * CaregiverClientsPage Component
+ * 
+ * Manages the list of active clients for a caregiver.
+ * 
+ * Features:
+ * - Lists active clients (accepted or in-progress care requests)
+ * - Allows searching clients by name
+ * - Provides actions to start or complete care requests
+ * - Displays client details in a modal
+ */
 const CaregiverClientsPage = () => {
     // Current Clients: get unique clients from accepted/in-progress service requests
     const [currentClients, setCurrentClients] = useState([]);

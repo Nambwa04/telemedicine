@@ -27,6 +27,16 @@ const features = [
     }
 ];
 
+/**
+ * HomePage Component
+ * 
+ * The landing page of the application.
+ * Displays the hero section, key features, and a call to action.
+ * Includes an emergency button for quick access.
+ * 
+ * @component
+ * @returns {JSX.Element} The rendered HomePage component.
+ */
 const HomePage = () => {
     return (
         <div className="home-landing">

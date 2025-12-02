@@ -4,6 +4,11 @@ from django.utils import timezone
 import uuid
 
 class User(AbstractUser):
+    """
+    Custom User model extending Django's AbstractUser.
+    Includes roles (patient, doctor, caregiver, admin) and profile fields
+    specific to the telemedicine application.
+    """
     ROLE_CHOICES = [
         ('admin', 'Admin'),
         ('patient', 'Patient'),
@@ -15,15 +20,18 @@ class User(AbstractUser):
     role = models.CharField(max_length=20, choices=ROLE_CHOICES)
     primary_condition = models.CharField(max_length=120, blank=True)
     phone = models.CharField(max_length=20, blank=True)
+    
     # Personal details
     date_of_birth = models.DateField(null=True, blank=True)
     gender = models.CharField(max_length=20, blank=True, default="")
     address = models.TextField(blank=True, default="")
     emergency_contact = models.JSONField(default=dict, blank=True)
+    
     # Realtime location for caregivers (and optionally others)
     latitude = models.FloatField(null=True, blank=True)
     longitude = models.FloatField(null=True, blank=True)
     location_updated_at = models.DateTimeField(null=True, blank=True)
+    
     # Doctor assignment for patients
     doctor = models.ForeignKey(
         'self', 
@@ -33,6 +41,7 @@ class User(AbstractUser):
         related_name='patients',
         limit_choices_to={'role': 'doctor'}
     )
+    
     # Caregiver profile fields
     experience_years = models.PositiveIntegerField(default=0)
     specializations = models.JSONField(default=list, blank=True)
@@ -48,12 +57,17 @@ class User(AbstractUser):
 
 
 class EmailVerificationToken(models.Model):
+    """
+    Token for email verification process.
+    Linked to a user and expires after use.
+    """
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='email_tokens')
     token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     created_at = models.DateTimeField(default=timezone.now)
     used = models.BooleanField(default=False)
 
     def mark_used(self):
+        """Mark the token as used."""
         self.used = True
         self.save(update_fields=['used'])
 
@@ -62,12 +76,17 @@ class EmailVerificationToken(models.Model):
 
 
 class PasswordResetToken(models.Model):
+    """
+    Token for password reset process.
+    Linked to a user and expires after use.
+    """
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='password_reset_tokens')
     token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     created_at = models.DateTimeField(default=timezone.now)
     used = models.BooleanField(default=False)
 
     def mark_used(self):
+        """Mark the token as used."""
         self.used = True
         self.save(update_fields=['used'])
 
@@ -76,7 +95,10 @@ class PasswordResetToken(models.Model):
 
 
 class VerificationDocument(models.Model):
-    """Professional verification document uploaded by a user (doctor or caregiver)."""
+    """
+    Professional verification document uploaded by a user (doctor or caregiver).
+    Includes status tracking (pending, approved, rejected) and review notes.
+    """
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='verification_documents')
     file = models.FileField(upload_to='verification_docs/%Y/%m/', max_length=512)
     doc_type = models.CharField(max_length=120, blank=True, default='')

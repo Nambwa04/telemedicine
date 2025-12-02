@@ -1,3 +1,8 @@
+/**
+ * Navigation Bar Component.
+ * Provides top-level navigation, user menu, and theme toggle.
+ * Adapts links based on user role (patient, doctor, caregiver).
+ */
 import React, { useEffect, useState } from 'react';
 import { Navbar, Nav, NavDropdown, Container, Button, Badge } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';

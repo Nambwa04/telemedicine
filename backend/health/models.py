@@ -6,6 +6,10 @@ User = settings.AUTH_USER_MODEL
 from django.utils import timezone
 
 class VitalReading(models.Model):
+    """
+    Represents a vital sign reading for a patient.
+    Includes blood pressure, heart rate, weight, blood sugar, and temperature.
+    """
     patient = models.ForeignKey(User, on_delete=models.CASCADE, related_name='vital_readings')
     date = models.DateField(default=timezone.now)
     blood_pressure_systolic = models.IntegerField(null=True, blank=True)
@@ -21,6 +25,10 @@ class VitalReading(models.Model):
         ordering = ['-date']
 
 class SymptomLog(models.Model):
+    """
+    Represents a symptom logged by a patient.
+    Tracks severity, duration, and notes.
+    """
     patient = models.ForeignKey(User, on_delete=models.CASCADE, related_name='symptoms')
     date = models.DateField()
     symptom = models.CharField(max_length=255)
@@ -30,6 +38,9 @@ class SymptomLog(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
 class LabResult(models.Model):
+    """
+    Represents a lab test result for a patient.
+    """
     patient = models.ForeignKey(User, on_delete=models.CASCADE, related_name='lab_results')
     test = models.CharField(max_length=255)
     value = models.CharField(max_length=100)

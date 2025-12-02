@@ -1,3 +1,8 @@
+/**
+ * Main Application Component.
+ * Handles routing, authentication context, and global layout structure.
+ * Manages role-based access control and dashboard redirection.
+ */
 import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Container } from 'react-bootstrap';

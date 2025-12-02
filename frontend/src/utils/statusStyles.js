@@ -1,3 +1,8 @@
+/**
+ * Status Styles Utility.
+ * Centralizes status labels, colors, and badge classes for consistency.
+ * Supports appointments, requests, and medical conditions.
+ */
 // Centralized status style metadata for consistency across the app
 // Provides: label, short (optional), theme color token, and badgeClass for styling
 

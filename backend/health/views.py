@@ -18,6 +18,10 @@ from appointments.models import Appointment
 
 # LabResultUploadView: Handles file uploads for lab results
 class LabResultUploadView(APIView):
+    """
+    Endpoint for uploading lab result files.
+    Parses date and creates a LabResult record.
+    """
     parser_classes = (MultiPartParser, FormParser)
     permission_classes = [permissions.IsAuthenticated]
 
@@ -63,6 +67,11 @@ class LabResultUploadView(APIView):
 
 # Mixin to automatically set patient field to current user
 class PatientOwnedMixin:
+    """
+    Mixin to handle patient ownership of records.
+    - Patients can only access/create their own records.
+    - Doctors/Caregivers can access/create records for specified patients.
+    """
     def perform_create(self, serializer):
         """Assign the patient for created records.
         - If the requester is a patient, always assign to themselves.
@@ -100,12 +109,18 @@ class PatientOwnedMixin:
 
 
 class VitalReadingViewSet(PatientOwnedMixin, viewsets.ModelViewSet):
+    """
+    ViewSet for managing vital readings.
+    """
     queryset = VitalReading.objects.all()
     serializer_class = VitalReadingSerializer
     permission_classes = [permissions.IsAuthenticated]
 
 
 class SymptomLogViewSet(PatientOwnedMixin, viewsets.ModelViewSet):
+    """
+    ViewSet for managing symptom logs.
+    """
     queryset = SymptomLog.objects.all()
     serializer_class = SymptomLogSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -119,12 +134,20 @@ class SymptomLogViewSet(PatientOwnedMixin, viewsets.ModelViewSet):
 
 
 class LabResultViewSet(PatientOwnedMixin, viewsets.ModelViewSet):
+    """
+    ViewSet for managing lab results.
+    """
     queryset = LabResult.objects.all()
     serializer_class = LabResultSerializer
     permission_classes = [permissions.IsAuthenticated]
 
 
 class HealthOverviewViewSet(viewsets.ViewSet):
+    """
+    ViewSet for retrieving a comprehensive health overview for a patient.
+    Includes vitals, lab results, symptoms, medications, and upcoming appointments.
+    Also computes risk trends for vitals.
+    """
     permission_classes = [permissions.IsAuthenticated]
 
     @action(detail=False, methods=['get'])

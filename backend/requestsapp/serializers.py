@@ -3,6 +3,10 @@ from .models import CareRequest, DoctorRequest
 
 
 class CareRequestSerializer(serializers.ModelSerializer):
+    """
+    Serializer for CareRequest model.
+    Includes read-only email fields for related users.
+    """
     patient_email = serializers.EmailField(source='patient.email', read_only=True)
     caregiver_email = serializers.EmailField(source='caregiver.email', read_only=True)
     created_by_email = serializers.EmailField(source='created_by.email', read_only=True)
@@ -17,6 +21,10 @@ class CareRequestSerializer(serializers.ModelSerializer):
 
 
 class DoctorRequestSerializer(serializers.ModelSerializer):
+    """
+    Serializer for DoctorRequest model.
+    Handles patient and doctor details including names and emails.
+    """
     patient_email = serializers.EmailField(source='patient.email', read_only=True)
     patient_name = serializers.SerializerMethodField()
     doctor_email = serializers.EmailField(source='doctor.email', read_only=True)

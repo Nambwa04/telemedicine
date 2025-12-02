@@ -1,3 +1,8 @@
+/**
+ * Login Component.
+ * Handles user authentication via email/password or Google OAuth.
+ * Redirects users to their respective dashboards upon successful login.
+ */
 import React, { useState, useEffect } from 'react';
 import { Form, Button, Card, Alert, Spinner, InputGroup } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';

@@ -5,6 +5,10 @@ from .models import Payout
 
 
 class PayoutCreateSerializer(serializers.Serializer):
+    """
+    Serializer for initiating a payout.
+    Validates recipient and amount before creating a Payout record.
+    """
     recipient_id = serializers.IntegerField()
     phone = serializers.CharField(max_length=15)
     amount = serializers.IntegerField(min_value=1)
@@ -34,6 +38,10 @@ class PayoutCreateSerializer(serializers.Serializer):
 
 
 class PayoutSerializer(serializers.ModelSerializer):
+    """
+    Serializer for Payout model.
+    Exposes payout details including status and transaction IDs.
+    """
     recipient_email = serializers.EmailField(source='recipient.email', read_only=True)
 
     class Meta:

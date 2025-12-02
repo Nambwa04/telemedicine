@@ -1,3 +1,8 @@
+/**
+ * Appointments Wrapper Component.
+ * Routes to the appropriate appointments view based on user role.
+ * Patients see a card-based view, while others see a table view.
+ */
 import React from 'react';
 import { useAuth } from '../../context/AuthContext';
 import PatientAppointments from '../Appointments/PatientAppointments';

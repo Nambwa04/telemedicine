@@ -2,6 +2,10 @@ from rest_framework import serializers
 from .models import VitalReading, SymptomLog, LabResult
 
 class VitalReadingSerializer(serializers.ModelSerializer):
+    """
+    Serializer for VitalReading model.
+    Includes computed bloodPressure field for chart display.
+    """
     bloodPressure = serializers.SerializerMethodField()
     heartRate = serializers.IntegerField(source='heart_rate', allow_null=True, required=False)
     
@@ -29,12 +33,18 @@ class VitalReadingSerializer(serializers.ModelSerializer):
         return None
 
 class SymptomLogSerializer(serializers.ModelSerializer):
+    """
+    Serializer for SymptomLog model.
+    """
     class Meta:
         model = SymptomLog
         fields = '__all__'
         read_only_fields = ['patient']
 
 class LabResultSerializer(serializers.ModelSerializer):
+    """
+    Serializer for LabResult model.
+    """
     class Meta:
         model = LabResult
         fields = '__all__'

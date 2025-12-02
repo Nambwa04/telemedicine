@@ -3,6 +3,19 @@ import { Container, Row, Col, Card, Button, Form, Table, Badge, Nav, Tab, Alert,
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
 
+/**
+ * SharedHealthDashboard Component
+ * 
+ * A shared dashboard component that can be used to display health data for a patient.
+ * It is designed to be used by different roles (patient, doctor, caregiver) with varying levels of access.
+ * 
+ * Note: This component seems to use mock data and might be a legacy or alternative view 
+ * compared to PatientHealthDashboard.
+ * 
+ * @param {Object} props - Component props
+ * @param {string} [props.userRole='patient'] - The role of the current user
+ * @param {number|string} [props.patientId=null] - The ID of the patient to display (if applicable)
+ */
 const SharedHealthDashboard = ({ userRole = 'patient', patientId = null }) => {
     const [activeTab, setActiveTab] = useState('overview');
     const [selectedPatient, setSelectedPatient] = useState(null);

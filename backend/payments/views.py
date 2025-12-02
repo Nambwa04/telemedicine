@@ -18,6 +18,10 @@ class IsAdminOrStaff(permissions.BasePermission):
 
 
 class B2CPayoutView(APIView):
+    """
+    API View to initiate a B2C payout.
+    Requires admin or staff permissions.
+    """
     permission_classes = [IsAdminOrStaff]
 
     def post(self, request):
@@ -55,6 +59,10 @@ class B2CPayoutView(APIView):
 
 @method_decorator(csrf_exempt, name='dispatch')
 class B2CResultCallbackView(APIView):
+    """
+    Callback view for Daraja B2C result.
+    Updates the payout status based on the result code.
+    """
     authentication_classes = []
     permission_classes = []
 
@@ -88,6 +96,10 @@ class B2CResultCallbackView(APIView):
 
 @method_decorator(csrf_exempt, name='dispatch')
 class B2CTimeoutCallbackView(APIView):
+    """
+    Callback view for Daraja B2C timeout.
+    Updates the payout status to TIMEOUT.
+    """
     authentication_classes = []
     permission_classes = []
 

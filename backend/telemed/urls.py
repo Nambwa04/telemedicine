@@ -1,3 +1,7 @@
+"""
+URL configuration for the TeleMed+ project.
+Maps API endpoints and serves the frontend SPA.
+"""
 from django.contrib import admin
 from django.urls import path, include, re_path
 from django.conf import settings
@@ -12,6 +16,10 @@ import traceback
 
 # Wrapper to debug JWT token errors
 class DebugTokenObtainPairView(TokenObtainPairView):
+    """
+    Custom view to debug JWT token generation errors.
+    Logs full tracebacks to stderr.
+    """
     def post(self, request, *args, **kwargs):
         try:
             return super().post(request, *args, **kwargs)

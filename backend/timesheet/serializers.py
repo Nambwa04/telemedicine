@@ -3,6 +3,10 @@ from .models import TimesheetEntry
 
 
 class TimesheetEntrySerializer(serializers.ModelSerializer):
+    """
+    Serializer for TimesheetEntry model.
+    Handles creation and validation of timesheet entries.
+    """
     caregiver_name = serializers.SerializerMethodField()
 
     class Meta:

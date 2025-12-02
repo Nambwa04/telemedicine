@@ -1,3 +1,8 @@
+"""
+Integration tests for the Appointments API.
+Covers creating appointments, listing with filters, cancelling appointments,
+and retrieving video consultation links.
+"""
 from rest_framework.test import APITestCase
 from rest_framework import status
 from django.urls import reverse

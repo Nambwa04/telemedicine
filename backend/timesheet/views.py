@@ -8,6 +8,10 @@ from .serializers import TimesheetEntrySerializer
 
 
 class TimesheetEntryViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing timesheet entries.
+    Supports clock-in/out, submission, and admin approval/rejection.
+    """
     serializer_class = TimesheetEntrySerializer
     permission_classes = [IsAuthenticated]
 

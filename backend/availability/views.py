@@ -12,6 +12,9 @@ from .serializers import (
 
 
 class CaregiverAvailabilityViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing caregiver availability slots.
+    """
     serializer_class = CaregiverAvailabilitySerializer
     permission_classes = [IsAuthenticated]
     
@@ -105,6 +108,9 @@ class CaregiverAvailabilityViewSet(viewsets.ModelViewSet):
 
 
 class SpecificDateAvailabilityViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing specific date availability overrides.
+    """
     serializer_class = SpecificDateAvailabilitySerializer
     permission_classes = [IsAuthenticated]
     

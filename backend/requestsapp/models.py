@@ -4,6 +4,10 @@ from django.conf import settings
 User = settings.AUTH_USER_MODEL
 
 class CareRequest(models.Model):
+    """
+    Model representing a request for care services.
+    Tracks the status, service details, and assignment of caregivers.
+    """
     STATUS_CHOICES = [
         ('new', 'New'),
         ('accepted', 'Accepted'),

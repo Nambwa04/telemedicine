@@ -1,3 +1,7 @@
+/**
+ * Service for timesheet management.
+ * Handles clock-in/out, entry creation, updates, submission, and approval workflows.
+ */
 import { createApiClient } from './apiClient';
 import API_BASE from '../config';
 

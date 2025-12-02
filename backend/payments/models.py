@@ -4,6 +4,10 @@ from django.utils import timezone
 
 
 class Payout(models.Model):
+    """
+    Model representing a B2C payout transaction.
+    Tracks the status, recipient, and Daraja API response details.
+    """
     class Status(models.TextChoices):
         PENDING = 'PENDING', 'Pending'
         SUCCESS = 'SUCCESS', 'Success'

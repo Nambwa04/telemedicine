@@ -4,6 +4,16 @@ import { useAuth } from '../../context/AuthContext';
 import { Container, Table, Badge, Alert } from 'react-bootstrap';
 import { fetchPatientList } from '../../services/healthService';
 
+/**
+ * MedicationManagement Component
+ * 
+ * A simplified view for managing medications.
+ * Displays a list of prescriptions for a patient.
+ * Allows caregivers to select a patient to view their medications.
+ * 
+ * @param {Object} props - Component props
+ * @param {string} [props.userRole='patient'] - The role of the current user
+ */
 const MedicationManagement = ({ userRole = 'patient' }) => {
     const { user } = useAuth();
     const [medications, setMedications] = useState([]);

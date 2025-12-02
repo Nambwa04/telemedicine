@@ -1,3 +1,7 @@
+"""
+Integration tests for the Health API.
+Covers vital signs recording, health overview retrieval, and lab result uploads.
+"""
 from rest_framework.test import APITestCase
 from rest_framework import status
 from django.core.files.uploadedfile import SimpleUploadedFile

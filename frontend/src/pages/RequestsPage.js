@@ -5,8 +5,15 @@ import { useAuth } from '../context/AuthContext';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { getStatusMeta } from '../utils/statusStyles';
 
-// Status metadata now centralized (utils/statusStyles)
-
+/**
+ * RequestsPage Component
+ * 
+ * Manages service requests for caregivers.
+ * Allows viewing, filtering, and updating the status of service requests.
+ * 
+ * @component
+ * @returns {JSX.Element} The rendered RequestsPage component.
+ */
 const RequestsPage = () => {
     const { user } = useAuth();
     const [requests, setRequests] = useState([]);
@@ -18,6 +25,9 @@ const RequestsPage = () => {
 
     const isCaregiver = user?.role === 'caregiver';
 
+    /**
+     * Loads the list of requests based on the current status filter.
+     */
     async function load() {
         try {
             setLoading(true);
@@ -42,6 +52,12 @@ const RequestsPage = () => {
         ));
     }, [requests, search]);
 
+    /**
+     * Updates the status of a request.
+     * 
+     * @param {Object} req - The request object.
+     * @param {string} status - The new status.
+     */
     const setStatus = async (req, status) => {
         setUpdating(u => ({ ...u, [req.id]: true }));
         try {
@@ -51,6 +67,11 @@ const RequestsPage = () => {
         finally { setUpdating(u => ({ ...u, [req.id]: false })); }
     };
 
+    /**
+     * Deletes a request.
+     * 
+     * @param {Object} req - The request object to delete.
+     */
     const remove = async (req) => {
         if (!window.confirm('Delete this request?')) return;
         setUpdating(u => ({ ...u, [req.id]: true }));

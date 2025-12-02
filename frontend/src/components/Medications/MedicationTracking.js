@@ -6,6 +6,22 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { fetchPatientList } from '../../services/healthService';
 import '../../styles/MedicationTracking.css';
 
+/**
+ * MedicationTracking Component
+ * 
+ * A comprehensive component for tracking medication adherence and management.
+ * 
+ * Features:
+ * - Displays detailed medication cards with dosage, frequency, and supply status
+ * - Visualizes compliance rates and remaining supply with progress bars
+ * - Allows patients to log medication intake
+ * - Provides history view of medication logs
+ * - Enables caregivers/doctors to create and manage follow-ups for compliance issues
+ * - Supports scanning for automated follow-up creation based on risk factors
+ * 
+ * @param {Object} props - Component props
+ * @param {string} [props.userRole='patient'] - The role of the current user
+ */
 const MedicationTracking = ({ userRole = 'patient' }) => {
     const { user } = useAuth();
     const role = user?.role || userRole;

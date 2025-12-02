@@ -1,4 +1,8 @@
 
+/**
+ * Service for admin operations.
+ * Handles user management (doctors, patients, caregivers), verification, and analytics.
+ */
 import { createApiClient } from './apiClient';
 import API_BASE from '../config';
 const apiClient = createApiClient(

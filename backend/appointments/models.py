@@ -4,6 +4,9 @@ from django.conf import settings
 User = settings.AUTH_USER_MODEL
 
 class Appointment(models.Model):
+    """
+    Represents a scheduled appointment between a patient and a doctor.
+    """
     STATUS_CHOICES = [
         ('scheduled', 'Scheduled'),
         ('in-progress', 'In Progress'),

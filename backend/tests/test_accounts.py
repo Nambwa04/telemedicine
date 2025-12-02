@@ -1,3 +1,8 @@
+"""
+Integration tests for the Accounts API.
+Covers user profile management, location updates, doctor-patient visibility,
+caregiver search, verification document workflows, and dashboard statistics.
+"""
 from django.urls import reverse
 from rest_framework.test import APITestCase
 from rest_framework import status

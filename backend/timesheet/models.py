@@ -5,6 +5,10 @@ User = settings.AUTH_USER_MODEL
 
 
 class TimesheetEntry(models.Model):
+    """
+    Model representing a timesheet entry for a caregiver.
+    Tracks work hours, client, rate, and approval status.
+    """
     STATUS_CHOICES = [
         ('in-progress', 'In Progress'),
         ('draft', 'Draft'),

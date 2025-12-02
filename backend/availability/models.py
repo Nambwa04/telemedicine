@@ -47,6 +47,7 @@ class CaregiverAvailability(models.Model):
         return f"{self.caregiver.email} - {self.get_day_of_week_display()} {self.start_time}-{self.end_time} ({status})"
     
     def clean(self):
+        """Ensure start time is before end time."""
         if self.start_time >= self.end_time:
             raise ValidationError('End time must be after start time')
     
@@ -96,6 +97,7 @@ class SpecificDateAvailability(models.Model):
         return f"{self.caregiver.email} - {self.date} {time_str} ({status})"
     
     def clean(self):
+        """Ensure start time is before end time if both are set."""
         if self.start_time and self.end_time and self.start_time >= self.end_time:
             raise ValidationError('End time must be after start time')
     

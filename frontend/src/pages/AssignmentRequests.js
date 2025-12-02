@@ -3,6 +3,17 @@ import { Container, Row, Col, Card, Button, Spinner, Alert, Badge } from 'react-
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { listDoctorRequests, acceptDoctorRequest, declineDoctorRequest } from '../services/doctorService';
 
+/**
+ * AssignmentRequests Component
+ * 
+ * Manages patient assignment requests for doctors.
+ * 
+ * Features:
+ * - Lists pending, accepted, and declined assignment requests
+ * - Allows doctors to accept or decline requests
+ * - Displays request details including patient info, reason, symptoms, and preferred time
+ * - Provides filtering by request status
+ */
 const AssignmentRequests = () => {
     const [requests, setRequests] = useState([]);
     const [loading, setLoading] = useState(true);

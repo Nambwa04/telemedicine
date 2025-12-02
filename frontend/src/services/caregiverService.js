@@ -1,3 +1,8 @@
+/**
+ * Service for caregiver-related operations.
+ * Handles fetching caregivers, managing care requests, and location updates.
+ * Includes fallback mock data for development.
+ */
 import { createApiClient } from './apiClient';
 import API_BASE from '../config';
 

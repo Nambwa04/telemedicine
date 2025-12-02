@@ -28,6 +28,11 @@ User = get_user_model()
 @api_view(['GET'])
 @permission_classes([permissions.IsAuthenticated])
 def dashboard_stats(request):
+    """
+    Retrieves dashboard statistics based on the user's role.
+    - Doctors see stats for their assigned patients.
+    - Admins see global stats.
+    """
     today = timezone.now().date()
     user = request.user
     
@@ -66,19 +71,25 @@ def dashboard_stats(request):
     })
 
 class IsAdmin(BasePermission):
+    """Allows access only to admin users."""
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.role == 'admin'
 
 class IsDoctor(BasePermission):
+    """Allows access only to doctor users."""
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.role == 'doctor'
 
 class IsDoctorOrAdmin(BasePermission):
+    """Allows access to doctors or admins."""
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.role in ['doctor', 'admin']
 
 # Admin registration endpoint
 class AdminRegisterView(generics.CreateAPIView):
+    """
+    Endpoint for registering new admin users.
+    """
     queryset = User.objects.all()
     serializer_class = RegisterSerializer
     permission_classes = [permissions.AllowAny]
@@ -87,6 +98,9 @@ class AdminRegisterView(generics.CreateAPIView):
 
 # Admin: List all users
 class AdminUserListView(generics.ListAPIView):
+    """
+    Endpoint for admins to list all users in the system.
+    """
     serializer_class = UserSerializer
     permission_classes = [IsAdmin]
     def get_queryset(self):
@@ -94,6 +108,9 @@ class AdminUserListView(generics.ListAPIView):
 
 # Admin: Create doctor
 class AdminDoctorCreateView(generics.CreateAPIView):
+    """
+    Endpoint for admins to create new doctor accounts.
+    """
     serializer_class = RegisterSerializer
     permission_classes = [IsAdmin]
     def perform_create(self, serializer):
@@ -101,6 +118,9 @@ class AdminDoctorCreateView(generics.CreateAPIView):
 
 # Admin: Delete doctor
 class AdminDoctorDeleteView(generics.DestroyAPIView):
+    """
+    Endpoint for admins to delete doctor accounts.
+    """
     serializer_class = UserSerializer
     permission_classes = [IsAdmin]
     def get_queryset(self):
@@ -108,6 +128,9 @@ class AdminDoctorDeleteView(generics.DestroyAPIView):
 
 # Admin: Update doctor
 class AdminDoctorUpdateView(generics.UpdateAPIView):
+    """
+    Endpoint for admins to update doctor account details.
+    """
     serializer_class = UserSerializer
     permission_classes = [IsAdmin]
     def get_queryset(self):
@@ -115,6 +138,9 @@ class AdminDoctorUpdateView(generics.UpdateAPIView):
 
 # Admin: Create patient
 class AdminPatientCreateView(generics.CreateAPIView):
+    """
+    Endpoint for admins to create new patient accounts.
+    """
     serializer_class = RegisterSerializer
     permission_classes = [IsAdmin]
     def perform_create(self, serializer):
@@ -122,6 +148,9 @@ class AdminPatientCreateView(generics.CreateAPIView):
 
 # Admin: Update patient
 class AdminPatientUpdateView(generics.UpdateAPIView):
+    """
+    Endpoint for admins to update patient account details.
+    """
     serializer_class = UserSerializer
     permission_classes = [IsAdmin]
     def get_queryset(self):
@@ -129,6 +158,9 @@ class AdminPatientUpdateView(generics.UpdateAPIView):
 
 # Admin: Delete patient
 class AdminPatientDeleteView(generics.DestroyAPIView):
+    """
+    Endpoint for admins to delete patient accounts.
+    """
     serializer_class = UserSerializer
     permission_classes = [IsAdmin]
     def get_queryset(self):
@@ -136,6 +168,9 @@ class AdminPatientDeleteView(generics.DestroyAPIView):
 
 # Admin: Create caregiver
 class AdminCaregiverCreateView(generics.CreateAPIView):
+    """
+    Endpoint for admins to create new caregiver accounts.
+    """
     serializer_class = RegisterSerializer
     permission_classes = [IsAdmin]
     def perform_create(self, serializer):
@@ -143,6 +178,9 @@ class AdminCaregiverCreateView(generics.CreateAPIView):
 
 # Admin: Update caregiver
 class AdminCaregiverUpdateView(generics.UpdateAPIView):
+    """
+    Endpoint for admins to update caregiver account details.
+    """
     serializer_class = UserSerializer
     permission_classes = [IsAdmin]
     def get_queryset(self):
@@ -150,6 +188,9 @@ class AdminCaregiverUpdateView(generics.UpdateAPIView):
 
 # Admin: Delete caregiver
 class AdminCaregiverDeleteView(generics.DestroyAPIView):
+    """
+    Endpoint for admins to delete caregiver accounts.
+    """
     serializer_class = UserSerializer
     permission_classes = [IsAdmin]
     def get_queryset(self):
@@ -283,6 +324,9 @@ class AdminVerificationDocumentReviewView(APIView):
 
 # Doctor: Update patient
 class DoctorUpdatePatientView(generics.UpdateAPIView):
+    """
+    Endpoint for doctors to update patient details.
+    """
     serializer_class = UserSerializer
     permission_classes = [IsDoctorOrAdmin]
     def get_queryset(self):
@@ -290,6 +334,10 @@ class DoctorUpdatePatientView(generics.UpdateAPIView):
 
 # Admin: System analytics
 class AdminAnalyticsView(APIView):
+    """
+    Endpoint for retrieving system-wide analytics for the admin dashboard.
+    Includes user stats, appointment stats, health metrics, and medication compliance.
+    """
     permission_classes = [IsAdmin]
     
     def get(self, request):
@@ -520,6 +568,10 @@ class AdminAnalyticsView(APIView):
 
 # Admin: View all appointments
 class AdminAppointmentListView(generics.ListAPIView):
+    """
+    Endpoint for admins to list all appointments with optional filtering.
+    Filters: status, date, doctor, patient.
+    """
     permission_classes = [IsAdmin]
     
     def get(self, request):
@@ -556,6 +608,9 @@ class AdminAppointmentListView(generics.ListAPIView):
         return paginator.get_paginated_response(serializer.data)
 
 class IsSelfOrDoctor(BasePermission):
+    """
+    Permission class that allows access to the user themselves or a doctor.
+    """
     def has_object_permission(self, request, view, obj):
         # Allow safe (GET) methods for authenticated users
         if request.method in SAFE_METHODS:
@@ -566,6 +621,10 @@ class IsSelfOrDoctor(BasePermission):
         )
 
 class PatientDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """
+    Endpoint for retrieving, updating, or deleting a patient's own account.
+    Doctors can also access this endpoint.
+    """
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated, IsSelfOrDoctor]
 
@@ -573,11 +632,17 @@ class PatientDetailView(generics.RetrieveUpdateDestroyAPIView):
         return User.objects.filter(role='patient')
 
 class RegisterView(generics.CreateAPIView):
+    """
+    Public endpoint for user registration.
+    """
     queryset = User.objects.all()
     serializer_class = RegisterSerializer
     permission_classes = [permissions.AllowAny]
 
 class MeView(APIView):
+    """
+    Endpoint for retrieving and updating the currently authenticated user's profile.
+    """
     def get(self, request):
         return Response(UserSerializer(request.user).data)
 
@@ -693,6 +758,10 @@ class MeView(APIView):
 
 
 class PatientListView(generics.ListAPIView):
+    """
+    Endpoint for listing patients.
+    Doctors see only their assigned patients.
+    """
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -716,6 +785,9 @@ class PatientListView(generics.ListAPIView):
 
 
 class DoctorListView(generics.ListAPIView):
+    """
+    Endpoint for listing all doctors.
+    """
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -728,6 +800,9 @@ class DoctorListView(generics.ListAPIView):
 
 
 class CaregiverListView(generics.ListAPIView):
+    """
+    Endpoint for listing caregivers with optional proximity filtering.
+    """
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -787,6 +862,9 @@ class CaregiverListView(generics.ListAPIView):
 
 
 class MeLocationView(APIView):
+    """
+    Endpoint for updating the authenticated user's location.
+    """
     permission_classes = [permissions.IsAuthenticated]
 
     def patch(self, request):
@@ -807,6 +885,9 @@ class MeLocationView(APIView):
 
 
 class ScopedRateThrottle(throttling.SimpleRateThrottle):
+    """
+    Base class for scoped rate throttling.
+    """
     scope = None
     def get_cache_key(self, request, view):
         ident = self.get_ident(request)
@@ -817,14 +898,23 @@ class ScopedRateThrottle(throttling.SimpleRateThrottle):
 
 
 class EmailVerificationRequestThrottle(ScopedRateThrottle):
+    """
+    Throttle for email verification requests.
+    """
     scope = 'email_verify'
 
 
 class PasswordResetRequestThrottle(ScopedRateThrottle):
+    """
+    Throttle for password reset requests.
+    """
     scope = 'password_reset'
 
 
 class EmailVerificationRequestView(APIView):
+    """
+    Endpoint to request an email verification link.
+    """
     permission_classes = [permissions.AllowAny]
     throttle_classes = [EmailVerificationRequestThrottle]
 
@@ -838,6 +928,9 @@ class EmailVerificationRequestView(APIView):
 
 
 class EmailVerificationConfirmView(APIView):
+    """
+    Endpoint to confirm email verification using a token.
+    """
     permission_classes = [permissions.AllowAny]
     def post(self, request):
         serializer = EmailVerificationConfirmSerializer(data=request.data)
@@ -851,6 +944,9 @@ class EmailVerificationConfirmView(APIView):
 
 
 class PasswordResetRequestView(APIView):
+    """
+    Endpoint to request a password reset link.
+    """
     permission_classes = [permissions.AllowAny]
     throttle_classes = [PasswordResetRequestThrottle]
     
@@ -914,6 +1010,9 @@ The TeleMed+ Team
 
 
 class PasswordResetConfirmView(APIView):
+    """
+    Endpoint to confirm password reset and set a new password.
+    """
     permission_classes = [permissions.AllowAny]
     
     def post(self, request):

@@ -1,3 +1,7 @@
+/**
+ * Service for managing caregiver availability.
+ * Handles weekly recurring slots and specific date exceptions.
+ */
 import { createApiClient } from './apiClient';
 import API_BASE from '../config';
 

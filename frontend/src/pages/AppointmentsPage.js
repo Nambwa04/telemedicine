@@ -10,6 +10,18 @@ import MonthCalendar from '../components/Calendar/MonthCalendar';
 
 // Centralized status metadata now managed in utils/statusStyles
 
+/**
+ * AppointmentsPage Component
+ * 
+ * Manages and displays appointments for patients, doctors, and caregivers.
+ * 
+ * Features:
+ * - Lists appointments with filtering and pagination
+ * - Provides calendar and list views
+ * - Allows creating, updating (status), cancelling, and deleting appointments
+ * - Shows appointment statistics for doctors
+ * - Integrates with MonthCalendar component
+ */
 const AppointmentsPage = () => {
     const { user } = useAuth();
     const navigate = useNavigate();

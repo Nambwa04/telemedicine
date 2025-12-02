@@ -1,3 +1,8 @@
+/**
+ * Patient Dashboard Component.
+ * Displays health metrics, upcoming appointments, recent activity, and quick actions.
+ * Shows assigned doctor status and pending requests.
+ */
 import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Button, Alert, Badge } from 'react-bootstrap';
 import QuickActionTile from '../Common/QuickActionTile';

@@ -4,6 +4,18 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { useAuth } from '../context/AuthContext';
 import { listFollowUps, completeFollowUp, cancelFollowUp, listAtRiskMedications, createMedicationFollowUp } from '../services/prescriptionService';
 
+/**
+ * FollowUpsPage Component
+ * 
+ * Manages medication compliance follow-ups.
+ * 
+ * Features:
+ * - Lists pending follow-ups for caregivers and doctors
+ * - Allows filtering follow-ups by status and reason
+ * - Enables completing or cancelling follow-ups
+ * - Displays at-risk medications for doctors
+ * - Allows doctors to schedule new follow-ups for at-risk medications
+ */
 const FollowUpsPage = () => {
     const { user } = useAuth();
     const isCaregiver = user?.role === 'caregiver';

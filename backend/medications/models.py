@@ -5,6 +5,10 @@ from django.utils import timezone
 User = settings.AUTH_USER_MODEL
 
 class Medication(models.Model):
+    """
+    Represents a medication prescribed to a patient.
+    Tracks dosage, frequency, compliance, and refill status.
+    """
     patient = models.ForeignKey(User, on_delete=models.CASCADE, related_name='medications')
     name = models.CharField(max_length=255)
     dosage = models.CharField(max_length=100)

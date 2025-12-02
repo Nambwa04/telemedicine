@@ -1,5 +1,8 @@
-// healthService.js
-// Now supports real backend integration. Falls back to mock if API_BASE unreachable.
+/**
+ * Service for health-related data.
+ * Handles fetching patient metrics, vitals, patient lists, and dashboard stats.
+ * Includes fallback logic for development.
+ */
 import { createApiClient } from './apiClient';
 import API_BASE from '../config';
 const api = createApiClient(() => ({ user: JSON.parse(localStorage.getItem('user') || 'null'), refreshToken: async () => null }), API_BASE);

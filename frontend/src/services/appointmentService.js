@@ -1,3 +1,8 @@
+/**
+ * Service for managing appointments.
+ * Handles fetching, creating, updating, and cancelling appointments via the API.
+ * Normalizes backend data for frontend consumption.
+ */
 import { createApiClient } from './apiClient';
 import API_BASE from '../config';
 

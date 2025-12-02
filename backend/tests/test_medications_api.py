@@ -1,3 +1,8 @@
+"""
+Integration tests for the Medications API.
+Covers prescription management, intake logging, risk assessment,
+and automated follow-up generation for at-risk patients.
+"""
 from rest_framework.test import APITestCase
 from rest_framework import status
 from django.utils import timezone

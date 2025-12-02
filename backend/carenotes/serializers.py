@@ -6,6 +6,9 @@ User = get_user_model()
 
 
 class CareNoteCommentSerializer(serializers.ModelSerializer):
+    """
+    Serializer for CareNoteComment model.
+    """
     author_name = serializers.SerializerMethodField()
     author_role = serializers.CharField(source='author.role', read_only=True)
     
@@ -24,6 +27,10 @@ class CareNoteCommentSerializer(serializers.ModelSerializer):
 
 
 class CareNoteSerializer(serializers.ModelSerializer):
+    """
+    Serializer for CareNote model.
+    Includes nested comments and read status.
+    """
     author_name = serializers.SerializerMethodField()
     author_role = serializers.CharField(source='author.role', read_only=True)
     patient_name = serializers.SerializerMethodField()

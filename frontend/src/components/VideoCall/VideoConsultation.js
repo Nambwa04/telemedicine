@@ -5,7 +5,19 @@ import { ZegoUIKitPrebuilt } from '@zegocloud/zego-uikit-prebuilt';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
-// Error boundary to catch SDK errors
+/**
+ * VideoConsultation Component
+ * 
+ * Provides a video consultation interface using ZegoCloud UIKit.
+ * 
+ * Features:
+ * - Handles room creation and joining logic
+ * - Manages video call state (waiting, connecting, connected, ended)
+ * - Integrates with ZegoCloud for real-time video/audio
+ * - Supports dark mode
+ * - Handles sidebar overlap issues during calls
+ * - Includes error boundary for SDK stability
+ */
 class VideoCallErrorBoundary extends React.Component {
     constructor(props) {
         super(props);

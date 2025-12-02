@@ -5,6 +5,19 @@ import { useAuth } from '../../context/AuthContext';
 import { fetchUserProfile, updateUserProfile } from '../../services/profileService';
 import { uploadMyVerificationDocument } from '../../services/verificationService';
 
+/**
+ * ProfileManagement Component
+ * 
+ * A comprehensive component for managing user profile settings.
+ * 
+ * Features:
+ * - Displays and edits personal information (name, contact, address)
+ * - Manages medical information for patients (blood type, allergies, conditions)
+ * - Handles professional profile verification for caregivers/doctors
+ * - Manages user preferences (notifications, privacy, regional settings)
+ * - Provides security settings (password change, account deletion)
+ * - Supports role-based views and editing capabilities
+ */
 const ProfileManagement = () => {
     const { user, updateUser, refreshUserProfile } = useAuth();
     const [activeTab, setActiveTab] = useState('profile');

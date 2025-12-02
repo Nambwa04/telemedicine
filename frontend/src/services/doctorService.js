@@ -1,3 +1,8 @@
+/**
+ * Service for doctor-related operations.
+ * Handles fetching doctors, managing doctor assignment requests, and related actions.
+ * Includes fallback mock data for development.
+ */
 import { createApiClient } from './apiClient';
 import API_BASE from '../config';
 

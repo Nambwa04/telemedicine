@@ -1,3 +1,8 @@
+/**
+ * Sidebar Component.
+ * Provides collapsible side navigation for authenticated users.
+ * Adapts menu items based on user role and handles mobile responsiveness.
+ */
 import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';

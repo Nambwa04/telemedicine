@@ -1,5 +1,8 @@
-// requestService.js
-// Production-only version (no mock fallback). All operations rely on backend CareRequest endpoints.
+/**
+ * Service for managing care requests.
+ * Handles listing, creating, updating status, and deleting care requests.
+ * Maps status updates to specific backend action endpoints.
+ */
 import { createApiClient } from './apiClient';
 import API_BASE from '../config';
 const api = createApiClient(

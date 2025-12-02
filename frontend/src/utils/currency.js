@@ -1,3 +1,7 @@
+/**
+ * Currency Formatter Utility.
+ * Formats numbers as Kenyan Shillings (Ksh).
+ */
 // Simple currency formatter for Kenyan Shillings (Ksh)
 // Usage: formatKsh(2500) => "Ksh 2,500"
 // Optionally control fraction digits: formatKsh(2500.5, { maximumFractionDigits: 2 })

@@ -11,6 +11,16 @@ import {
 } from '../services/timesheetService';
 import { fetchPatientList } from '../services/healthService';
 
+/**
+ * TimesheetPage Component
+ * 
+ * Manages weekly timesheets for caregivers.
+ * Allows clocking in/out, adding breaks, and submitting weekly timesheets.
+ * Displays a list of timesheet entries for the current week.
+ * 
+ * @component
+ * @returns {JSX.Element} The rendered TimesheetPage component.
+ */
 const TimesheetPage = () => {
     const [entries, setEntries] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -24,6 +34,9 @@ const TimesheetPage = () => {
     const [showBreakModal, setShowBreakModal] = useState(false);
     const [breakEntry, setBreakEntry] = useState(null);
 
+    /**
+     * Fetches the list of timesheet entries.
+     */
     const fetchEntries = async () => {
         setLoading(true);
         setError(null);
@@ -74,6 +87,10 @@ const TimesheetPage = () => {
         alert('Please clock in/out to track time. Edit functionality coming soon.');
     };
 
+    /**
+     * Deletes a timesheet entry.
+     * @param {number} id - The ID of the entry to delete.
+     */
     const handleDelete = async (id) => {
         if (!window.confirm('Are you sure you want to delete this entry?')) return;
         try {
@@ -86,6 +103,9 @@ const TimesheetPage = () => {
 
 
 
+    /**
+     * Submits the current week's draft entries for approval.
+     */
     const handleSubmitWeek = async () => {
         const draftEntries = entries.filter(e => e.status === 'draft');
         if (draftEntries.length === 0) {
@@ -109,6 +129,9 @@ const TimesheetPage = () => {
     const draftCount = entries.filter(e => e.status === 'draft').length;
     const activeEntry = entries.find(e => e.status === 'in-progress');
 
+    /**
+     * Opens the clock-in modal.
+     */
     const handleClockIn = () => {
         if (activeEntry) {
             alert('You already have an active entry in progress.');
@@ -118,6 +141,9 @@ const TimesheetPage = () => {
         setShowClockInModal(true);
     };
 
+    /**
+     * Submits the clock-in data to create a new timesheet entry.
+     */
     const handleClockInSubmit = async () => {
         if (!clockInData.client || !clockInData.rate) {
             alert('Please fill in all required fields');
@@ -135,6 +161,10 @@ const TimesheetPage = () => {
         }
     };
 
+    /**
+     * Clocks out the active timesheet entry.
+     * @param {Object} entry - The active entry to clock out.
+     */
     const handleClockOut = async (entry) => {
         if (!entry || entry.status !== 'in-progress') return;
         if (!window.confirm('Clock out now and finalize this entry?')) return;
@@ -146,11 +176,18 @@ const TimesheetPage = () => {
         }
     };
 
+    /**
+     * Opens the break modal for an active entry.
+     * @param {Object} entry - The active entry.
+     */
     const handleAddBreak = (entry) => {
         setBreakEntry({ ...entry });
         setShowBreakModal(true);
     };
 
+    /**
+     * Saves the break time for the active entry.
+     */
     const handleSaveBreak = async () => {
         if (!breakEntry) return;
         setSaving(true);

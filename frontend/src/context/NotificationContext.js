@@ -1,3 +1,8 @@
+/**
+ * Notification Context Provider.
+ * Manages global toast notifications.
+ * Provides methods to push and remove notifications.
+ */
 import React, { createContext, useContext, useCallback, useState } from 'react';
 
 const NotificationContext = createContext(null);

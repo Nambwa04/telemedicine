@@ -27,14 +27,24 @@ from .serializers import AppointmentSerializer
 from .permissions import IsDoctorOrOwner
 
 class IsParticipant(permissions.BasePermission):
+    """
+    Permission class to allow access only to participants (patient or doctor) or staff.
+    """
     def has_object_permission(self, request, view, obj):
         return obj.patient == request.user or obj.doctor == request.user or request.user.is_staff
 
 class AppointmentViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for viewing and editing appointments.
+    """
     # Schedule appointment (already handled by create)
 
     # Reschedule appointment
     def partial_update(self, request, *args, **kwargs):
+        """
+        Partially update an appointment.
+        Restricts rescheduling if the appointment is already completed or cancelled.
+        """
         instance = self.get_object()
         # Only allow reschedule if status is scheduled or in-progress
         if instance.status not in ['scheduled', 'in-progress']:
@@ -43,6 +53,9 @@ class AppointmentViewSet(viewsets.ModelViewSet):
 
     # Cancel appointment
     def cancel(self, request, pk=None):
+        """
+        Cancel an appointment.
+        """
         appointment = self.get_object()
         if appointment.status == 'cancelled':
             return Response({'detail': 'Appointment already cancelled.'}, status=400)
@@ -52,6 +65,9 @@ class AppointmentViewSet(viewsets.ModelViewSet):
 
     # Join video consultation (returns video link)
     def join_video(self, request, pk=None):
+        """
+        Get the video link for an appointment.
+        """
         appointment = self.get_object()
         if not appointment.video_link:
             return Response({'detail': 'No video link set for this appointment.'}, status=404)
@@ -73,6 +89,11 @@ class AppointmentViewSet(viewsets.ModelViewSet):
     ordering = ['date', 'time']
 
     def get_queryset(self):
+        """
+        Filter appointments by user role.
+        Patients see their own appointments.
+        Doctors see appointments for their assigned patients.
+        """
         qs = super().get_queryset()
         user = self.request.user
         if user.role == 'patient':
