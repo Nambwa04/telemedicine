@@ -19,6 +19,7 @@ const Register = () => {
     });
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+    const [agreedToTerms, setAgreedToTerms] = useState(false);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const { register, googleLogin } = useAuth();
@@ -57,6 +58,10 @@ const Register = () => {
         }
         if (formData.password.length < 6) {
             setError('Password must be at least 6 characters long');
+            return false;
+        }
+        if (!agreedToTerms) {
+            setError('You must agree to the Terms and Conditions to register');
             return false;
         }
         return true;
@@ -318,6 +323,20 @@ const Register = () => {
                             />
                         </Form.Group>
                     )}
+
+                    <Form.Group className="mb-3">
+                        <Form.Check
+                            type="checkbox"
+                            id="terms-checkbox"
+                            label={
+                                <span>
+                                    I agree to the <Link to="/terms" target="_blank">Terms and Conditions</Link>
+                                </span>
+                            }
+                            checked={agreedToTerms}
+                            onChange={(e) => setAgreedToTerms(e.target.checked)}
+                        />
+                    </Form.Group>
 
                     <Button
                         type="submit"

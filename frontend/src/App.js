@@ -12,6 +12,7 @@ import { fas } from '@fortawesome/free-solid-svg-icons';
 // Import components
 import Login from './components/Auth/Login';
 import Register from './components/Auth/Register';
+import TermsAndConditions from './pages/TermsAndConditions';
 import PasswordReset from './pages/PasswordReset';
 import PatientDashboard from './components/Dashboard/PatientDashboard';
 import DoctorDashboard from './components/Dashboard/DoctorDashboard';
@@ -60,7 +61,7 @@ function App() {
   const RouteDecider = ({ onHamburger }) => {
     const { user } = useAuth();
     const location = useLocation();
-    const publicPaths = ['/', '/login', '/register'];
+    const publicPaths = ['/', '/login', '/register', '/terms'];
     const noSidebarPaths = ['/video-call', '/video-calls'];
     const isPublic = publicPaths.includes(location.pathname);
     const noSidebar = noSidebarPaths.includes(location.pathname);
@@ -89,7 +90,7 @@ function App() {
   const MainWrapper = ({ children }) => {
     const { user } = useAuth();
     const location = useLocation();
-    const publicPaths = ['/', '/login', '/register'];
+    const publicPaths = ['/', '/login', '/register', '/terms'];
     const noSidebarPaths = ['/video-call', '/video-calls'];
     const isPublic = publicPaths.includes(location.pathname);
     const noSidebar = noSidebarPaths.includes(location.pathname);
@@ -112,6 +113,7 @@ function App() {
                   <Route path="/" element={<RootRoute />} />
                   <Route path="/login" element={<Login />} />
                   <Route path="/register" element={<Register />} />
+                  <Route path="/terms" element={<TermsAndConditions />} />
                   <Route path="/password-reset" element={<PasswordReset />} />
 
                   {/* Protected Routes */}
